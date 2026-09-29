@@ -3,6 +3,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 import { EventBus, globalEventBus, GameEvents } from './EventBus.js';
 import { InputManager } from './InputManager.js';
@@ -30,7 +31,10 @@ const LEVEL_CONFIGS = {
             roadWidth: 6,
             buildingSpacing: 8,
             maxFloors: 8,
-            streetLightEvery: 1
+            streetLightEvery: 1,
+            district: 'outskirts',
+            ruinLevel: 0.55,
+            terrainAmplitude: 9
         },
         spawnPoints: {
             player: [[0, 1, 10]],
@@ -85,7 +89,10 @@ const LEVEL_CONFIGS = {
             roadWidth: 8,
             buildingSpacing: 10,
             maxFloors: 15,
-            streetLightEvery: 1
+            streetLightEvery: 1,
+            district: 'downtown',
+            ruinLevel: 0.3,
+            terrainAmplitude: 5
         },
         spawnPoints: {
             player: [[0, 1, 0]],
@@ -106,7 +113,7 @@ const LEVEL_CONFIGS = {
             { type: 'gravitational', center: [100, 0, 0], radius: 20, count: 8 },
             { type: 'electrical', center: [-100, 0, 0], radius: 15, count: 5 }
         ],
-        weather: 'foggy',
+        weather: 'fog',
         time: { hour: 6, minute: 0 }
     },
     
@@ -119,7 +126,10 @@ const LEVEL_CONFIGS = {
             roadWidth: 8,
             buildingSpacing: 12,
             maxFloors: 5,
-            streetLightEvery: 2
+            streetLightEvery: 2,
+            district: 'industrial',
+            ruinLevel: 0.45,
+            terrainAmplitude: 6
         },
         spawnPoints: {
             player: [[0, 1, 0]],
@@ -149,7 +159,10 @@ const LEVEL_CONFIGS = {
             roadWidth: 7,
             buildingSpacing: 9,
             maxFloors: 12,
-            streetLightEvery: 1
+            streetLightEvery: 1,
+            district: 'outskirts',
+            ruinLevel: 0.75,
+            terrainAmplitude: 7
         },
         spawnPoints: {
             player: [[0, 1, 0]],
@@ -184,7 +197,7 @@ const LEVEL_CONFIGS = {
             { type: 'chemical', center: [100, 0, -100], radius: 15, count: 5 },
             { type: 'gravitational', center: [-100, 0, 100], radius: 22, count: 7 }
         ],
-        weather: 'stormy',
+        weather: 'thunderstorm',
         time: { hour: 22, minute: 0 }
     },
     
@@ -497,6 +510,11 @@ export class Game {
         
         const colorGradingPass = new ShaderPass(colorGradingShader);
         this.composer.addPass(colorGradingPass);
+
+        // Output pass: applies tone mapping + sRGB conversion.
+        // Without this, the composer writes raw linear HDR values to the
+        // canvas and the whole image renders nearly black.
+        this.composer.addPass(new OutputPass());
     }
 
     /**

@@ -3,18 +3,22 @@
   "version": "0.0.1",
   "description": "A S.T.A.L.K.E.R.-style FPS survival horror game built with Three.js",
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
-    "dev": "vite",
-    "start": "vite",
+    "app": "vite build && electron .",
+    "app:dev": "node scripts/electron-dev.cjs",
     "build": "vite build",
+    "dev": "vite",
+    "postinstall": "node scripts/setup.cjs",
     "preview": "vite preview",
     "setup": "node scripts/setup.cjs",
-    "postinstall": "node scripts/setup.cjs"
+    "start": "vite"
   },
   "dependencies": {
     "three": "^0.160.0"
   },
   "devDependencies": {
+    "electron": "^39.8.10",
     "vite": "^7.3.0"
   }
 }

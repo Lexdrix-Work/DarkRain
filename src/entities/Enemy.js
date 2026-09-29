@@ -390,14 +390,21 @@ export class Enemy extends Entity {
     }
 
     updateMovement(deltaTime) {
+        // Follow rolling terrain instead of assuming a flat world
+        let groundY = 0;
+        const wm = this.game && this.game.worldManager;
+        if (wm && typeof wm.getTerrainHeight === 'function') {
+            groundY = wm.getTerrainHeight(this.position.x, this.position.z);
+        }
+
         // Apply gravity (simplified)
-        if (this.position.y > 0) {
+        if (this.position.y > groundY + 0.02) {
             this.velocity.y -= 25 * deltaTime;
             this.position.y += this.velocity.y * deltaTime;
         }
-        
-        if (this.position.y < 0) {
-            this.position.y = 0;
+
+        if (this.position.y < groundY) {
+            this.position.y = groundY;
             this.velocity.y = 0;
         }
     }

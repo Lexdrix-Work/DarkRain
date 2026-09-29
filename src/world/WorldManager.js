@@ -323,9 +323,17 @@ export class WorldManager {
             maxFloors: cityData.maxFloors || 12,
             minFloors: cityData.minFloors || 2,
             damageLevel: cityData.damageLevel || 0.3,
+            // District identity drives architecture, palettes and ruin density
+            district: cityData.district || 'outskirts',
+            ruinLevel: cityData.ruinLevel !== undefined ? cityData.ruinLevel : 0.45,
+            // Rolling-hill terrain: amplitude in world units, flat urban-core radius
+            terrainAmplitude: cityData.terrainAmplitude !== undefined ? cityData.terrainAmplitude : 7,
+            terrainFlatRadius: cityData.terrainFlatRadius !== undefined ? cityData.terrainFlatRadius : 90,
+            terrainSeed: cityData.terrainSeed || 1337,
         };
 
         this.city = cfg;
+        this._initTerrain(cfg.terrainSeed + this._hashStr(cfg.district));
 
         const totalWidth = cfg.blocksX * cfg.blockSize + (cfg.blocksX + 1) * cfg.roadWidth;
         const totalDepth = cfg.blocksZ * cfg.blockSize + (cfg.blocksZ + 1) * cfg.roadWidth;
@@ -350,25 +358,132 @@ export class WorldManager {
     }
 
     /**
-     * Create the ground plane
+     * Simple string hash for terrain seeding
+     */
+    _hashStr(s) {
+        let h = 2166136261;
+        for (let i = 0; i < s.length; i++) {
+            h ^= s.charCodeAt(i);
+            h = Math.imul(h, 16777619);
+        }
+        return h >>> 0;
+    }
+
+    /**
+     * Initialize seeded terrain noise (deterministic hills per district/zone)
+     */
+    _initTerrain(seed) {
+        let s = (seed >>> 0) || 1;
+        this._terrainRand = function() {
+            s |= 0; s = (s + 0x6D2B79F5) | 0;
+            let t = Math.imul(s ^ (s >>> 15), 1 | s);
+            t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+        const p = new Uint8Array(256);
+        for (let i = 0; i < 256; i++) p[i] = i;
+        for (let i = 255; i > 0; i--) {
+            const j = Math.floor(this._terrainRand() * (i + 1));
+            const tmp = p[i]; p[i] = p[j]; p[j] = tmp;
+        }
+        this._noisePerm = new Uint8Array(512);
+        for (let i = 0; i < 512; i++) this._noisePerm[i] = p[i & 255];
+        this._terrainReady = true;
+    }
+
+    _valueNoise2D(x, z) {
+        const xi = Math.floor(x), zi = Math.floor(z);
+        const xf = x - xi, zf = z - zi;
+        const u = xf * xf * (3 - 2 * xf);
+        const v = zf * zf * (3 - 2 * zf);
+        const perm = this._noisePerm;
+        const X = xi & 255, Z = zi & 255;
+        const aa = perm[(perm[X] + Z) & 255] / 255;
+        const ba = perm[(perm[(X + 1) & 255] + Z) & 255] / 255;
+        const ab = perm[(perm[X] + Z + 1) & 255] / 255;
+        const bb = perm[(perm[(X + 1) & 255] + Z + 1) & 255] / 255;
+        return aa + (ba - aa) * u + (ab - aa) * v + (aa - ba - ab + bb) * u * v;
+    }
+
+    _fbm2(x, z, octaves) {
+        let sum = 0, amp = 0.5, freq = 1, norm = 0;
+        for (let i = 0; i < octaves; i++) {
+            sum += amp * this._valueNoise2D(x * freq, z * freq);
+            norm += amp; amp *= 0.5; freq *= 2.03;
+        }
+        return sum / norm;
+    }
+
+    /**
+     * Terrain height at (x, z). Hills rise toward the outskirts while the
+     * urban core stays gently rolling so streets remain walkable.
+     * O(1) analytic query - safe to call before generation (returns 0).
+     */
+    getTerrainHeight(x, z) {
+        if (!this._terrainReady) return 0;
+        const cfg = this.city || {};
+        const amplitude = cfg.terrainAmplitude !== undefined ? cfg.terrainAmplitude : 7;
+        const hills = (this._fbm2(x * 0.012 + 31.7, z * 0.012 - 11.3, 4) - 0.5) * 2 * amplitude;
+        const undulation = (this._fbm2(x * 0.06 - 5.1, z * 0.06 + 17.9, 2) - 0.5) * 2 * 1.2;
+        const d = Math.sqrt(x * x + z * z);
+        const flatRadius = cfg.terrainFlatRadius !== undefined ? cfg.terrainFlatRadius : 90;
+        const m = Math.min(1, Math.max(0, (d - flatRadius) / 130));
+        const eased = m * m * (3 - 2 * m);
+        return hills * eased + undulation * (0.2 + 0.8 * eased);
+    }
+
+    /**
+     * Create rolling-hill terrain with vertex-color variation
      */
     createGround(width, depth) {
-        const groundGeom = new THREE.PlaneGeometry(width + 200, depth + 200);
-        
+        const size = Math.max(width, depth) + 500;
+        const segs = 150;
+        const groundGeom = new THREE.PlaneGeometry(size, size, segs, segs);
+        groundGeom.rotateX(-Math.PI / 2);
+
+        const pos = groundGeom.attributes.position;
+        const colors = new Float32Array(pos.count * 3);
+        const cDirt = new THREE.Color(0x4a4238);
+        const cDryGrass = new THREE.Color(0x5c5a38);
+        const cConcrete = new THREE.Color(0x5a574e);
+        const cScorch = new THREE.Color(0x2b2723);
+        const tmp = new THREE.Color();
+
+        for (let i = 0; i < pos.count; i++) {
+            const x = pos.getX(i);
+            const z = pos.getZ(i);
+            const h = this.getTerrainHeight(x, z);
+            pos.setY(i, h - 0.15);
+
+            const n = this._fbm2(x * 0.03 + 91.2, z * 0.03 - 47.8, 3);
+            const grassiness = Math.min(1, Math.max(0, (h + 1.5) / 9));
+            tmp.copy(cDirt).lerp(cDryGrass, grassiness * 0.75);
+            if (n > 0.60) tmp.lerp(cConcrete, 0.55);
+            else if (n < 0.32) tmp.lerp(cScorch, 0.6);
+
+            colors[i * 3] = tmp.r;
+            colors[i * 3 + 1] = tmp.g;
+            colors[i * 3 + 2] = tmp.b;
+        }
+        groundGeom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        groundGeom.computeVertexNormals();
+
         const groundMat = new THREE.MeshStandardMaterial({
-            color: 0x4a4840,
-            roughness: 0.95,
+            vertexColors: true,
+            roughness: 0.96,
             metalness: 0.0
         });
-        
+
         const ground = new THREE.Mesh(groundGeom, groundMat);
-        ground.rotation.x = -Math.PI / 2;
-        ground.position.y = -0.1;
         ground.receiveShadow = true;
         ground.userData = { type: 'ground', isCollidable: true, isGround: true };
         this.scene.add(ground);
         this._cityObjects.push(ground);
         this.colliders.push(ground);
+        // Kept as a direct reference: bullets raycast it via the collision
+        // grid helpers, while the per-frame player ground check skips it
+        // (45k triangles) and uses the analytic getTerrainHeight instead.
+        this.terrainMesh = ground;
     }
 
     /**
@@ -401,7 +516,7 @@ export class WorldManager {
         
         const road = new THREE.Mesh(roadGeom, roadMat);
         road.rotation.x = -Math.PI / 2;
-        road.position.set(x, 0.02, z);
+        road.position.set(x, this.getTerrainHeight(x, z) + 0.05, z);
         road.receiveShadow = true;
         road.userData = { type: 'road', isCollidable: true, isGround: true };
         this.scene.add(road);
@@ -429,7 +544,7 @@ export class WorldManager {
             const crack = new THREE.Mesh(crackGeom, crackMat);
             crack.rotation.x = -Math.PI / 2;
             crack.rotation.z = Math.random() * Math.PI;
-            crack.position.set(crackX, 0.025, crackZ);
+            crack.position.set(crackX, this.getTerrainHeight(crackX, crackZ) + 0.06, crackZ);
             this.scene.add(crack);
             this._cityObjects.push(crack);
         }
@@ -443,7 +558,7 @@ export class WorldManager {
             const holeMat = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 1 });
             const hole = new THREE.Mesh(holeGeom, holeMat);
             hole.rotation.x = -Math.PI / 2;
-            hole.position.set(holeX, 0.015, holeZ);
+            hole.position.set(holeX, this.getTerrainHeight(holeX, holeZ) + 0.055, holeZ);
             this.scene.add(hole);
             this._cityObjects.push(hole);
         }
@@ -464,7 +579,8 @@ export class WorldManager {
                 const dashMat = new THREE.MeshBasicMaterial({ color: markingColor });
                 const dash = new THREE.Mesh(dashGeom, dashMat);
                 dash.rotation.x = -Math.PI / 2;
-                dash.position.set(x - width / 2 + 3 + i * 6, 0.025, z);
+                const dx = x - width / 2 + 3 + i * 6;
+                dash.position.set(dx, this.getTerrainHeight(dx, z) + 0.06, z);
                 this.scene.add(dash);
                 this._cityObjects.push(dash);
             }
@@ -477,7 +593,8 @@ export class WorldManager {
                 const dashMat = new THREE.MeshBasicMaterial({ color: markingColor });
                 const dash = new THREE.Mesh(dashGeom, dashMat);
                 dash.rotation.x = -Math.PI / 2;
-                dash.position.set(x, 0.025, z - depth / 2 + 3 + i * 6);
+                const dz = z - depth / 2 + 3 + i * 6;
+                dash.position.set(x, this.getTerrainHeight(x, dz) + 0.06, dz);
                 this.scene.add(dash);
                 this._cityObjects.push(dash);
             }
@@ -524,39 +641,74 @@ export class WorldManager {
                 const offsetX = (Math.random() - 0.5) * 2;
                 const offsetZ = (Math.random() - 0.5) * 2;
 
+                const district = cfg.district || 'outskirts';
+                const bx = buildingX + offsetX;
+                const bz = buildingZ + offsetZ;
+                const ruin = cfg.ruinLevel || 0;
+
+                // Industrial districts get warehouses instead of tenements
+                if (district === 'industrial' && Math.random() < 0.45) {
+                    const wW = 10 + Math.random() * 10;
+                    const wD = 8 + Math.random() * 8;
+                    this.createWarehouse(bx, bz, wW, wD);
+                    continue;
+                }
+
+                // Suburban districts get houses with pitched roofs
+                if (district === 'suburban' && Math.random() < 0.7) {
+                    const hW = 5 + Math.random() * 3;
+                    const hD = 5 + Math.random() * 3;
+                    const hFloors = 1 + Math.floor(Math.random() * 2);
+                    const hDamaged = Math.random() < cfg.damageLevel + ruin * 0.3;
+                    this.createBuilding(bx, bz, hW, hD, hFloors, hDamaged, hDamaged ? 0 : -1, district, 'pitched');
+                    continue;
+                }
+
                 const floors = cfg.minFloors + Math.floor(Math.random() * (cfg.maxFloors - cfg.minFloors));
                 const buildingWidth = 4 + Math.random() * (spacing - 5);
                 const buildingDepth = 4 + Math.random() * (spacing - 5);
-                
-                const isDamaged = Math.random() < cfg.damageLevel;
+
+                const isDamaged = Math.random() < cfg.damageLevel + ruin * 0.35;
                 const damageType = isDamaged ? Math.floor(Math.random() * 3) : -1;
 
                 this.createBuilding(
-                    buildingX + offsetX,
-                    buildingZ + offsetZ,
+                    bx,
+                    bz,
                     buildingWidth,
                     buildingDepth,
                     floors,
                     isDamaged,
-                    damageType
+                    damageType,
+                    district,
+                    'flat'
                 );
             }
+        }
+
+        if ((cfg.district || 'outskirts') === 'industrial' && Math.random() < 0.55) {
+            const chX = blockX + (Math.random() - 0.5) * blockSize * 0.7;
+            const chZ = blockZ + (Math.random() - 0.5) * blockSize * 0.7;
+            this.createChimney(chX, chZ, 14 + Math.random() * 14);
         }
 
         this.createBlockSidewalks(blockX, blockZ, blockSize, cfg.roadWidth);
     }
 
     /**
-     * Create building material with guaranteed visibility
+     * Create building material with guaranteed visibility.
+     * Palettes vary per district for a less monotonous skyline.
      */
-    createBuildingMaterial() {
-        const colors = [
-            0x8a8a8a, 0x9a9590, 0x8a8580, 0xa09a94,
-            0x909090, 0x988a7a, 0xb0a898,
-        ];
-        
+    createBuildingMaterial(district = 'outskirts') {
+        const palettes = {
+            downtown:   [0x8a94a0, 0x9aa2ae, 0x7a8494, 0xa0a8b4, 0x8b95a5, 0x6a7688],
+            outskirts:  [0x8a7a6a, 0x9a6a5a, 0x7a6a5a, 0x8a5a4a, 0x9a8a7a, 0x8a8a8a],
+            industrial: [0x7a6a5a, 0x6a5a4a, 0x8a7a6a, 0x5a5a5a, 0x74624e, 0x656058],
+            suburban:   [0xa09a8a, 0xb0a890, 0x98a098, 0xa8b0b8, 0xc0b090, 0x9a8a7a],
+        };
+        const colors = palettes[district] || palettes.outskirts;
+
         const color = colors[Math.floor(Math.random() * colors.length)];
-        
+
         return new THREE.MeshStandardMaterial({
             color: color,
             roughness: 0.85 + Math.random() * 0.1,
@@ -568,27 +720,35 @@ export class WorldManager {
      * Create a building with optional damage
      * ALL BUILDING PARTS NOW HAVE COLLISION
      */
-    createBuilding(x, z, width, depth, floors, isDamaged, damageType) {
+    createBuilding(x, z, width, depth, floors, isDamaged, damageType, district = 'outskirts', roofStyle = 'flat') {
         const floorHeight = 3;
         const baseHeight = floors * floorHeight;
-        
+
         let actualHeight = baseHeight;
         if (isDamaged && damageType === 0) {
             actualHeight = baseHeight * (0.3 + Math.random() * 0.5);
         }
 
         const group = new THREE.Group();
-        group.position.set(x, 0, z);
+        group.position.set(x, this.getTerrainHeight(x, z), z);
 
-        const material = isDamaged 
-            ? this.materials.damaged 
-            : this.createBuildingMaterial();
+        const material = isDamaged
+            ? this.materials.damaged
+            : this.createBuildingMaterial(district);
+
+        // Tall ruined buildings can collapse into jagged concrete towers
+        const ruin = (this.city && this.city.ruinLevel) || 0;
+        let builtRuinedTower = false;
 
         // Main building body with collision
         if (isDamaged && damageType === 1) {
             this.createDamagedLBuilding(group, width, depth, actualHeight, material);
         } else if (isDamaged && damageType === 2) {
             this.createBuildingWithHole(group, width, depth, actualHeight, material);
+        } else if (isDamaged && floors >= 7 && Math.random() < 0.35 + ruin * 0.35) {
+            this.createDestroyedHighrise(group, width, depth, baseHeight, material);
+            actualHeight = baseHeight;
+            builtRuinedTower = true;
         } else {
             const bodyGeom = new THREE.BoxGeometry(width, actualHeight, depth);
             const body = new THREE.Mesh(bodyGeom, material);
@@ -602,13 +762,15 @@ export class WorldManager {
 
         this.addBuildingWindows(group, width, depth, actualHeight, floors, isDamaged);
 
-        if (!isDamaged || Math.random() > 0.5) {
+        if (roofStyle === 'pitched' && floors <= 3) {
+            this.addPitchedRoof(group, width, depth, actualHeight, district);
+        } else if (!isDamaged || Math.random() > 0.5) {
             this.addRoofDetails(group, width, depth, actualHeight);
         }
 
         this.addGroundFloorDetails(group, width, depth);
 
-        if (isDamaged) {
+        if (isDamaged && !builtRuinedTower) {
             this.addBuildingRubble(group, width, depth);
         }
 
@@ -627,13 +789,13 @@ export class WorldManager {
         this.colliders.push(group);
         
         // Also create a simple collision box for the building
-        this.createBuildingCollider(x, z, width, depth, actualHeight);
+        this.createBuildingCollider(x, z, width, depth, actualHeight, group.position.y);
     }
 
     /**
      * Create an invisible collision box for a building
      */
-    createBuildingCollider(x, z, width, depth, height) {
+    createBuildingCollider(x, z, width, depth, height, groundY = 0) {
         const colliderGeom = new THREE.BoxGeometry(width, height, depth);
         const colliderMat = new THREE.MeshBasicMaterial({ 
             visible: false,
@@ -641,7 +803,7 @@ export class WorldManager {
             opacity: 0
         });
         const collider = new THREE.Mesh(colliderGeom, colliderMat);
-        collider.position.set(x, height / 2, z);
+        collider.position.set(x, groundY + height / 2, z);
         collider.userData = { 
             isCollidable: true, 
             type: 'buildingCollider',
@@ -876,6 +1038,279 @@ export class WorldManager {
     /**
      * Create sidewalks around a block
      */
+    /**
+     * Jagged collapsed high-rise: stacked concrete slabs of shrinking
+     * footprint with exposed rebar and a rubble apron at the base.
+     */
+    createDestroyedHighrise(group, width, depth, height, material) {
+        const segments = 3 + Math.floor(Math.random() * 3);
+        let y = 0;
+        for (let i = 0; i < segments; i++) {
+            const t = i / segments;
+            const w = width * (1 - t * (0.35 + Math.random() * 0.3));
+            const d = depth * (1 - t * (0.35 + Math.random() * 0.3));
+            const h = (height / segments) * (0.7 + Math.random() * 0.6);
+            const segGeom = new THREE.BoxGeometry(w, h, d);
+            const seg = new THREE.Mesh(segGeom, material);
+            seg.position.set(
+                (Math.random() - 0.5) * width * 0.25,
+                y + h / 2,
+                (Math.random() - 0.5) * depth * 0.25
+            );
+            seg.rotation.y = (Math.random() - 0.5) * 0.15;
+            seg.castShadow = true;
+            seg.receiveShadow = true;
+            seg.userData = { isCollidable: true, type: 'building' };
+            group.add(seg);
+
+            // Exposed rebar jutting from the broken top of each segment
+            const rebarCount = 2 + Math.floor(Math.random() * 4);
+            for (let r = 0; r < rebarCount; r++) {
+                const rh = 0.8 + Math.random() * 1.6;
+                const rebarGeom = new THREE.CylinderGeometry(0.03, 0.03, rh, 5);
+                const rebar = new THREE.Mesh(rebarGeom, this.materials.rustyMetal);
+                rebar.position.set(
+                    (Math.random() - 0.5) * w * 0.7,
+                    y + h + rh / 2 - 0.2,
+                    (Math.random() - 0.5) * d * 0.7
+                );
+                rebar.rotation.set((Math.random() - 0.5) * 0.5, 0, (Math.random() - 0.5) * 0.5);
+                group.add(rebar);
+            }
+            y += h;
+        }
+        this.addBuildingRubble(group, width * 1.25, depth * 1.25);
+    }
+
+    /**
+     * Pitched (gable) roof for houses and warehouses - extruded triangle prism
+     */
+    addPitchedRoof(group, width, depth, height, district = 'outskirts') {
+        const roofH = 1.2 + Math.random() * 1.4;
+        const shape = new THREE.Shape();
+        shape.moveTo(-width / 2 - 0.3, 0);
+        shape.lineTo(width / 2 + 0.3, 0);
+        shape.lineTo(0, roofH);
+        shape.closePath();
+        const roofGeom = new THREE.ExtrudeGeometry(shape, { depth: depth + 0.6, bevelEnabled: false });
+        roofGeom.translate(0, 0, -(depth + 0.6) / 2);
+        const roofColors = {
+            suburban: 0x6a4a3a, outskirts: 0x5a4a3a,
+            industrial: 0x4a4a4a, downtown: 0x5a5a5a
+        };
+        const roofMat = new THREE.MeshStandardMaterial({
+            color: roofColors[district] || 0x5a4a3a,
+            roughness: 0.9,
+            metalness: 0.05
+        });
+        const roof = new THREE.Mesh(roofGeom, roofMat);
+        roof.position.y = height;
+        roof.castShadow = true;
+        roof.receiveShadow = true;
+        group.add(roof);
+    }
+
+    /**
+     * Industrial warehouse: wide low shed with cargo door, roof vents, pitched roof
+     */
+    createWarehouse(x, z, w, d) {
+        const gy = this.getTerrainHeight(x, z);
+        const group = new THREE.Group();
+        group.position.set(x, gy, z);
+
+        const wallH = 5 + Math.random() * 3;
+        const material = this.createBuildingMaterial('industrial');
+        const body = new THREE.Mesh(new THREE.BoxGeometry(w, wallH, d), material);
+        body.position.y = wallH / 2;
+        body.castShadow = true;
+        body.receiveShadow = true;
+        body.userData = { isCollidable: true, type: 'warehouse' };
+        group.add(body);
+
+        // Cargo door
+        const doorGeom = new THREE.PlaneGeometry(Math.min(4, w * 0.4), 3.5);
+        const door = new THREE.Mesh(doorGeom, this.materials.rustyMetal);
+        door.position.set(0, 1.75, d / 2 + 0.03);
+        group.add(door);
+
+        // Roof vents
+        const ventCount = 1 + Math.floor(Math.random() * 3);
+        for (let i = 0; i < ventCount; i++) {
+            const vent = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.4, 0.5, 1.2, 8),
+                this.materials.rustyMetal
+            );
+            vent.position.set(
+                (Math.random() - 0.5) * w * 0.6,
+                wallH + 0.6,
+                (Math.random() - 0.5) * d * 0.6
+            );
+            vent.castShadow = true;
+            group.add(vent);
+        }
+
+        this.addPitchedRoof(group, w, d, wallH, 'industrial');
+
+        if (Math.random() < 0.4) {
+            this.addBuildingRubble(group, w * 0.8, d * 0.8);
+        }
+
+        group.userData = { type: 'warehouse', isCollidable: true };
+        group.userData.bounds = { width: w, depth: d, height: wallH + 2 };
+        this.scene.add(group);
+        this._cityObjects.push(group);
+        this.colliders.push(group);
+        this.createBuildingCollider(x, z, w, d, wallH + 2, gy);
+    }
+
+    /**
+     * Factory chimney with a rust-red warning band near the top
+     */
+    createChimney(x, z, h = 18) {
+        const gy = this.getTerrainHeight(x, z);
+        const group = new THREE.Group();
+        group.position.set(x, gy, z);
+
+        const chim = new THREE.Mesh(
+            new THREE.CylinderGeometry(1.1, 1.6, h, 10),
+            this.materials.debris
+        );
+        chim.position.y = h / 2;
+        chim.castShadow = true;
+        chim.userData = { isCollidable: true, type: 'chimney' };
+        group.add(chim);
+
+        const band = new THREE.Mesh(
+            new THREE.CylinderGeometry(1.16, 1.22, 1.2, 10),
+            new THREE.MeshStandardMaterial({ color: 0x8a2a1a, roughness: 0.8 })
+        );
+        band.position.y = h - 2;
+        group.add(band);
+
+        group.userData = { type: 'chimney', isCollidable: true };
+        this.scene.add(group);
+        this._cityObjects.push(group);
+        this.colliders.push(group);
+        this.createBuildingCollider(x, z, 3.4, 3.4, h, gy);
+    }
+
+    /**
+     * Blast crater: scorched bowl with a raised rim of rubble
+     */
+    createCrater(x, z, radius) {
+        const gy = this.getTerrainHeight(x, z);
+        const group = new THREE.Group();
+        group.position.set(x, gy, z);
+
+        const bowl = new THREE.Mesh(
+            new THREE.CircleGeometry(radius, 20),
+            new THREE.MeshStandardMaterial({ color: 0x1c1a17, roughness: 1 })
+        );
+        bowl.rotation.x = -Math.PI / 2;
+        bowl.position.y = 0.06;
+        bowl.receiveShadow = true;
+        group.add(bowl);
+
+        const rimCount = Math.floor(radius * 4);
+        for (let i = 0; i < rimCount; i++) {
+            const a = (i / rimCount) * Math.PI * 2 + Math.random() * 0.3;
+            const rr = radius * (0.85 + Math.random() * 0.35);
+            const s = 0.3 + Math.random() * radius * 0.25;
+            const rock = new THREE.Mesh(
+                new THREE.DodecahedronGeometry(s, 0),
+                this.materials.debris
+            );
+            rock.position.set(Math.cos(a) * rr, s * 0.3, Math.sin(a) * rr);
+            rock.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+            rock.castShadow = true;
+            group.add(rock);
+        }
+
+        group.userData = { type: 'crater' };
+        this.scene.add(group);
+        this._cityObjects.push(group);
+    }
+
+    /**
+     * Scatter blast craters across the zone, scaled by ruin level
+     */
+    addCraters(cfg, totalWidth, totalDepth) {
+        const ruin = cfg.ruinLevel || 0;
+        const count = Math.floor(ruin * 16);
+        for (let i = 0; i < count; i++) {
+            const x = (Math.random() - 0.5) * totalWidth * 0.95;
+            const z = (Math.random() - 0.5) * totalDepth * 0.95;
+            this.createCrater(x, z, 2.5 + Math.random() * 4);
+        }
+    }
+
+    /**
+     * Leaning collapsed concrete slab - call with a parent group and local coords
+     */
+    createCollapsedSlab(parent, x, y, z, scale = 1) {
+        const w = (2 + Math.random() * 3) * scale;
+        const h = (0.4 + Math.random() * 0.5) * scale;
+        const d = (1.5 + Math.random() * 2.5) * scale;
+        const slab = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), this.materials.debris);
+        slab.position.set(x, y + h / 2, z);
+        slab.rotation.set((Math.random() - 0.5) * 0.9, Math.random() * Math.PI, (Math.random() - 0.5) * 0.9);
+        slab.castShadow = true;
+        slab.receiveShadow = true;
+        parent.add(slab);
+        return slab;
+    }
+
+    /**
+     * Rocks and dead grass tufts on the hills (instanced - 2 draw calls)
+     */
+    addTerrainScatter(totalWidth, totalDepth) {
+        const dummy = new THREE.Object3D();
+
+        const rockGeom = new THREE.DodecahedronGeometry(1, 0);
+        const rockMat = new THREE.MeshStandardMaterial({ color: 0x5b564c, roughness: 0.95 });
+        const rockCount = 130;
+        const rocks = new THREE.InstancedMesh(rockGeom, rockMat, rockCount);
+        let placed = 0, guard = 0;
+        while (placed < rockCount && guard++ < rockCount * 30) {
+            const x = (Math.random() - 0.5) * (totalWidth + 320);
+            const z = (Math.random() - 0.5) * (totalDepth + 320);
+            if (Math.hypot(x, z) < 95) continue;
+            const s = 0.35 + Math.random() * 1.5;
+            dummy.position.set(x, this.getTerrainHeight(x, z) + s * 0.25, z);
+            dummy.rotation.set(Math.random() * 0.5, Math.random() * Math.PI * 2, Math.random() * 0.5);
+            dummy.scale.set(s * (0.7 + Math.random() * 0.7), s * 0.75, s * (0.7 + Math.random() * 0.7));
+            dummy.updateMatrix();
+            rocks.setMatrixAt(placed++, dummy.matrix);
+        }
+        rocks.count = placed;
+        rocks.castShadow = true;
+        rocks.receiveShadow = true;
+        this.scene.add(rocks);
+        this._cityObjects.push(rocks);
+
+        const tuftGeom = new THREE.PlaneGeometry(1.1, 0.7);
+        tuftGeom.translate(0, 0.35, 0);
+        const tuftMat = new THREE.MeshStandardMaterial({ color: 0x6e6440, roughness: 1, side: THREE.DoubleSide });
+        const tuftCount = 260;
+        const tufts = new THREE.InstancedMesh(tuftGeom, tuftMat, tuftCount);
+        placed = 0; guard = 0;
+        while (placed < tuftCount && guard++ < tuftCount * 30) {
+            const x = (Math.random() - 0.5) * (totalWidth + 320);
+            const z = (Math.random() - 0.5) * (totalDepth + 320);
+            if (Math.hypot(x, z) < 70) continue;
+            const s = 0.6 + Math.random() * 1.1;
+            dummy.position.set(x, this.getTerrainHeight(x, z), z);
+            dummy.rotation.set(0, Math.random() * Math.PI, 0);
+            dummy.scale.set(s, s * (0.7 + Math.random() * 0.6), s);
+            dummy.updateMatrix();
+            tufts.setMatrixAt(placed++, dummy.matrix);
+        }
+        tufts.count = placed;
+        tufts.receiveShadow = true;
+        this.scene.add(tufts);
+        this._cityObjects.push(tufts);
+    }
+
     createBlockSidewalks(blockX, blockZ, blockSize, roadWidth) {
         const sidewalkWidth = 2;
         const sidewalkHeight = 0.15;
@@ -890,7 +1325,7 @@ export class WorldManager {
         for (const [x, z, w, d] of positions) {
             const sidewalkGeom = new THREE.BoxGeometry(w, sidewalkHeight, d);
             const sidewalk = new THREE.Mesh(sidewalkGeom, this.materials.sidewalk);
-            sidewalk.position.set(x, sidewalkHeight / 2, z);
+            sidewalk.position.set(x, this.getTerrainHeight(x, z) + sidewalkHeight / 2, z);
             sidewalk.receiveShadow = true;
             sidewalk.userData = { type: 'sidewalk', isCollidable: true, isGround: true };
             this.scene.add(sidewalk);
@@ -904,9 +1339,10 @@ export class WorldManager {
      */
     createDebrisPile(x, z) {
         const group = new THREE.Group();
-        group.position.set(x, 0, z);
-        
-        const pieceCount = 10 + Math.floor(Math.random() * 15);
+        group.position.set(x, this.getTerrainHeight(x, z), z);
+
+        const ruin = (this.city && this.city.ruinLevel) || 0;
+        const pieceCount = 10 + Math.floor(Math.random() * 15) + Math.floor(ruin * 12);
         
         for (let i = 0; i < pieceCount; i++) {
             const size = 0.3 + Math.random() * 1;
@@ -931,6 +1367,21 @@ export class WorldManager {
             group.add(piece);
         }
         
+        // Collapsed slabs in heavily ruined zones
+        const ruinLvl = (this.city && this.city.ruinLevel) || 0;
+        if (Math.random() < ruinLvl) {
+            const slabCount = 1 + Math.floor(Math.random() * 2);
+            for (let s = 0; s < slabCount; s++) {
+                this.createCollapsedSlab(
+                    group,
+                    (Math.random() - 0.5) * 4,
+                    0.1,
+                    (Math.random() - 0.5) * 4,
+                    0.8 + Math.random() * 0.7
+                );
+            }
+        }
+
         group.userData = { type: 'debris', isCollidable: true };
         this.scene.add(group);
         this._cityObjects.push(group);
@@ -945,6 +1396,8 @@ export class WorldManager {
         this.addAbandonedVehicles(cfg, totalWidth, totalDepth);
         this.addRoadDebris(totalWidth, totalDepth);
         this.addDeadTrees(cfg, totalWidth, totalDepth);
+        this.addCraters(cfg, totalWidth, totalDepth);
+        this.addTerrainScatter(totalWidth, totalDepth);
     }
 
     /**
@@ -982,7 +1435,7 @@ export class WorldManager {
      */
     createLamppost(x, z, isBent) {
         const group = new THREE.Group();
-        group.position.set(x, 0, z);
+        group.position.set(x, this.getTerrainHeight(x, z), z);
         
         const poleHeight = 4;
         const poleRadius = 0.1;
@@ -1024,13 +1477,13 @@ export class WorldManager {
         this.colliders.push(group);
         
         // Create dedicated collision cylinder for the pole
-        this.createPoleCollider(x, z, poleRadius, poleHeight);
+        this.createPoleCollider(x, z, poleRadius, poleHeight, group.position.y);
     }
 
     /**
      * Create an invisible collision cylinder for a pole
      */
-    createPoleCollider(x, z, radius, height) {
+    createPoleCollider(x, z, radius, height, groundY = 0) {
         const colliderGeom = new THREE.CylinderGeometry(radius + 0.1, radius + 0.15, height, 8);
         const colliderMat = new THREE.MeshBasicMaterial({ 
             visible: false,
@@ -1038,7 +1491,7 @@ export class WorldManager {
             opacity: 0
         });
         const collider = new THREE.Mesh(colliderGeom, colliderMat);
-        collider.position.set(x, height / 2, z);
+        collider.position.set(x, groundY + height / 2, z);
         collider.userData = { 
             isCollidable: true, 
             type: 'poleCollider',
@@ -1070,7 +1523,7 @@ export class WorldManager {
      */
     createAbandonedVehicle(x, z) {
         const group = new THREE.Group();
-        group.position.set(x, 0, z);
+        group.position.set(x, this.getTerrainHeight(x, z), z);
         group.rotation.y = Math.random() * Math.PI * 2;
         
         const isVan = Math.random() > 0.7;
@@ -1134,13 +1587,13 @@ export class WorldManager {
         this.colliders.push(group);
         
         // Create dedicated collision box for the vehicle
-        this.createVehicleCollider(x, z, length, width, height, group.rotation.y);
+        this.createVehicleCollider(x, z, length, width, height, group.rotation.y, group.position.y);
     }
 
     /**
      * Create an invisible collision box for a vehicle
      */
-    createVehicleCollider(x, z, length, width, height, rotationY) {
+    createVehicleCollider(x, z, length, width, height, rotationY, groundY = 0) {
         const colliderGeom = new THREE.BoxGeometry(length, height + 0.5, width);
         const colliderMat = new THREE.MeshBasicMaterial({ 
             visible: false,
@@ -1148,7 +1601,7 @@ export class WorldManager {
             opacity: 0
         });
         const collider = new THREE.Mesh(colliderGeom, colliderMat);
-        collider.position.set(x, (height + 0.5) / 2 + 0.3, z);
+        collider.position.set(x, groundY + (height + 0.5) / 2 + 0.3, z);
         collider.rotation.y = rotationY;
         collider.userData = { 
             isCollidable: true, 
@@ -1170,6 +1623,7 @@ export class WorldManager {
         for (let i = 0; i < debrisCount; i++) {
             const x = (Math.random() - 0.5) * totalWidth;
             const z = (Math.random() - 0.5) * totalDepth;
+            const gy = this.getTerrainHeight(x, z);
             
             const debrisType = Math.floor(Math.random() * 4);
             
@@ -1177,10 +1631,10 @@ export class WorldManager {
                 // Barrel with collision
                 const barrelGeom = new THREE.CylinderGeometry(0.4, 0.4, 1, 12);
                 const barrel = new THREE.Mesh(barrelGeom, this.materials.rustyMetal);
-                barrel.position.set(x, 0.5, z);
+                barrel.position.set(x, gy + 0.5, z);
                 if (Math.random() > 0.5) {
                     barrel.rotation.x = Math.PI / 2;
-                    barrel.position.y = 0.4;
+                    barrel.position.y = gy + 0.4;
                 }
                 barrel.castShadow = true;
                 barrel.receiveShadow = true;
@@ -1193,7 +1647,7 @@ export class WorldManager {
                 const crateGeom = new THREE.BoxGeometry(0.8, 0.8, 0.8);
                 const crateMat = new THREE.MeshStandardMaterial({ color: 0x4a4035, roughness: 0.9 });
                 const crate = new THREE.Mesh(crateGeom, crateMat);
-                crate.position.set(x, 0.4, z);
+                crate.position.set(x, gy + 0.4, z);
                 crate.rotation.y = Math.random() * Math.PI;
                 crate.castShadow = true;
                 crate.receiveShadow = true;
@@ -1206,7 +1660,7 @@ export class WorldManager {
                 const trashGeom = new THREE.ConeGeometry(0.5, 0.4, 6);
                 const trashMat = new THREE.MeshStandardMaterial({ color: 0x2a2a25, roughness: 1 });
                 const trash = new THREE.Mesh(trashGeom, trashMat);
-                trash.position.set(x, 0.2, z);
+                trash.position.set(x, gy + 0.2, z);
                 trash.castShadow = true;
                 this.scene.add(trash);
                 this._cityObjects.push(trash);
@@ -1218,7 +1672,7 @@ export class WorldManager {
                     0.5 + Math.random() * 0.5
                 );
                 const block = new THREE.Mesh(blockGeom, this.materials.debris);
-                block.position.set(x, 0.2, z);
+                block.position.set(x, gy + 0.2, z);
                 block.rotation.y = Math.random() * Math.PI;
                 block.castShadow = true;
                 block.receiveShadow = true;
@@ -1250,7 +1704,7 @@ export class WorldManager {
      */
     createDeadTree(x, z) {
         const group = new THREE.Group();
-        group.position.set(x, 0, z);
+        group.position.set(x, this.getTerrainHeight(x, z), z);
         
         const height = 3 + Math.random() * 4;
         const trunkRadius = 0.15;
@@ -1298,36 +1752,52 @@ export class WorldManager {
         this.colliders.push(group);
         
         // Create collision cylinder for tree trunk
-        this.createPoleCollider(x, z, trunkRadius, height);
+        this.createPoleCollider(x, z, trunkRadius, height, group.position.y);
     }
 
     /**
      * Load terrain mesh (fallback if no city)
      */
     async loadTerrain(terrainData) {
+        // Seeded rolling hills for the wilderness zone
+        this._initTerrain((terrainData.seed || 777) + this._hashStr('wilderness'));
+        this.city = {
+            terrainAmplitude: terrainData.hillAmplitude || 14,
+            terrainFlatRadius: 40,
+            district: 'wilderness',
+            ruinLevel: 0.15
+        };
+
         const geometry = new THREE.PlaneGeometry(
             terrainData.width || 500,
             terrainData.depth || 500,
             terrainData.segments || 50,
             terrainData.segments || 50
         );
-        
+        geometry.rotateX(-Math.PI / 2);
+
+        const pos = geometry.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+            pos.setY(i, this.getTerrainHeight(pos.getX(i), pos.getZ(i)));
+        }
+        geometry.computeVertexNormals();
+
         const material = new THREE.MeshStandardMaterial({
             color: terrainData.color || 0x3d3d35,
             roughness: 0.95,
             metalness: 0.0
         });
-        
+
         const terrain = new THREE.Mesh(geometry, material);
-        terrain.rotation.x = -Math.PI / 2;
         terrain.receiveShadow = true;
         terrain.userData.type = 'terrain';
         terrain.userData.isCollidable = true;
         terrain.userData.isGround = true;
-        
+
         this.scene.add(terrain);
         this.colliders.push(terrain);
         this._cityObjects.push(terrain);
+        this.terrainMesh = terrain;
     }
 
     /**
@@ -1415,7 +1885,13 @@ export class WorldManager {
                 }
             }
         }
-        
+
+        // The terrain mesh sits in a single grid cell - always include it
+        // so bullets and LOS checks collide with hills anywhere.
+        if (this.terrainMesh && !result.includes(this.terrainMesh)) {
+            result.push(this.terrainMesh);
+        }
+
         return result;
     }
 
@@ -1744,6 +2220,12 @@ export class WorldManager {
             }
         }
         
+        // The terrain mesh sits in a single grid cell - always include it
+        // so bullets collide with hills anywhere along the ray.
+        if (this.terrainMesh) {
+            result.add(this.terrainMesh);
+        }
+
         return Array.from(result);
     }
 
@@ -1919,6 +2401,9 @@ export class WorldManager {
      */
     clearLevel() {
         console.log('Clearing level...');
+
+        this.terrainMesh = null;
+        this._terrainReady = false;
         
         // Remove entities
         for (const entity of this.entities.values()) {
@@ -2104,40 +2589,11 @@ export class WorldManager {
     }
 
     /**
-     * Get ground height at position
+     * Analytic ground height - O(1), no raycast. Used by the player
+     * ground fallback and enemy movement on rolling terrain.
      */
     getGroundHeight(x, z) {
-        const raycaster = new THREE.Raycaster(
-            new THREE.Vector3(x, 100, z),
-            new THREE.Vector3(0, -1, 0)
-        );
-        
-        // Get nearby ground colliders
-        const nearbyColliders = this.getNearbyColliders(new THREE.Vector3(x, 0, z), 20);
-        const groundColliders = nearbyColliders.filter(c => 
-            c.userData?.isGround || 
-            c.userData?.type === 'ground' || 
-            c.userData?.type === 'terrain' ||
-            c.userData?.type === 'road' ||
-            c.userData?.type === 'sidewalk'
-        );
-        
-        const intersects = raycaster.intersectObjects(
-            groundColliders.length > 0 ? groundColliders : this.colliders, 
-            true
-        );
-        
-        for (const hit of intersects) {
-            if (hit.object.userData?.type === 'ground' || 
-                hit.object.userData?.type === 'terrain' ||
-                hit.object.userData?.type === 'road' ||
-                hit.object.userData?.type === 'sidewalk' ||
-                hit.object.userData?.isGround) {
-                return hit.point.y;
-            }
-        }
-        
-        return 0;
+        return this.getTerrainHeight(x, z);
     }
 
     /**

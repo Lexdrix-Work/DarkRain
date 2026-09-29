@@ -164,7 +164,7 @@ export class UIManager {
         `;
         this.elements.flashlightUI.style.cssText = `
             position: fixed;
-            bottom: 80px;
+            bottom: 20px;
             left: 20px;
             display: none;
             background: rgba(0,0,0,0.6);

@@ -202,7 +202,7 @@ export class WeatherSystem {
         this.transitionDuration = duration;
         this.transitionProgress = 0;
         
-        const preset = this.presets[weatherType];
+        const preset = this.presets[weatherType] || this.presets[WeatherType.OVERCAST];
         this.targetParams = {
             cloudDensity: preset.cloudDensity,
             fogDensity: preset.fogDensity,

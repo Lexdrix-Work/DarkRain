@@ -378,8 +378,15 @@ export class Player extends Entity {
         
         const ray = new THREE.Raycaster(rayOrigin, new THREE.Vector3(0, -1, 0));
         ray.far = this.groundCheckDistance + 0.1;
-        
+
+        // Skip the high-poly terrain mesh in this per-frame raycast (45k
+        // triangles); analytic terrain height is blended in below instead.
+        // Bullets and AI still raycast the terrain via WorldManager helpers.
+        const terrainMesh = this.world.terrainMesh;
+        const savedTerrainRaycast = terrainMesh ? terrainMesh.raycast : null;
+        if (terrainMesh) terrainMesh.raycast = () => {};
         const intersections = ray.intersectObjects(this.world.scene.children, true);
+        if (terrainMesh) terrainMesh.raycast = savedTerrainRaycast;
         
         let foundGround = false;
         let groundY = this.position.y;
@@ -414,6 +421,18 @@ export class Player extends Entity {
             }
         }
         
+        // Blend in analytic terrain height (terrain mesh was skipped above)
+        if (typeof this.world.getTerrainHeight === 'function') {
+            const analyticY = this.world.getTerrainHeight(this.position.x, this.position.z);
+            const tDist = this.position.y - analyticY;
+            if (tDist < this.groundCheckDistance && tDist > -0.1 && this.velocity.y <= 0.1) {
+                if (!foundGround || analyticY > groundY) {
+                    foundGround = true;
+                    groundY = analyticY;
+                }
+            }
+        }
+
         if (foundGround) {
             this.position.y = groundY;
             this.velocity.y = 0;

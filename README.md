@@ -4,10 +4,24 @@ A S.T.A.L.K.E.R.-inspired survival horror game built with Three.js and Vite. Exp
 anomaly-ridden city, manage hunger/thirst/radiation, fight mutants and hostile stalkers, take on
 quests, and trade with NPCs.
 
-## Quick start
+## Quick start — desktop app (recommended, like Solar Explorer)
 
 ```bash
 npm install   # installs deps and scaffolds asset/src folders (postinstall)
+npm run app   # builds and launches the game in its own desktop window
+```
+
+For development with hot reload:
+
+```bash
+npm run app:dev  # starts Vite, then opens the game in an Electron window
+```
+
+No browser needed — the game runs in its own window on your GPU.
+
+## Quick start — browser (optional)
+
+```bash
 npm run dev   # start the dev server (http://localhost:3000)
 npm run build # production build into dist/
 npm run preview
@@ -51,6 +65,8 @@ kept as optional modules; the live game generates its city through `WorldManager
 
 | Command          | What it does                              |
 |------------------|-------------------------------------------|
+| `npm run app`    | Build + launch the desktop app (Electron) |
+| `npm run app:dev`| Dev server + desktop app with hot reload  |
 | `npm run dev`    | Vite dev server with HMR                  |
 | `npm run build`  | Production build to `dist/`               |
 | `npm run preview`| Serve the production build                |

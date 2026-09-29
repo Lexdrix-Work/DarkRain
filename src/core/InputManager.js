@@ -322,7 +322,16 @@ export class InputManager {
      */
     requestPointerLock() {
         if (this.canvas && !this.mouse.locked) {
-            this.canvas.requestPointerLock();
+            try {
+                const result = this.canvas.requestPointerLock();
+                // Chrome returns a promise that rejects without a user gesture;
+                // the click-to-lock fallback covers that case.
+                if (result && typeof result.catch === "function") {
+                    result.catch(() => {});
+                }
+            } catch (_) {
+                // Pointer lock unavailable (e.g. no user gesture yet) - ignore.
+            }
         }
     }
 
