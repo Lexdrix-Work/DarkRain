@@ -1,0 +1,732 @@
+/* ============================================
+   STALKER GAME - MAIN STYLESHEET
+   ============================================ */
+
+/* Reset & Base */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --color-primary: #c4a000;
+    --color-primary-dark: #8b7000;
+    --color-danger: #ff0000;
+    --color-success: #00ff00;
+    --color-warning: #ff8800;
+    --color-info: #4488ff;
+    --color-background: #0a0a0a;
+    --color-panel: rgba(20, 20, 20, 0.95);
+    --color-text: #e0e0e0;
+    --font-main: 'Courier New', Consolas, monospace;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: var(--color-background);
+    font-family: var(--font-main);
+    color: var(--color-primary);
+    cursor: default;
+}
+
+/* Game Container */
+#game-container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+}
+
+#game-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+/* ============================================
+   HUD STYLES
+   ============================================ */
+
+#hud {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 10;
+}
+
+/* Crosshair */
+#crosshair {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 24px;
+    color: rgba(255, 255, 255, 0.7);
+    text-shadow: 0 0 5px rgba(0, 0, 0, 0.8);
+    user-select: none;
+}
+
+/* Stat Bars */
+.stat-bar {
+    position: absolute;
+    left: 20px;
+    width: 200px;
+    height: 20px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(196, 160, 0, 0.5);
+    overflow: hidden;
+}
+
+#health-bar { top: 20px; }
+#stamina-bar { top: 50px; }
+#radiation-bar { top: 80px; }
+
+.bar-fill {
+    height: 100%;
+    transition: width 0.3s ease;
+}
+
+#health-fill {
+    width: 100%;
+    background: linear-gradient(90deg, #8b0000, #ff0000);
+}
+
+#stamina-fill {
+    width: 100%;
+    background: linear-gradient(90deg, #006400, #00ff00);
+}
+
+#radiation-fill {
+    width: 0%;
+    background: linear-gradient(90deg, #556b2f, #9acd32);
+}
+
+.bar-label {
+    position: absolute;
+    top: 50%;
+    left: 10px;
+    transform: translateY(-50%);
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.8);
+    text-shadow: 1px 1px 2px black;
+    letter-spacing: 1px;
+}
+
+.stat-bar.warning {
+    animation: warningPulse 0.5s ease-in-out infinite;
+}
+
+@keyframes warningPulse {
+    0%, 100% { border-color: rgba(196, 160, 0, 0.5); }
+    50% { border-color: rgba(255, 0, 0, 0.8); }
+}
+
+/* Ammo Display */
+#ammo-display {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    font-size: 28px;
+    color: var(--color-primary);
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+    font-weight: bold;
+}
+
+#current-ammo {
+    font-size: 36px;
+}
+
+/* Compass */
+#compass {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 300px;
+    height: 30px;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(196, 160, 0, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    letter-spacing: 3px;
+}
+
+/* Interaction Prompt */
+#interaction-prompt {
+    position: absolute;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 10px 20px;
+    background: rgba(0, 0, 0, 0.7);
+    border: 1px solid var(--color-primary);
+    font-size: 14px;
+    text-align: center;
+}
+
+/* Flashlight */
+.flashlight-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.flashlight-icon {
+    font-size: 20px;
+}
+
+.battery-bar {
+    width: 60px;
+    height: 12px;
+    background: #333;
+    border: 1px solid #666;
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.battery-fill {
+    height: 100%;
+    width: 100%;
+    background: #4a4;
+    transition: width 0.3s, background 0.3s;
+}
+
+.battery-text {
+    font-size: 12px;
+    min-width: 35px;
+}
+
+/* Quest Tracker */
+#quest-tracker {
+    position: absolute;
+    top: 120px;
+    right: 20px;
+    width: 250px;
+    background: rgba(0, 0, 0, 0.5);
+    border-left: 2px solid var(--color-primary);
+    padding: 10px;
+}
+
+#quest-tracker h3 {
+    font-size: 12px;
+    color: var(--color-primary);
+    margin-bottom: 8px;
+    letter-spacing: 2px;
+}
+
+#quest-info {
+    font-size: 12px;
+    color: var(--color-text);
+    line-height: 1.6;
+}
+
+/* Status Effects */
+#status-effects {
+    position: absolute;
+    left: 20px;
+    top: 120px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.status-effect {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 3px;
+    font-size: 11px;
+}
+
+.status-effect.negative {
+    border-left: 2px solid var(--color-danger);
+}
+
+.status-effect.positive {
+    border-left: 2px solid var(--color-success);
+}
+
+/* ============================================
+   INVENTORY PANEL
+   ============================================ */
+
+#inventory-panel {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 700px;
+    height: 500px;
+    background: var(--color-panel);
+    border: 2px solid var(--color-primary);
+    padding: 20px;
+    pointer-events: auto;
+    z-index: 100;
+}
+
+#inventory-panel h2 {
+    font-size: 18px;
+    color: var(--color-primary);
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(196, 160, 0, 0.3);
+    letter-spacing: 3px;
+}
+
+#inventory-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 8px;
+    margin-bottom: 15px;
+}
+
+.inventory-slot {
+    aspect-ratio: 1;
+    background: rgba(50, 50, 50, 0.5);
+    border: 1px solid rgba(196, 160, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.inventory-slot:hover {
+    background: rgba(196, 160, 0, 0.2);
+    border-color: var(--color-primary);
+}
+
+.inventory-slot.has-item {
+    background: rgba(60, 60, 60, 0.8);
+}
+
+.inventory-slot .item-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+}
+
+.inventory-slot .item-name {
+    font-size: 8px;
+    margin-top: 4px;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}
+
+.inventory-slot .item-count {
+    position: absolute;
+    bottom: 2px;
+    right: 4px;
+    font-size: 10px;
+    color: white;
+    text-shadow: 1px 1px 2px black;
+}
+
+#inventory-info {
+    padding-top: 10px;
+    border-top: 1px solid rgba(196, 160, 0, 0.3);
+    font-size: 12px;
+    color: var(--color-text);
+}
+
+/* ============================================
+   NOTIFICATION AREA
+   ============================================ */
+
+#notification-area {
+    position: absolute;
+    top: 120px;
+    left: 20px;
+    width: 350px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    pointer-events: none;
+}
+
+.notification {
+    background: rgba(0, 0, 0, 0.8);
+    border-left: 3px solid var(--color-primary);
+    padding: 12px 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: slideIn 0.3s ease-out;
+    font-size: 13px;
+}
+
+.notification-info { border-color: var(--color-info); }
+.notification-warning { border-color: var(--color-warning); }
+.notification-danger { border-color: var(--color-danger); }
+.notification-success { border-color: var(--color-success); }
+
+.notification-icon {
+    font-size: 16px;
+}
+
+.notification-text {
+    flex: 1;
+    color: var(--color-text);
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* ============================================
+   MENUS (UNIFIED SYSTEM)
+   ============================================ */
+
+/* Base menu styling */
+.menu {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--color-panel);
+    border: 2px solid var(--color-primary);
+    padding: 20px;
+    z-index: 1000;
+    min-width: 400px;
+    min-height: 300px;
+    display: flex;
+    flex-direction: column;
+}
+
+.menu.hidden {
+    display: none !important;
+}
+
+.menu.visible {
+    display: flex !important;
+}
+
+.menu-header {
+    border-bottom: 1px solid rgba(196, 160, 0, 0.3);
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+}
+
+.menu-header h2 {
+    margin: 0;
+    color: var(--color-primary);
+    font-size: 18px;
+    letter-spacing: 2px;
+}
+
+.menu-content {
+    flex: 1;
+    overflow-y: auto;
+}
+
+/* Specific menu types */
+#pause-menu {
+    background: rgba(0, 0, 0, 0.85);
+}
+
+#main-menu {
+    background: linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 100%);
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+}
+
+#death-screen {
+    background: rgba(20, 0, 0, 0.9);
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Menu buttons */
+.menu-button {
+    display: block;
+    width: 100%;
+    padding: 15px 20px;
+    margin: 8px 0;
+    background: rgba(196, 160, 0, 0.1);
+    border: 1px solid var(--color-primary);
+    color: var(--color-primary);
+    font-family: var(--font-main);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-align: center;
+}
+
+.menu-button:hover {
+    background: rgba(196, 160, 0, 0.3);
+    transform: scale(1.02);
+}
+
+.menu-button:active {
+    transform: scale(0.98);
+}
+
+.menu-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Death Screen Specific */
+.death-content h1 {
+    font-size: 72px;
+    color: var(--color-danger);
+    text-shadow: 0 0 30px rgba(255, 0, 0, 0.5);
+    margin-bottom: 20px;
+}
+
+#death-reason {
+    font-size: 16px;
+    color: var(--color-text);
+    margin-bottom: 40px;
+}
+
+/* Main Menu Specific */
+.menu-background {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: url('/assets/main-menu-bg.jpg') no-repeat center center;
+    background-size: cover;
+    filter: brightness(0.4);
+}
+
+.menu-content {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+}
+
+.game-title {
+    font-size: 48px;
+    color: var(--color-primary);
+    margin-bottom: 10px;
+    letter-spacing: 5px;
+    text-shadow: 0 0 20px rgba(196, 160, 0, 0.5);
+}
+
+.game-subtitle {
+    font-size: 18px;
+    color: rgba(196, 160, 0, 0.7);
+    margin-bottom: 40px;
+    letter-spacing: 3px;
+}
+
+.menu-buttons {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    width: 100%;
+}
+
+/* ============================================
+   LOADING SCREEN
+   ============================================ */
+
+#loading-screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--color-background);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+#loading-screen.hidden {
+    display: none;
+}
+
+.loading-content {
+    text-align: center;
+    max-width: 500px;
+}
+
+.loading-content h1 {
+    font-size: 36px;
+    color: var(--color-primary);
+    margin-bottom: 40px;
+    letter-spacing: 5px;
+    animation: glow 2s ease-in-out infinite;
+}
+
+@keyframes glow {
+    0%, 100% { text-shadow: 0 0 10px rgba(196, 160, 0, 0.3); }
+    50% { text-shadow: 0 0 20px rgba(196, 160, 0, 0.6); }
+}
+
+.loading-bar {
+    width: 400px;
+    height: 4px;
+    background: rgba(196, 160, 0, 0.2);
+    margin: 0 auto;
+    overflow: hidden;
+}
+
+.loading-progress {
+    width: 0%;
+    height: 100%;
+    background: var(--color-primary);
+    transition: width 0.3s ease;
+}
+
+#loading-text {
+    margin-top: 20px;
+    color: rgba(196, 160, 0, 0.7);
+    font-size: 14px;
+}
+
+.loading-tips {
+    margin-top: 60px;
+    padding: 20px;
+    background: rgba(196, 160, 0, 0.1);
+    border-left: 2px solid var(--color-primary);
+}
+
+#loading-tip {
+    font-size: 13px;
+    color: var(--color-text);
+    line-height: 1.6;
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
+.hidden {
+    display: none !important;
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.fade-out {
+    animation: fadeOut 0.3s ease-out forwards;
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(196, 160, 0, 0.5);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(196, 160, 0, 0.7);
+}
+
+/* Selection styling */
+::selection {
+    background: rgba(196, 160, 0, 0.3);
+    color: white;
+}
+
+/* Context Menu */
+.item-context-menu {
+    position: absolute;
+    background: rgba(20, 20, 20, 0.95);
+    border: 1px solid #c4a000;
+    padding: 5px 0;
+    z-index: 1000;
+    min-width: 200px;
+}
+
+.context-menu-option {
+    padding: 8px 20px;
+    cursor: pointer;
+    color: #c4a000;
+}
+
+.context-menu-option:hover {
+    background: rgba(196, 160, 0, 0.2);
+}
+
+/* Settings Panel */
+#settings-panel {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(20, 20, 20, 0.95);
+    border: 2px solid #c4a000;
+    padding: 30px;
+    min-width: 400px;
+    color: #c4a000;
+    font-family: 'Courier New', monospace;
+    z-index: 1001;
+}
+
+.settings-section {
+    margin-bottom: 25px;
+}
+
+.settings-section h3 {
+    margin-bottom: 15px;
+    color: #c4a000;
+    border-bottom: 1px solid #444;
+    padding-bottom: 5px;
+}
+
+.setting-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.settings-buttons {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 20px;
+}

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Dark Rain: Pool of Darkness - A S.T.A.L.K.E.R.-inspired survival horror game">
+    <title>Dark Rain: Pool of Darkness</title>
+    <link rel="stylesheet" href="/src/styles/main.css">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0a0a'/%3E%3Ctext x='16' y='23' font-size='20' text-anchor='middle' fill='%23c4a000'%3E%E2%98%82%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+        
+        <!-- HUD Overlay -->
+        <div id="hud">
+            <div id="crosshair">+</div>
+            
+            <div id="health-bar" class="stat-bar">
+                <div class="bar-fill" id="health-fill"></div>
+                <span class="bar-label">HEALTH</span>
+            </div>
+            
+            <div id="stamina-bar" class="stat-bar">
+                <div class="bar-fill" id="stamina-fill"></div>
+                <span class="bar-label">STAMINA</span>
+            </div>
+            
+            <div id="radiation-bar" class="stat-bar">
+                <div class="bar-fill" id="radiation-fill"></div>
+                <span class="bar-label">RADIATION</span>
+            </div>
+            
+            <div id="ammo-display">
+                <span id="current-ammo">30</span> / <span id="reserve-ammo">120</span>
+            </div>
+            
+            <div id="compass"></div>
+            
+            <div id="interaction-prompt" class="hidden">
+                Press [E] to interact
+            </div>
+            
+            <div id="notification-area"></div>
+            
+            <div id="quest-tracker">
+                <h3>ACTIVE QUEST</h3>
+                <div id="quest-info"></div>
+            </div>
+            
+            <div id="status-effects"></div>
+        </div>
+        
+        <!-- Inventory Menu -->
+        <div id="inventory-menu" class="menu hidden">
+            <div class="menu-header">
+                <h2>INVENTORY</h2>
+            </div>
+            <div id="inventory-container" class="menu-content">
+                <div id="inventory-grid"></div>
+                <div id="inventory-info">
+                    <span id="weight-display">Weight: 0/50 kg</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Map Menu -->
+        <div id="map-menu" class="menu hidden">
+            <div class="menu-header">
+                <h2>MAP</h2>
+            </div>
+            <div class="menu-content">
+                <!-- Map content -->
+                <div id="map-container" style="width: 100%; height: 400px; background: #0a0a0a; border: 1px solid #333; position: relative;">
+                    <div id="player-location" style="position: absolute; width: 10px; height: 10px; background: #ff0000; border-radius: 50%;"></div>
+                </div>
+                <div class="map-controls">
+                    <button id="map-zoom-in">+</button>
+                    <button id="map-zoom-out">-</button>
+                    <button id="map-toggle">Toggle Points</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Pause Menu -->
+        <div id="pause-menu" class="menu hidden">
+            <div class="menu-header">
+                <h2>PAUSED</h2>
+            </div>
+            <div class="menu-content">
+                <button id="resume-btn" class="menu-button">Resume</button>
+                <button id="save-btn" class="menu-button">Save Game</button>
+                <button id="load-btn" class="menu-button">Load Game</button>
+                <button id="settings-btn" class="menu-button">Settings</button>
+                <button id="quit-btn" class="menu-button">Quit to Menu</button>
+            </div>
+        </div>
+        
+        <!-- Loading Screen -->
+        <div id="loading-screen">
+            <div class="loading-content">
+                <h1>ENTERING THE DARKNESS</h1>
+                <div class="loading-bar">
+                    <div class="loading-progress" id="loading-progress"></div>
+                </div>
+                <p id="loading-text">Initializing...</p>
+                <div class="loading-tips">
+                    <p id="loading-tip">Tip: Stay away from anomalies unless you have a detector.</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Menu (shown before game starts) -->
+        <div id="main-menu" class="hidden">
+            <div class="menu-background"></div>
+            <div class="menu-content">
+                <h1 class="game-title">Dark Rain</h1>
+                <h2 class="game-subtitle">Pool of Darkness</h2>
+                <div class="menu-buttons">
+                    <button id="new-game-btn" class="menu-button">New Game</button>
+                    <button id="continue-btn" class="menu-button">Continue</button>
+                    <button id="load-game-btn" class="menu-button">Load Game</button>
+                    <button id="options-btn" class="menu-button">Options</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Death Screen -->
+        <div id="death-screen" class="hidden">
+            <div class="death-content">
+                <h1>YOU DIED</h1>
+                <p id="death-reason">The Zone claims another stalker...</p>
+                <button id="reload-btn" class="menu-button">Load Last Save</button>
+                <button id="main-menu-btn" class="menu-button">Main Menu</button>
+            </div>
+        </div>
+    </div>
+    
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html>
