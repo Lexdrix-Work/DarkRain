@@ -347,6 +347,8 @@ function showWebGLError() {
  * Show error message
  */
 function showError(message) {
+    if (window.__drBootWatchdog) clearTimeout(window.__drBootWatchdog);
+    window.__drBooted = true; // boot ended (with an error) — suppress the watchdog overlay
     const loadingScreen = document.getElementById('loading-screen');
     if (loadingScreen) {
         loadingScreen.innerHTML = `
@@ -442,6 +444,8 @@ async function main() {
         await game.init();
         
         console.log('✓ Game initialized successfully');
+        window.__drBooted = true;
+        if (window.__drBootWatchdog) clearTimeout(window.__drBootWatchdog);
         
         // Request pointer lock after initialization
         if (game.inputManager) {

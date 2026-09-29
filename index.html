@@ -136,6 +136,31 @@
         </div>
     </div>
     
+    <!-- Boot watchdog: if the game module never finishes booting (black screen),
+         replace silence with a diagnostic message. Cleared by main.js on success. -->
+    <div id="boot-error" style="display:none; position:fixed; inset:0; z-index:99999;
+         background:#0a0a0a; color:#e8e0c8; font-family:monospace;
+         align-items:center; justify-content:center; text-align:center; padding:40px;">
+        <div>
+            <h2 style="color:#c4a000;">DARK RAIN failed to start</h2>
+            <p id="boot-error-detail">The game did not finish loading. Check the console (F12) for errors.</p>
+            <p style="opacity:0.7; font-size:12px;">If this is the desktop build, try deleting the<br>save data folder and relaunching.</p>
+        </div>
+    </div>
+    <script>
+        window.__drBootWatchdog = setTimeout(function () {
+            if (!window.__drBooted) {
+                var d = document.getElementById('boot-error');
+                if (d) d.style.display = 'flex';
+                var det = document.getElementById('boot-error-detail');
+                if (det && window.__drBootFailure) det.textContent = window.__drBootFailure;
+            }
+        }, 20000);
+        window.addEventListener('error', function (e) {
+            window.__drBootFailure = 'Error: ' + (e.message || 'unknown') +
+                (e.filename ? ' in ' + e.filename.split('/').pop() : '');
+        }, true);
+    </script>
     <script type="module" src="/src/main.js"></script>
 </body>
 </html>

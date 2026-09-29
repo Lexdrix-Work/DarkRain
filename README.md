@@ -8,7 +8,8 @@ quests, and trade with NPCs.
 
 ```bash
 npm install   # installs deps and scaffolds asset/src folders (postinstall)
-npm run app   # builds and launches the game in its own desktop window
+npm start     # builds and launches the game in its own desktop window (no browser)
+npm run dist  # packaged installer + portable exe in release/ (Windows)
 ```
 
 For development with hot reload:
@@ -63,11 +64,13 @@ kept as optional modules; the live game generates its city through `WorldManager
 
 ## Scripts
 
-| Command          | What it does                              |
-|------------------|-------------------------------------------|
-| `npm run app`    | Build + launch the desktop app (Electron) |
-| `npm run app:dev`| Dev server + desktop app with hot reload  |
-| `npm run dev`    | Vite dev server with HMR                  |
-| `npm run build`  | Production build to `dist/`               |
-| `npm run preview`| Serve the production build                |
-| `npm run setup`  | Re-create asset/src folder scaffolding    |
+| Command          | What it does                                       |
+|------------------|----------------------------------------------------|
+| `npm start`      | Build + launch the desktop app (Electron)          |
+| `npm run app`    | Same as `npm start`                                |
+| `npm run dist`   | Packaged Windows installer + portable exe (`release/`) |
+| `npm run app:dev`| Dev server + desktop app with hot reload           |
+| `npm run dev`    | Vite dev server with HMR                           |
+| `npm run build`  | Production build to `dist/`                        |
+| `npm run preview`| Serve the production build                         |
+| `npm run setup`  | Re-create asset/src folder scaffolding             |
