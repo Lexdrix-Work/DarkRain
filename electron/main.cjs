@@ -10,6 +10,12 @@ const path = require('path');
 const isDev = process.argv.includes('--dev');
 const DEV_URL = 'http://127.0.0.1:5173';
 
+// Software WebGL fallback: Chromium 137+ removed the silent SwiftShader
+// fallback, so machines with blocklisted/unavailable GPUs get no WebGL
+// context at all (black canvas after New Game). This re-enables the
+// software fallback. Harmless when hardware WebGL works.
+app.commandLine.appendSwitch('enable-unsafe-swiftshader');
+
 function createWindow() {
     const win = new BrowserWindow({
         width: 1600,
