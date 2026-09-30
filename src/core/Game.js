@@ -357,6 +357,9 @@ export class Game {
             
             // Set camera reference
             this.camera = this.player.camera;
+            // Camera must be in the scene graph for its children (gun viewmodel,
+            // audio listener) to render and update their world matrices
+            this.scene.add(this.player.camera);
             
             // Initialize flashlight system
             this.flashlightSystem = new FlashlightSystem(this);
@@ -790,8 +793,8 @@ export class Game {
             }
         }
         
-        // Check for pause input
-        if (this.inputManager && this.inputManager.isActionJustPressed('pause')) {
+        // Check for pause input (not while sitting at the main menu)
+        if (this.inputManager && this.gameState !== 'menu' && this.inputManager.isActionJustPressed('pause')) {
             if (this.isPaused) {
                 this.resume();
             } else {

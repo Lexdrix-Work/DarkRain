@@ -134,43 +134,81 @@ export class Weapon {
     }
 
     createMesh() {
-        // Placeholder weapon mesh - replace with loaded model
+        // Low-poly FPS viewmodel, built per weapon type. -Z is forward.
         const group = new THREE.Group();
-        
-        // Main body
-        const bodyGeom = new THREE.BoxGeometry(0.05, 0.1, 0.4);
-        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
-        const body = new THREE.Mesh(bodyGeom, bodyMat);
-        group.add(body);
-        
-        // Handle
-        const handleGeom = new THREE.BoxGeometry(0.04, 0.12, 0.08);
-        const handle = new THREE.Mesh(handleGeom, bodyMat);
-        handle.position.set(0, -0.08, 0.1);
-        handle.rotation.x = -0.3;
-        group.add(handle);
-        
-        // Barrel
-        const barrelGeom = new THREE.CylinderGeometry(0.015, 0.015, 0.2, 8);
-        const barrel = new THREE.Mesh(barrelGeom, bodyMat);
-        barrel.rotation.x = Math.PI / 2;
-        barrel.position.set(0, 0, -0.3);
-        group.add(barrel);
-        
-        // Muzzle flash
-        const flashGeom = new THREE.SphereGeometry(0.05, 8, 8);
-        const flashMat = new THREE.MeshBasicMaterial({
-            color: 0xffff00,
-            transparent: true,
-            opacity: 0
-        });
+        // Note: no environment map in the scene, so keep metalness low -
+        // high metalness renders near-black without env reflections.
+        const metal = new THREE.MeshStandardMaterial({ color: 0x3d3d44, metalness: 0.3, roughness: 0.5 });
+        const darkMetal = new THREE.MeshStandardMaterial({ color: 0x26262b, metalness: 0.25, roughness: 0.6 });
+        const wood = new THREE.MeshStandardMaterial({ color: 0x6e4a2c, metalness: 0.05, roughness: 0.8 });
+        const polymer = new THREE.MeshStandardMaterial({ color: 0x303036, metalness: 0.1, roughness: 0.85 });
+
+        const box = (w, h, d, mat, x, y, z, rx = 0) => {
+            const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+            m.position.set(x, y, z);
+            m.rotation.x = rx;
+            group.add(m);
+            return m;
+        };
+        const tube = (r1, r2, len, mat, x, y, z) => {
+            const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, len, 10), mat);
+            m.rotation.x = Math.PI / 2;
+            m.position.set(x, y, z);
+            group.add(m);
+            return m;
+        };
+
+        const type = this.data.type;
+        if (type === 'pistol') {
+            box(0.055, 0.07, 0.24, metal, 0, 0.02, -0.05);          // slide
+            box(0.05, 0.05, 0.05, darkMetal, 0, 0.065, -0.15);       // front sight block
+            box(0.012, 0.025, 0.012, darkMetal, 0, 0.095, -0.155);   // front sight post
+            box(0.05, 0.13, 0.055, polymer, 0, -0.07, 0.045, -0.25); // grip
+            box(0.045, 0.02, 0.1, darkMetal, 0, -0.025, -0.02);      // trigger guard
+        } else if (type === 'rifle') {
+            box(0.06, 0.09, 0.5, metal, 0, 0, -0.1);                 // receiver
+            box(0.055, 0.07, 0.28, wood, 0, -0.01, -0.42);           // handguard
+            tube(0.016, 0.016, 0.22, darkMetal, 0, 0.01, -0.62);     // barrel
+            box(0.012, 0.05, 0.012, darkMetal, 0, 0.06, -0.68);      // front sight
+            box(0.05, 0.14, 0.06, metal, 0, -0.1, -0.12, 0.5);       // curved magazine
+            box(0.055, 0.11, 0.22, wood, 0, -0.03, 0.22, 0.15);      // stock
+            box(0.045, 0.02, 0.09, darkMetal, 0, -0.055, 0.02);       // trigger guard
+            box(0.04, 0.03, 0.06, wood, 0, -0.02, -0.02, -0.3);      // pistol grip
+        } else if (type === 'shotgun') {
+            tube(0.02, 0.02, 0.62, metal, 0, 0.015, -0.3);           // barrel
+            tube(0.024, 0.024, 0.3, wood, 0, -0.035, -0.32);         // pump
+            box(0.06, 0.08, 0.3, metal, 0, 0, 0.08);                // receiver
+            box(0.055, 0.12, 0.2, wood, 0, -0.04, 0.3, 0.12);        // stock
+            box(0.012, 0.04, 0.012, darkMetal, 0, 0.05, -0.58);      // bead sight
+        } else if (type === 'sniper') {
+            tube(0.014, 0.014, 0.7, darkMetal, 0, 0.01, -0.35);      // long barrel
+            box(0.06, 0.09, 0.42, metal, 0, 0, 0.02);               // receiver
+            tube(0.028, 0.028, 0.22, darkMetal, 0, 0.085, -0.05);    // scope
+            box(0.02, 0.05, 0.02, darkMetal, 0, 0.045, -0.05);       // scope mount
+            box(0.055, 0.11, 0.26, wood, 0, -0.04, 0.32, 0.1);       // stock
+            box(0.05, 0.12, 0.055, metal, 0, -0.09, 0.0, 0.35);      // magazine
+            box(0.05, 0.16, 0.04, darkMetal, 0, -0.1, 0.18);         // bipod legs (folded look)
+        } else { // melee - knife
+            const blade = box(0.012, 0.045, 0.3, new THREE.MeshStandardMaterial({ color: 0x9aa0a8, metalness: 0.9, roughness: 0.25 }), 0, 0.01, -0.18);
+            blade.rotation.x = -0.12;
+            box(0.03, 0.05, 0.14, polymer, 0, -0.03, 0.05, -0.35);   // handle
+            box(0.05, 0.015, 0.02, darkMetal, 0, -0.01, -0.02);      // guard
+        }
+
+        // Muzzle flash sprite (positioned at barrel tip per type)
+        const flashGeom = new THREE.SphereGeometry(0.06, 8, 8);
+        const flashMat = new THREE.MeshBasicMaterial({ color: 0xffcc33, transparent: true, opacity: 0, depthWrite: false });
         this.muzzleFlash = new THREE.Mesh(flashGeom, flashMat);
-        this.muzzleFlash.position.copy(this.muzzlePosition);
+        const tipZ = type === 'pistol' ? -0.2 : type === 'rifle' ? -0.74 : type === 'shotgun' ? -0.62 : type === 'sniper' ? -0.72 : -0.32;
+        this.muzzleFlash.position.set(0, 0.02, tipZ);
+        this.muzzlePosition.copy(this.muzzleFlash.position);
         group.add(this.muzzleFlash);
-        
-        // Position for FPS view
-        group.position.set(0.2, -0.15, -0.3);
-        
+
+        // FPS placement: lower-right, angled inward so the profile reads
+        group.position.set(0.3, -0.27, -0.55);
+        group.scale.setScalar(0.8);
+        group.rotation.y = 0.32;
+
         this.mesh = group;
     }
 
@@ -181,6 +219,15 @@ export class Weapon {
     attachToCamera(camera) {
         if (this.mesh) {
             camera.add(this.mesh);
+        }
+        // Subtle fill so the viewmodel reads in any lighting; layer 1 = viewmodel only
+        camera.layers.enable(1);
+        if (!camera.userData.viewmodelFill) {
+            const fill = new THREE.PointLight(0xfff0dd, 0.9, 3, 1.6);
+            fill.position.set(0.15, 0.1, 0.15);
+            fill.layers.set(1);
+            camera.add(fill);
+            camera.userData.viewmodelFill = fill;
         }
     }
 
@@ -565,6 +612,18 @@ export class WeaponManager {
         if (weaponId) {
             this.equipWeapon(weaponId);
         }
+    }
+
+    /**
+     * Remove every weapon (fresh start). Detaches viewmodels from the camera.
+     */
+    clearAll() {
+        for (const weapon of this.weapons.values()) {
+            try { weapon.detach(); } catch (_) { /* already detached */ }
+        }
+        this.weapons.clear();
+        this.weaponSlots = [null, null, null];
+        this.equippedWeapon = null;
     }
 
     /**

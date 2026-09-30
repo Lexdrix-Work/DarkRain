@@ -51,31 +51,17 @@ class StalkerGame extends Game {
             // Setup starting equipment
             this.setupStartingEquipment();
             
-            // Load saved game if exists
-            if (this.saveSystem && this.saveSystem.hasSave('autosave')) {
-                this.uiManager?.updateLoadingProgress(70, 'Loading saved game...');
-                this.saveSystem.loadGame('autosave');
-            }
-            
             // Update loading progress
             this.uiManager?.updateLoadingProgress(90, 'Finalizing setup...');
             
             console.log('All game systems initialized');
             
-            // Set final state
-            this.gameState = 'playing';
+            // Stop at the main menu - the player chooses New / Continue / Load
+            this.gameState = 'menu';
+            // Apply the player's stored settings (volume, sensitivity, graphics)
+            this.uiManager?.applyStoredSettings();
             this.uiManager?.showLoadingScreen(false);
-            
-            // Show welcome message
-            setTimeout(() => {
-                if (this.uiManager) {
-                    this.uiManager.showNotification(
-                        'Welcome to the Zone, Stalker. Good hunting.',
-                        'info',
-                        5000
-                    );
-                }
-            }, 1500);
+            this.uiManager?.showMainMenu();
             
         } catch (error) {
             console.error('Failed to initialize game:', error);
@@ -197,7 +183,55 @@ class StalkerGame extends Game {
         }
     }
 
+    /**
+     * Begin a play session from the main menu.
+     * @param {boolean} fromSave - Load the autosave instead of a fresh start
+     */
+    beginSession(fromSave) {
+        if (fromSave && this.saveSystem?.hasSave('autosave')) {
+            this.saveSystem.loadGame('autosave');
+        } else if (this._sessionStarted) {
+            // New game after quitting to menu: reset the player, keep the world
+            this.resetPlayerForNewGame();
+        }
+        this._sessionStarted = true;
+        this.isPaused = false;
+        this.gameState = 'playing';
+        // Pointer lock needs a user gesture - the menu button click qualifies
+        this.inputManager?.requestPointerLock();
+        setTimeout(() => {
+            this.uiManager?.showNotification('Welcome to the Zone, Stalker. Good hunting.', 'info', 5000);
+        }, 800);
+    }
+
+    /**
+     * Reset player state for a fresh run without rebooting the world
+     */
+    resetPlayerForNewGame() {
+        const p = this.player;
+        if (p) {
+            p.position.set(0, 1, 0);
+            p.velocity?.set(0, 0, 0);
+            if (p.stats) {
+                p.stats.health = p.stats.maxHealth;
+                p.stats.stamina = p.stats.maxStamina;
+                p.stats.radiation = 0;
+                p.stats.hunger = 0;
+                p.stats.thirst = 0;
+            }
+            if (Array.isArray(p.inventory)) p.inventory.length = 0;
+        if (typeof this.inventorySystem?.clearInventory === 'function') this.inventorySystem.clearInventory();
+        }
+        if (this.weaponManager) {
+            // Strip extra weapons, keep it simple: clear and re-issue starter kit
+            if (typeof this.weaponManager.clearAll === 'function') this.weaponManager.clearAll();
+        }
+        this.setupStartingEquipment();
+    }
+
     update(deltaTime) {
+        // While at the main menu or dead, the world stays frozen
+        if (this.gameState === 'menu' || this.gameState === 'dead') return;
         // Call parent update (which already handles inputManager.update())
         super.update(deltaTime);
         
@@ -451,12 +485,17 @@ async function main() {
         if (game.inputManager) {
             game.inputManager.requestPointerLock();
             
-            // Add click handler to request pointer lock if it fails initially
+            // Persistent click-to-lock: recovers pointer lock whenever it is lost
+            // (alt-tab, Esc, menu close). Skipped while any menu is open so menu
+            // clicks don't steal the cursor.
             document.addEventListener('click', () => {
-                if (!game.inputManager.mouse.locked && !game.isPaused && !game.isLoading) {
+                const ui = game.uiManager;
+                const menuOpen = ui && (ui.activeMenu || (ui.isAnyMenuOpen && ui.isAnyMenuOpen()));
+                if (!game.inputManager.mouse.locked && !game.isPaused && !game.isLoading && !menuOpen &&
+                    game.gameState === 'playing') {
                     game.inputManager.requestPointerLock();
                 }
-            }, { once: true });
+            });
         }
         
     } catch (error) {

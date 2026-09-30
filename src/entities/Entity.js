@@ -132,6 +132,9 @@ export class Entity {
      */
     setMesh(mesh) {
         this.mesh = mesh;
+        // Tag the mesh and all descendants so raycasts (e.g. bullets)
+        // can resolve a hit back to this entity
+        mesh.traverse((child) => { child.userData.entityId = this.id; });
         this.updateBoundingBox();
     }
 

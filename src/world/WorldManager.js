@@ -177,61 +177,14 @@ export class WorldManager {
      * Setup atmospheric lighting - OVERCAST DAYLIGHT
      */
     setupDefaultLights() {
+        // Lighting is owned solely by DayNightCycle (single rig). This method
+        // only clears stale lights so zones never double-light the scene.
         if (this._defaultLights) {
             Object.values(this._defaultLights).forEach(light => {
                 if (light) this.scene.remove(light);
             });
         }
-
-        // Hemisphere light
-        const hemi = new THREE.HemisphereLight(0xc8d0d8, 0x6a6050, 1.4);
-        hemi.position.set(0, 100, 0);
-        this.scene.add(hemi);
-
-        // Ambient light
-        const amb = new THREE.AmbientLight(0x808088, 0.8);
-        this.scene.add(amb);
-
-        // Main directional light (sun)
-        const dir = new THREE.DirectionalLight(0xfff8f0, 1.5);
-        dir.position.set(50, 200, 100);
-        dir.castShadow = true;
-        
-        dir.shadow.mapSize.width = 4096;
-        dir.shadow.mapSize.height = 4096;
-        dir.shadow.camera.near = 10;
-        dir.shadow.camera.far = 1000;
-        
-        // Larger shadow area for bigger city
-        const shadowSize = 500;
-        dir.shadow.camera.left = -shadowSize;
-        dir.shadow.camera.right = shadowSize;
-        dir.shadow.camera.top = shadowSize;
-        dir.shadow.camera.bottom = -shadowSize;
-        dir.shadow.bias = -0.0003;
-        dir.shadow.normalBias = 0.02;
-        
-        this.scene.add(dir);
-        
-        // Fill light
-        const fill = new THREE.DirectionalLight(0x8090a0, 0.6);
-        fill.position.set(-100, 80, -100);
-        this.scene.add(fill);
-        
-        // Back light
-        const back = new THREE.DirectionalLight(0xa0a0a0, 0.4);
-        back.position.set(0, 50, -150);
-        this.scene.add(back);
-
-        this._defaultLights = { 
-            hemisphere: hemi, 
-            ambient: amb, 
-            directional: dir,
-            fill: fill,
-            back: back
-        };
-        
-        console.log('Overcast daylight setup complete');
+        this._defaultLights = {};
     }
 
     /**
@@ -239,8 +192,15 @@ export class WorldManager {
      */
     setupAtmosphere() {
         this.scene.background = new THREE.Color(0xa0a8b0);
-        // Increased fog distance for larger city
-        this.scene.fog = new THREE.Fog(0x9098a0, 50, 800);
+        // Fog is owned by WeatherSystem (FogExp2, density-driven).
+        // Re-apply it so level loads never clobber the weather fog.
+        if (this.game?.weatherSystem) {
+            this.game.weatherSystem.setupFog();
+            this.game.weatherSystem.applyCurrentPreset?.();
+        } else {
+            // Increased fog distance for larger city
+            this.scene.fog = new THREE.Fog(0x9098a0, 50, 800);
+        }
     }
 
     createObjectPools() {
@@ -437,7 +397,7 @@ export class WorldManager {
      */
     createGround(width, depth) {
         const size = Math.max(width, depth) + 500;
-        const segs = 150;
+        const segs = 220;
         const groundGeom = new THREE.PlaneGeometry(size, size, segs, segs);
         groundGeom.rotateX(-Math.PI / 2);
 
@@ -453,7 +413,7 @@ export class WorldManager {
             const x = pos.getX(i);
             const z = pos.getZ(i);
             const h = this.getTerrainHeight(x, z);
-            pos.setY(i, h - 0.15);
+            pos.setY(i, h); // exact analytic height - props and terrain now agree
 
             const n = this._fbm2(x * 0.03 + 91.2, z * 0.03 - 47.8, 3);
             const grassiness = Math.min(1, Math.max(0, (h + 1.5) / 9));
@@ -507,7 +467,16 @@ export class WorldManager {
      * Create a single road segment with details
      */
     createRoad(x, z, width, depth, direction) {
-        const roadGeom = new THREE.PlaneGeometry(width, depth);
+        // Subdivided plane draped over the terrain - no floating/clipping on slopes
+        const roadGeom = new THREE.PlaneGeometry(width, depth, 12, 12);
+        roadGeom.rotateX(-Math.PI / 2);
+        const rp = roadGeom.attributes.position;
+        for (let i = 0; i < rp.count; i++) {
+            const wx = x + rp.getX(i);
+            const wz = z + rp.getZ(i);
+            rp.setY(i, this.getTerrainHeight(wx, wz) + 0.04);
+        }
+        roadGeom.computeVertexNormals();
         const roadMat = new THREE.MeshStandardMaterial({
             color: 0x404040,
             roughness: 0.85,
@@ -515,8 +484,7 @@ export class WorldManager {
         });
         
         const road = new THREE.Mesh(roadGeom, roadMat);
-        road.rotation.x = -Math.PI / 2;
-        road.position.set(x, this.getTerrainHeight(x, z) + 0.05, z);
+        road.position.set(x, 0, z);
         road.receiveShadow = true;
         road.userData = { type: 'road', isCollidable: true, isGround: true };
         this.scene.add(road);
@@ -761,6 +729,7 @@ export class WorldManager {
         }
 
         this.addBuildingWindows(group, width, depth, actualHeight, floors, isDamaged);
+        this.addFacadeDetails(group, width, depth, actualHeight, floors, isDamaged);
 
         if (roofStyle === 'pitched' && floors <= 3) {
             this.addPitchedRoof(group, width, depth, actualHeight, district);
@@ -875,61 +844,100 @@ export class WorldManager {
      * Add windows to a building
      */
     addBuildingWindows(group, width, depth, height, floors, isDamaged) {
+        // Shared geometries - one allocation reused by every window in the zone
+        if (!this._winGeom) {
+            this._winGeom = new THREE.PlaneGeometry(1, 1.5);
+            this._winFrameGeom = new THREE.PlaneGeometry(1.35, 1.85);
+            this._winSillGeom = new THREE.BoxGeometry(1.4, 0.12, 0.18);
+            this._winFrameMat = new THREE.MeshStandardMaterial({ color: 0x232120, roughness: 0.9 });
+            this._winSillMat = new THREE.MeshStandardMaterial({ color: 0x8f8a80, roughness: 0.85 });
+        }
         const windowWidth = 1;
         const windowHeight = 1.5;
         const floorHeight = 3;
         
-        const windowsX = Math.max(1, Math.floor(width / 2.5));
-        const windowsZ = Math.max(1, Math.floor(depth / 2.5));
+        const windowsX = Math.max(1, Math.floor(width / 3));
+        const windowsZ = Math.max(1, Math.floor(depth / 3));
         
         const actualFloors = Math.floor(height / floorHeight);
-
+        const placeWindow = (px, py, pz, rotY) => {
+            if (Math.random() < 0.22) return;
+            let winMat = this.materials.window;
+            if (!isDamaged && Math.random() < 0.06) winMat = this.materials.windowLit;
+            else if (isDamaged && Math.random() < 0.35) return; // blown-out windows
+            const frame = new THREE.Mesh(this._winFrameGeom, this._winFrameMat);
+            frame.position.set(px, py, pz);
+            frame.rotation.y = rotY;
+            // nudge outward along the face normal
+            frame.position.x += Math.sin(rotY) * 0.03;
+            frame.position.z += Math.cos(rotY) * 0.03;
+            group.add(frame);
+            const win = new THREE.Mesh(this._winGeom, winMat);
+            win.position.set(px, py, pz);
+            win.rotation.y = rotY;
+            win.position.x += Math.sin(rotY) * 0.055;
+            win.position.z += Math.cos(rotY) * 0.055;
+            group.add(win);
+            const sill = new THREE.Mesh(this._winSillGeom, this._winSillMat);
+            sill.position.set(px, py - 0.95, pz);
+            sill.rotation.y = rotY;
+            sill.position.x += Math.sin(rotY) * 0.06;
+            sill.position.z += Math.cos(rotY) * 0.06;
+            group.add(sill);
+        };
+        
         for (let floor = 0; floor < actualFloors; floor++) {
             const floorY = floor * floorHeight + floorHeight * 0.6;
-            
             for (let w = 0; w < windowsX; w++) {
-                if (Math.random() < 0.2) continue;
-                
                 const windowX = -width / 2 + width / (windowsX + 1) * (w + 1);
-                
-                let winMat = this.materials.window;
-                if (!isDamaged && Math.random() < 0.05) {
-                    winMat = this.materials.windowLit;
-                }
-                
-                const winGeom = new THREE.PlaneGeometry(windowWidth, windowHeight);
-                
-                const winFront = new THREE.Mesh(winGeom, winMat);
-                winFront.position.set(windowX, floorY, depth / 2 + 0.05);
-                group.add(winFront);
-                
-                const winBack = new THREE.Mesh(winGeom, winMat);
-                winBack.position.set(windowX, floorY, -depth / 2 - 0.05);
-                winBack.rotation.y = Math.PI;
-                group.add(winBack);
+                placeWindow(windowX, floorY, depth / 2, 0);
+                placeWindow(windowX, floorY, -depth / 2, Math.PI);
+            }
+            for (let w = 0; w < windowsZ; w++) {
+                const windowZ = -depth / 2 + depth / (windowsZ + 1) * (w + 1);
+                placeWindow(width / 2, floorY, windowZ, Math.PI / 2);
+                placeWindow(-width / 2, floorY, windowZ, -Math.PI / 2);
             }
         }
+    }
 
-        for (let floor = 0; floor < actualFloors; floor++) {
-            const floorY = floor * floorHeight + floorHeight * 0.6;
-            
-            for (let w = 0; w < windowsZ; w++) {
-                if (Math.random() < 0.2) continue;
-                
-                const windowZ = -depth / 2 + depth / (windowsZ + 1) * (w + 1);
-                
-                const winMat = this.materials.window;
-                const winGeom = new THREE.PlaneGeometry(windowWidth, windowHeight);
-                
-                const winRight = new THREE.Mesh(winGeom, winMat);
-                winRight.position.set(width / 2 + 0.05, floorY, windowZ);
-                winRight.rotation.y = Math.PI / 2;
-                group.add(winRight);
-                
-                const winLeft = new THREE.Mesh(winGeom, winMat);
-                winLeft.position.set(-width / 2 - 0.05, floorY, windowZ);
-                winLeft.rotation.y = -Math.PI / 2;
-                group.add(winLeft);
+    /**
+     * Cornice strips and pilasters - breaks up flat box silhouettes
+     */
+    addFacadeDetails(group, width, depth, height, floors, isDamaged) {
+        if (!this._corniceMat) {
+            this._corniceMat = new THREE.MeshStandardMaterial({ color: 0x6f6a62, roughness: 0.9 });
+        }
+        // Cornice band at the roofline
+        const cornice = new THREE.Mesh(
+            new THREE.BoxGeometry(width + 0.6, 0.5, depth + 0.6),
+            this._corniceMat
+        );
+        cornice.position.y = height - 0.25;
+        cornice.castShadow = true;
+        group.add(cornice);
+
+        // Base plinth - grounds the building visually
+        const plinth = new THREE.Mesh(
+            new THREE.BoxGeometry(width + 0.4, 1.0, depth + 0.4),
+            this._corniceMat
+        );
+        plinth.position.y = 0.5;
+        plinth.receiveShadow = true;
+        group.add(plinth);
+
+        // Pilasters on taller buildings
+        if (floors >= 4 && !isDamaged) {
+            const pilGeom = new THREE.BoxGeometry(0.5, height - 1.5, 0.3);
+            const count = Math.max(2, Math.floor(width / 6));
+            for (let i = 0; i <= count; i++) {
+                const px = -width / 2 + (width * i) / count;
+                const pilF = new THREE.Mesh(pilGeom, this._corniceMat);
+                pilF.position.set(px, (height - 1.5) / 2 + 1, depth / 2 + 0.12);
+                group.add(pilF);
+                const pilB = new THREE.Mesh(pilGeom, this._corniceMat);
+                pilB.position.set(px, (height - 1.5) / 2 + 1, -depth / 2 - 0.12);
+                group.add(pilB);
             }
         }
     }
@@ -984,10 +992,20 @@ export class WorldManager {
      * Add ground floor details (entrances, awnings)
      */
     addGroundFloorDetails(group, width, depth) {
+        // Storefront glass band along the front
+        const frameMat = this._winFrameMat || this.materials.debris;
+        const shopW = Math.min(width * 0.7, 10);
+        const shopFrame = new THREE.Mesh(new THREE.PlaneGeometry(shopW + 0.3, 2.3), frameMat);
+        shopFrame.position.set(-width * 0.1, 1.6, depth / 2 + 0.03);
+        group.add(shopFrame);
+        const shopMat = Math.random() < 0.3 ? this.materials.windowLit : this.materials.window;
+        const shop = new THREE.Mesh(new THREE.PlaneGeometry(shopW, 2.0), shopMat);
+        shop.position.set(-width * 0.1, 1.6, depth / 2 + 0.06);
+        group.add(shop);
         const doorGeom = new THREE.BoxGeometry(1.5, 2.5, 0.1);
         const doorMat = new THREE.MeshStandardMaterial({ color: 0x2a2520, roughness: 0.8 });
         const door = new THREE.Mesh(doorGeom, doorMat);
-        door.position.set(0, 1.25, depth / 2 + 0.05);
+        door.position.set(width * 0.28, 1.25, depth / 2 + 0.05);
         group.add(door);
 
         if (Math.random() > 0.6) {
@@ -1268,7 +1286,7 @@ export class WorldManager {
 
         const rockGeom = new THREE.DodecahedronGeometry(1, 0);
         const rockMat = new THREE.MeshStandardMaterial({ color: 0x5b564c, roughness: 0.95 });
-        const rockCount = 130;
+        const rockCount = 220;
         const rocks = new THREE.InstancedMesh(rockGeom, rockMat, rockCount);
         let placed = 0, guard = 0;
         while (placed < rockCount && guard++ < rockCount * 30) {
@@ -1291,7 +1309,7 @@ export class WorldManager {
         const tuftGeom = new THREE.PlaneGeometry(1.1, 0.7);
         tuftGeom.translate(0, 0.35, 0);
         const tuftMat = new THREE.MeshStandardMaterial({ color: 0x6e6440, roughness: 1, side: THREE.DoubleSide });
-        const tuftCount = 260;
+        const tuftCount = 420;
         const tufts = new THREE.InstancedMesh(tuftGeom, tuftMat, tuftCount);
         placed = 0; guard = 0;
         while (placed < tuftCount && guard++ < tuftCount * 30) {
@@ -1325,7 +1343,7 @@ export class WorldManager {
         for (const [x, z, w, d] of positions) {
             const sidewalkGeom = new THREE.BoxGeometry(w, sidewalkHeight, d);
             const sidewalk = new THREE.Mesh(sidewalkGeom, this.materials.sidewalk);
-            sidewalk.position.set(x, this.getTerrainHeight(x, z) + sidewalkHeight / 2, z);
+            sidewalk.position.set(x, this.getTerrainHeight(x, z) + sidewalkHeight / 2 - 0.04, z);
             sidewalk.receiveShadow = true;
             sidewalk.userData = { type: 'sidewalk', isCollidable: true, isGround: true };
             this.scene.add(sidewalk);
@@ -1618,7 +1636,7 @@ export class WorldManager {
      */
     addRoadDebris(totalWidth, totalDepth) {
         // Scale debris with city size
-        const debrisCount = Math.floor(Math.sqrt(totalWidth * totalDepth) / 5);
+        const debrisCount = Math.floor(Math.sqrt(totalWidth * totalDepth) / 3.5);
         
         for (let i = 0; i < debrisCount; i++) {
             const x = (Math.random() - 0.5) * totalWidth;
@@ -1688,7 +1706,7 @@ export class WorldManager {
      * Add dead/bare trees
      */
     addDeadTrees(cfg, totalWidth, totalDepth) {
-        const treeCount = Math.floor((cfg.blocksX * cfg.blocksZ) / 1.5);
+        const treeCount = Math.floor((cfg.blocksX * cfg.blocksZ) / 1.2);
         
         for (let i = 0; i < treeCount; i++) {
             const x = (Math.random() - 0.5) * totalWidth * 0.95;
@@ -2157,7 +2175,16 @@ export class WorldManager {
         
         // Use nearby colliders for optimization in large city
         const nearbyColliders = this.getNearbyColliders(origin, maxDistance);
-        const intersects = raycaster.intersectObjects(nearbyColliders.length > 0 ? nearbyColliders : this.colliders, true);
+        const staticTargets = nearbyColliders.length > 0 ? nearbyColliders : this.colliders;
+        // Include live entity hitboxes (enemies, NPCs) so bullets can hit them
+        const entityTargets = [];
+        for (const entity of this.entities.values()) {
+            if (entity.mesh && entity.isActive !== false && entity.isCollidable !== false) {
+                entityTargets.push(entity.mesh);
+            }
+        }
+        const targets = entityTargets.length > 0 ? staticTargets.concat(entityTargets) : staticTargets;
+        const intersects = raycaster.intersectObjects(targets, true);
         
         return intersects.length > 0 ? intersects[0] : null;
     }

@@ -59,6 +59,7 @@ export class UIManager {
     init() {
         this.setupEventListeners();
         this.setupPauseMenu();
+        this.setupMainMenu();
         this.createFlashlightUI();
         this.hideAllMenus();
     }
@@ -109,6 +110,11 @@ export class UIManager {
         this.eventBus.on('input:toggle:pause', () => {
             this.toggleMenu('pause');
         });
+
+        // Show a click-to-resume hint when pointer lock is lost mid-game
+        this.eventBus.on('input:pointerlock', ({ locked }) => {
+            this.updatePointerHint(!locked);
+        });
         
         // Listen for flashlight events
         this.eventBus.on('flashlight:battery', (data) => {
@@ -144,6 +150,142 @@ export class UIManager {
                 this.confirmQuit();
             });
         }
+    }
+
+    /**
+     * Wire up the main menu buttons
+     */
+    setupMainMenu() {
+        const on = (id, fn) => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('click', fn);
+        };
+        on('new-game-btn', () => this.startNewGame());
+        on('continue-btn', () => this.continueGame());
+        on('load-game-btn', () => this.continueGame());
+        on('options-btn', () => this.showSettings());
+        on('main-menu-btn', () => this.quitToMenu());
+        on('reload-btn', () => this.respawnFromSave());
+        this.eventBus.on(GameEvents.PLAYER_DEATH, () => this.showDeathScreen());
+    }
+
+    /**
+     * Show the main menu (called on boot and when quitting to menu)
+     */
+    /**
+     * Show the HUD only during active gameplay.
+     */
+    setHudVisible(visible) {
+        const hud = this.elements.hud || document.getElementById('hud');
+        if (hud) hud.style.display = visible ? '' : 'none';
+    }
+
+    showMainMenu() {
+        this.hideAllMenus();
+        const menu = document.getElementById('main-menu');
+        if (menu) {
+            menu.classList.remove('hidden');
+            menu.style.display = 'flex';
+        }
+        // Disable Continue/Load when no save exists
+        const hasSave = this.game?.saveSystem?.hasSave('autosave');
+        for (const id of ['continue-btn', 'load-game-btn']) {
+            const btn = document.getElementById(id);
+            if (btn) btn.disabled = !hasSave;
+        }
+        if (document.pointerLockElement) document.exitPointerLock();
+        this.updatePointerHint(false);
+        this.setHudVisible(false);
+    }
+
+    hideMainMenu() {
+        const menu = document.getElementById('main-menu');
+        if (menu) {
+            menu.classList.add('hidden');
+            menu.style.display = 'none';
+        }
+        this.setHudVisible(true);
+    }
+
+    /**
+     * Start a new game session from the main menu
+     */
+    startNewGame() {
+        this.hideMainMenu();
+        if (this.game && typeof this.game.beginSession === 'function') {
+            this.game.beginSession(false);
+        }
+    }
+
+    /**
+     * Continue from the autosave
+     */
+    continueGame() {
+        if (!this.game?.saveSystem?.hasSave('autosave')) {
+            this.showNotification('No saved game found', 'warning');
+            return;
+        }
+        this.hideMainMenu();
+        if (this.game && typeof this.game.beginSession === 'function') {
+            this.game.beginSession(true);
+        }
+    }
+
+    /**
+     * Return to the main menu (from pause menu or death screen)
+     */
+    quitToMenu() {
+        if (!this.game) return;
+        this.game.gameState = 'menu';
+        this.game.isPaused = false;
+        this.showMainMenu();
+        this.showNotification('Returned to main menu', 'info');
+    }
+
+    showDeathScreen(reason) {
+        if (this.game) this.game.gameState = 'dead';
+        if (document.pointerLockElement) document.exitPointerLock();
+        const el = document.getElementById('death-screen');
+        if (el) {
+            el.classList.remove('hidden');
+            el.style.display = 'flex';
+        }
+        const r = document.getElementById('death-reason');
+        if (r && reason) r.textContent = reason;
+        const rb = document.getElementById('reload-btn');
+        if (rb) rb.disabled = !this.game?.saveSystem?.hasSave('autosave');
+        this.updatePointerHint(false);
+        this.setHudVisible(false);
+    }
+
+    hideDeathScreen() {
+        const el = document.getElementById('death-screen');
+        if (el) {
+            el.classList.add('hidden');
+            el.style.display = 'none';
+        }
+    }
+
+    respawnFromSave() {
+        if (!this.game?.saveSystem?.hasSave('autosave')) {
+            this.showNotification('No saved game found', 'warning');
+            return;
+        }
+        this.hideDeathScreen();
+        this.game.saveSystem.loadGame('autosave');
+        if (this.game.player) this.game.player.isActive = true;
+        this.game.gameState = 'playing';
+        this.game.isPaused = false;
+        this.setHudVisible(true);
+        this.game.inputManager?.requestPointerLock();
+    }
+
+    /**
+     * Confirm quit dialog
+     */
+    confirmQuit() {
+        const confirmed = confirm('Quit to the main menu? Unsaved progress will be lost.');
+        if (confirmed) this.quitToMenu();
     }
 
     /**
@@ -274,7 +416,24 @@ export class UIManager {
             // Emit events
             this.eventBus.emit('ui:menuOpened', { menu: menuName });
             this.eventBus.emit(`ui:${menuName}Opened`);
+            // A menu is open: the pointer hint must not show
+            this.updatePointerHint(false);
+            // Refresh dynamic content when opening
+            if (menuName === 'inventory') this.updateInventoryDisplay();
         }
+    }
+
+    /**
+     * Show or hide the click-to-resume pointer hint.
+     * Only ever visible while actually playing with no menu open.
+     */
+    updatePointerHint(show) {
+        const hint = document.getElementById('pointer-hint');
+        if (!hint) return;
+        const playing = this.game && this.game.gameState === 'playing' && !this.game.isPaused;
+        const menuOpen = this.activeMenu || this.isAnyMenuOpen();
+        const visible = show && playing && !menuOpen;
+        hint.classList.toggle('hidden', !visible);
     }
 
     /**
@@ -304,6 +463,8 @@ export class UIManager {
             if (requestPointerLock && this.game && !this.game.isPaused && !this.game.isLoading && this.game.inputManager) {
                 this.game.inputManager.requestPointerLock();
             }
+            // If the lock request silently failed, prompt the user to click
+            setTimeout(() => this.updatePointerHint(true), 350);
         }
     }
 
@@ -313,8 +474,11 @@ export class UIManager {
      * @returns {HTMLElement|null}
      */
     getMenuElement(menuName) {
-        // Special handling for inventory
+        // Special handling for inventory (panel id is inventory-menu)
         if (menuName === 'inventory') {
+            if (!this.elements.inventoryPanel) {
+                this.elements.inventoryPanel = document.getElementById('inventory-menu');
+            }
             return this.elements.inventoryPanel;
         }
         // Special handling for pause
@@ -491,13 +655,19 @@ export class UIManager {
      * Update inventory display
      */
     updateInventoryDisplay() {
+        // Re-query: the grid is cached at construction, possibly before DOM ready
+        if (!this.elements.inventoryGrid) {
+            this.elements.inventoryGrid = document.getElementById('inventory-grid');
+        }
         if (!this.elements.inventoryGrid || !this.game?.player) return;
         
-        const inventory = this.game.player.inventory;
+        // The live inventory lives in InventorySystem, not on the player
+        const invSys = this.game.inventorySystem;
+        const inventory = invSys ? invSys.slots : this.game.player.inventory;
+        const maxSlots = invSys ? invSys.maxSlots : this.game.player.maxInventorySlots;
         this.elements.inventoryGrid.innerHTML = '';
         
         // Create inventory slots
-        const maxSlots = this.game.player.maxInventorySlots;
         
         for (let i = 0; i < maxSlots; i++) {
             const slot = document.createElement('div');
@@ -668,6 +838,8 @@ export class UIManager {
      * Show settings panel
      */
     showSettings() {
+        // Never stack duplicate panels
+        document.getElementById('settings-panel')?.remove();
         // Create settings panel dynamically
         const settingsPanel = document.createElement('div');
         settingsPanel.id = 'settings-panel';
@@ -742,6 +914,7 @@ export class UIManager {
         `;
         
         document.body.appendChild(settingsPanel);
+        this.populateSettingsPanel();
         
         // Event handlers
         document.getElementById('settings-back').addEventListener('click', () => {
@@ -756,6 +929,49 @@ export class UIManager {
         });
         
         this.openMenu('settings');
+    }
+
+    getStoredSettings() {
+        const defaults = {
+            masterVolume: 100, musicVolume: 50, sfxVolume: 80,
+            sensitivity: 50, invertY: false,
+            quality: 'medium', shadows: true
+        };
+        try {
+            const raw = localStorage.getItem('darkrain_settings');
+            if (raw) return { ...defaults, ...JSON.parse(raw) };
+        } catch (_) { /* corrupted storage - use defaults */ }
+        return defaults;
+    }
+
+    populateSettingsPanel() {
+        const st = this.getStoredSettings();
+        const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+        const setChecked = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
+        set('master-volume', st.masterVolume);
+        set('music-volume', st.musicVolume);
+        set('sfx-volume', st.sfxVolume);
+        set('mouse-sensitivity', st.sensitivity);
+        setChecked('invert-y', st.invertY);
+        set('graphics-quality', st.quality);
+        setChecked('shadows-enabled', st.shadows);
+    }
+
+    /**
+     * Apply stored settings to the live game (called once after boot)
+     */
+    applyStoredSettings() {
+        const st = this.getStoredSettings();
+        if (this.game?.audioManager) {
+            this.game.audioManager.setMasterVolume(st.masterVolume / 100);
+            this.game.audioManager.setMusicVolume(st.musicVolume / 100);
+            this.game.audioManager.setSFXVolume(st.sfxVolume / 100);
+        }
+        if (this.game?.player) {
+            this.game.player.mouseSensitivity = 0.001 * (st.sensitivity / 50);
+            this.game.player.invertY = st.invertY;
+        }
+        this.eventBus.emit('settings:graphics', { quality: st.quality, shadows: st.shadows });
     }
 
     /**
@@ -785,19 +1001,19 @@ export class UIManager {
         // Graphics settings
         this.eventBus.emit('settings:graphics', { quality, shadows });
         
+        // Persist
+        try {
+            localStorage.setItem('darkrain_settings', JSON.stringify({
+                masterVolume: document.getElementById('master-volume')?.value,
+                musicVolume: document.getElementById('music-volume')?.value,
+                sfxVolume: document.getElementById('sfx-volume')?.value,
+                sensitivity: document.getElementById('mouse-sensitivity')?.value,
+                invertY: document.getElementById('invert-y')?.checked,
+                quality, shadows
+            }));
+        } catch (_) { /* storage unavailable */ }
+        
         this.showNotification('Settings applied', 'success');
-    }
-
-    /**
-     * Confirm quit dialog
-     */
-    confirmQuit() {
-        const confirmed = confirm('Are you sure you want to quit? Unsaved progress will be lost.');
-        if (confirmed) {
-            this.eventBus.emit('game:quit');
-            // Redirect or close
-            window.location.reload();
-        }
     }
 
     /**

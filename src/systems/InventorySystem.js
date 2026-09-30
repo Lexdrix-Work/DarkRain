@@ -117,6 +117,16 @@ export class InventorySystem {
      * @param {number} amount - Amount to remove
      * @returns {Object|null} Removed item
      */
+    /**
+     * Empty every slot (fresh start)
+     */
+    clearInventory() {
+        this.slots = new Array(this.maxSlots).fill(null);
+        this.quickSlots = [null, null, null, null];
+        this.equipment = { armor: null, helmet: null, artifact1: null, artifact2: null, artifact3: null };
+        this.currentWeight = 0;
+    }
+
     removeItem(slotIndex, amount = 1) {
         if (slotIndex < 0 || slotIndex >= this.slots.length) return null;
         

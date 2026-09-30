@@ -315,6 +315,10 @@ export class InputManager {
             this.mouse.deltaX = 0;
             this.mouse.deltaY = 0;
         }
+        // Notify UI so it can show/hide the click-to-resume hint
+        if (this.eventBus) {
+            this.eventBus.emit('input:pointerlock', { locked: this.mouse.locked });
+        }
     }
 
     /**

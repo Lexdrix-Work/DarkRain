@@ -35,7 +35,9 @@ export class WeatherSystem {
             fogDensity: 0,
             rainIntensity: 0,
             windStrength: 0,
-            lightningChance: 0
+            lightningChance: 0,
+            sunIntensity: 1,
+            ambientIntensity: 1
         };
         
         // Target parameters for lerping
@@ -149,11 +151,125 @@ export class WeatherSystem {
     init() {
         this.createRainSystem();
         this.createLightning();
+        this.createCloudLayer();
         this.setupFog();
     }
 
     setupFog() {
         this.scene.fog = new THREE.FogExp2(0x87ceeb, 0.01);
+    }
+
+    /**
+     * Snap fog + params to the current weather preset instantly.
+     * Called after level loads re-install the weather-owned fog.
+     */
+    applyCurrentPreset() {
+        const preset = this.presets[this.currentWeather] || this.presets[WeatherType.OVERCAST];
+        if (this.scene.fog && preset.fogColor) {
+            this.scene.fog.color.copy(preset.fogColor);
+        }
+        this.params = {
+            cloudDensity: preset.cloudDensity,
+            fogDensity: preset.fogDensity,
+            rainIntensity: preset.rainIntensity,
+            windStrength: preset.windStrength,
+            lightningChance: preset.lightningChance,
+            sunIntensity: preset.sunIntensity,
+            ambientIntensity: preset.ambientIntensity
+        };
+        this.updateFog();
+    }
+
+    /**
+     * Create the drifting cloud layer (billboard sprites, density-driven)
+     */
+    createCloudLayer() {
+        this.cloudCount = 42;
+        this.clouds = [];
+        this.cloudGroup = new THREE.Group();
+
+        // Soft puffy texture painted on a canvas - no external assets needed
+        const size = 128;
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        const blob = (x, y, r, a) => {
+            const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+            g.addColorStop(0, `rgba(235,240,245,${a})`);
+            g.addColorStop(0.6, `rgba(225,232,238,${a * 0.55})`);
+            g.addColorStop(1, 'rgba(220,228,235,0)');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, size, size);
+        };
+        // Cluster of overlapping puffs
+        blob(64, 70, 44, 0.85);
+        blob(40, 78, 30, 0.7);
+        blob(88, 78, 32, 0.7);
+        blob(58, 55, 28, 0.6);
+        blob(76, 58, 24, 0.55);
+        blob(28, 66, 20, 0.5);
+        blob(100, 66, 20, 0.5);
+        const tex = new THREE.CanvasTexture(canvas);
+
+        for (let i = 0; i < this.cloudCount; i++) {
+            const mat = new THREE.SpriteMaterial({
+                map: tex,
+                transparent: true,
+                opacity: 0,
+                depthWrite: false,
+                fog: false
+            });
+            const sprite = new THREE.Sprite(mat);
+            sprite.raycast = () => {}; // visual only - never a raycast target
+            const scale = 90 + Math.random() * 130;
+            sprite.scale.set(scale, scale * 0.45, 1);
+            sprite.userData.speed = 0.5 + Math.random();
+            this.cloudGroup.add(sprite);
+            this.clouds.push(sprite);
+            this.resetCloud(sprite, true);
+        }
+        this.scene.add(this.cloudGroup);
+    }
+
+    resetCloud(cloud, randomY = false) {
+        const R = 420; // cloud field radius
+        const a = Math.random() * Math.PI * 2;
+        const r = Math.sqrt(Math.random()) * R;
+        cloud.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+        cloud.position.y = randomY ? 130 + Math.random() * 90 : 150 + Math.random() * 60;
+        // start upwind so it drifts across
+        cloud.position.x -= this.windDirection.x * R * 0.5;
+        cloud.position.z -= this.windDirection.z * R * 0.5;
+    }
+
+    updateClouds(deltaTime) {
+        if (!this.clouds || !this.clouds.length) return;
+        const player = this.game?.player;
+        const px = player?.mesh?.position?.x ?? 0;
+        const pz = player?.mesh?.position?.z ?? 0;
+        const density = this.params.cloudDensity;
+        const drift = this.params.windStrength * 6 + 1.5;
+
+        for (const cloud of this.clouds) {
+            // Drift with the wind
+            cloud.position.x += this.windDirection.x * drift * cloud.userData.speed * deltaTime;
+            cloud.position.z += this.windDirection.z * drift * cloud.userData.speed * deltaTime;
+
+            // Keep the cloud field centered on the player
+            let dx = cloud.position.x - px;
+            let dz = cloud.position.z - pz;
+            if (dx * dx + dz * dz > 480 * 480) {
+                this.resetCloud(cloud);
+                cloud.position.x += px;
+                cloud.position.z += pz;
+            }
+
+            // Fade with density; storm clouds darken
+            const dark = 1 - density * 0.45;
+            cloud.material.opacity = density * 0.92;
+            cloud.material.color.setRGB(dark, dark, dark * 1.02);
+        }
+        this.cloudGroup.visible = density > 0.02;
     }
 
     createRainSystem() {
@@ -171,15 +287,30 @@ export class WeatherSystem {
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geometry.setAttribute('velocity', new THREE.BufferAttribute(velocities, 1));
         
+        // Thin vertical streak sprite so rain reads as falling streaks, not squares
+        const streakCanvas = document.createElement('canvas');
+        streakCanvas.width = 16;
+        streakCanvas.height = 64;
+        const sctx = streakCanvas.getContext('2d');
+        const sgrad = sctx.createLinearGradient(0, 0, 0, 64);
+        sgrad.addColorStop(0, 'rgba(191,212,230,0)');
+        sgrad.addColorStop(0.5, 'rgba(191,212,230,0.9)');
+        sgrad.addColorStop(1, 'rgba(191,212,230,0)');
+        sctx.fillStyle = sgrad;
+        sctx.fillRect(6, 0, 4, 64);
+        const streakTex = new THREE.CanvasTexture(streakCanvas);
         const material = new THREE.PointsMaterial({
-            color: 0xaaaaaa,
-            size: 0.1,
+            color: 0xbfd4e6,
+            map: streakTex,
+            size: 0.55,
             transparent: true,
             opacity: 0.6,
+            depthWrite: false,
             blending: THREE.AdditiveBlending
         });
         
         this.rainParticles = new THREE.Points(geometry, material);
+        this.rainParticles.raycast = () => {}; // visual only
         this.rainParticles.visible = false;
         this.scene.add(this.rainParticles);
     }
@@ -208,7 +339,9 @@ export class WeatherSystem {
             fogDensity: preset.fogDensity,
             rainIntensity: preset.rainIntensity,
             windStrength: preset.windStrength,
-            lightningChance: preset.lightningChance
+            lightningChance: preset.lightningChance,
+            sunIntensity: preset.sunIntensity,
+            ambientIntensity: preset.ambientIntensity
         };
         
         globalEventBus.emit(GameEvents.WEATHER_CHANGE, {
@@ -263,6 +396,7 @@ export class WeatherSystem {
         this.updateLightning(deltaTime);
         this.updateWind(deltaTime);
         this.updateFog();
+        this.updateClouds(deltaTime);
         this.updateRandomWeatherChanges(deltaTime);
     }
 

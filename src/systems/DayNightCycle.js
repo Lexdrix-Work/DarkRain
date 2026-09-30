@@ -69,17 +69,18 @@ export class DayNightCycle {
 
     createLights() {
         // Directional sun light
-        this.sunLight = new THREE.DirectionalLight(0xffffee, 1);
+        this.sunLight = new THREE.DirectionalLight(0xfff2df, 1);
         this.sunLight.castShadow = true;
-        this.sunLight.shadow.mapSize.width = 2048;
-        this.sunLight.shadow.mapSize.height = 2048;
-        this.sunLight.shadow.camera.near = 0.5;
-        this.sunLight.shadow.camera.far = 500;
-        this.sunLight.shadow.camera.left = -100;
-        this.sunLight.shadow.camera.right = 100;
-        this.sunLight.shadow.camera.top = 100;
-        this.sunLight.shadow.camera.bottom = -100;
-        this.sunLight.shadow.bias = -0.0001;
+        this.sunLight.shadow.mapSize.width = 4096;
+        this.sunLight.shadow.mapSize.height = 4096;
+        this.sunLight.shadow.camera.near = 10;
+        this.sunLight.shadow.camera.far = 1000;
+        this.sunLight.shadow.camera.left = -500;
+        this.sunLight.shadow.camera.right = 500;
+        this.sunLight.shadow.camera.top = 500;
+        this.sunLight.shadow.camera.bottom = -500;
+        this.sunLight.shadow.bias = -0.0003;
+        this.sunLight.shadow.normalBias = 0.02;
         this.scene.add(this.sunLight);
         
         // Moon light
@@ -94,7 +95,7 @@ export class DayNightCycle {
         this.scene.add(this.ambientLight);
         
         // Hemisphere light for more natural outdoor lighting
-        this.hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x3d5c3d, 0.3);
+        this.hemiLight = new THREE.HemisphereLight(0xbcd6e8, 0x54503f, 0.5);
         this.scene.add(this.hemiLight);
     }
 
@@ -267,9 +268,9 @@ export class DayNightCycle {
         } else if (period === 'day') {
             const midDay = (this.timePeriods.dayStart + this.timePeriods.dayEnd) / 2;
             const distFromMid = Math.abs(hours - midDay) / (midDay - this.timePeriods.dayStart);
-            sunIntensity = THREE.MathUtils.lerp(1, 0.7, distFromMid);
+            sunIntensity = THREE.MathUtils.lerp(2.4, 1.7, distFromMid);
             moonIntensity = 0;
-            ambientIntensity = THREE.MathUtils.lerp(0.4, 0.3, distFromMid);
+            ambientIntensity = THREE.MathUtils.lerp(0.75, 0.6, distFromMid);
             sunColor = this.sunColors.day;
             skyColor = this.skyColors.day;
         } else { // dusk
@@ -281,9 +282,14 @@ export class DayNightCycle {
             skyColor = new THREE.Color().lerpColors(this.skyColors.dusk, this.skyColors.night, t);
         }
         
+        // Weather dims/brightens the whole rig (storms go dark, clear days blaze)
+        const wx = this.game.weatherSystem?.params;
+        const sunWeatherFactor = wx ? wx.sunIntensity : 1;
+        const ambientWeatherFactor = wx ? wx.ambientIntensity : 1;
+        
         // Apply to lights
         if (this.sunLight) {
-            this.sunLight.intensity = sunIntensity;
+            this.sunLight.intensity = sunIntensity * sunWeatherFactor;
             this.sunLight.color.copy(sunColor);
         }
         
@@ -292,12 +298,12 @@ export class DayNightCycle {
         }
         
         if (this.ambientLight) {
-            this.ambientLight.intensity = ambientIntensity;
+            this.ambientLight.intensity = ambientIntensity * ambientWeatherFactor;
         }
         
-        // Update hemisphere light
+        // Update hemisphere light (fill so shadow faces never go pitch black)
         if (this.hemiLight) {
-            this.hemiLight.intensity = ambientIntensity * 0.5;
+            this.hemiLight.intensity = ambientIntensity * 0.75 * ambientWeatherFactor;
             this.hemiLight.color.copy(skyColor);
         }
     }
@@ -327,6 +333,12 @@ export class DayNightCycle {
                 break;
         }
         
+        // Weather dims the sky dome (storms go dark, clear days blaze)
+        const sunWx = this.game?.weatherSystem?.params?.sunIntensity;
+        const skyDim = sunWx !== undefined ? 0.35 + 0.65 * THREE.MathUtils.clamp(sunWx, 0, 1) : 1;
+        topColor.multiplyScalar(skyDim);
+        bottomColor.multiplyScalar(skyDim);
+
         this.skyDome.material.uniforms.topColor.value.copy(topColor);
         this.skyDome.material.uniforms.bottomColor.value.copy(bottomColor);
     }

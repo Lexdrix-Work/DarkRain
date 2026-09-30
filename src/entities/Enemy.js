@@ -3,6 +3,108 @@ import { Entity } from './Entity.js';
 import { globalEventBus, GameEvents } from '../core/EventBus.js';
 
 /**
+ * Build a low-poly humanoid figure (faces +Z). Returns { group, limbs }.
+ * opts: skin, top, bottom colors; hunch (0-1); armLen; spikes; eyes color
+ */
+function buildHumanoid(opts = {}) {
+    const {
+        skin = 0x8a7f6a, top = 0x3a3f45, bottom = 0x2c2c30,
+        hunch = 0, armLen = 0.7, spikes = false, eyeColor = 0xff2222,
+        hat = null, rifle = false
+    } = opts;
+    const group = new THREE.Group();
+    const limbs = {};
+    const mat = (c, r = 0.85) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: 0.05 });
+
+    const part = (w, h, d, material, x, y, z) => {
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+        mesh.position.set(x, y, z);
+        mesh.castShadow = true;
+        group.add(mesh);
+        return mesh;
+    };
+    // Limb with pivot at the joint so it can swing
+    const limb = (w, h, d, material, px, py, pz) => {
+        const pivot = new THREE.Group();
+        pivot.position.set(px, py, pz);
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+        mesh.position.y = -h / 2;
+        mesh.castShadow = true;
+        pivot.add(mesh);
+        group.add(pivot);
+        return pivot;
+    };
+
+    const skinMat = mat(skin), topMat = mat(top), botMat = mat(bottom);
+
+    // Legs (hip pivots at y=0.95)
+    limbs.legL = limb(0.2, 0.9, 0.24, botMat, -0.14, 0.95, 0);
+    limbs.legR = limb(0.2, 0.9, 0.24, botMat, 0.14, 0.95, 0);
+    // Boots
+    part(0.22, 0.12, 0.34, mat(0x1a1a1c, 0.9), -0.14, 0.06, 0.04);
+    part(0.22, 0.12, 0.34, mat(0x1a1a1c, 0.9), 0.14, 0.06, 0.04);
+
+    // Torso (leans forward with hunch)
+    const torso = part(0.56, 0.68, 0.32, topMat, 0, 1.32 - hunch * 0.15, -hunch * 0.08);
+    torso.rotation.x = hunch * 0.45;
+
+    // Shoulder pivots (move forward/down with hunch)
+    const shY = 1.58 - hunch * 0.28, shZ = hunch * 0.12;
+    limbs.armL = limb(0.16, armLen, 0.18, topMat, -0.37, shY, shZ);
+    limbs.armR = limb(0.16, armLen, 0.18, topMat, 0.37, shY, shZ);
+    // Hands
+    const handL = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 0.16), skinMat);
+    handL.position.y = -armLen - 0.05; handL.castShadow = true;
+    limbs.armL.add(handL);
+    const handR = handL.clone(); limbs.armR.add(handR);
+
+    // Head (pushed forward with hunch)
+    const headY = 1.82 - hunch * 0.35, headZ = hunch * 0.22;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.19, 10, 8), skinMat);
+    head.position.set(0, headY, headZ);
+    head.castShadow = true;
+    group.add(head);
+    // Glowing eyes on +Z face
+    const eyeMat = new THREE.MeshBasicMaterial({ color: eyeColor });
+    for (const sx of [-1, 1]) {
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 6), eyeMat);
+        eye.position.set(sx * 0.075, headY + 0.02, headZ + 0.155);
+        group.add(eye);
+    }
+
+    if (hat === 'cap') {
+        const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.21, 0.09, 10), mat(0x4a3b28, 0.9));
+        cap.position.set(0, headY + 0.16, headZ);
+        group.add(cap);
+    } else if (hat === 'hood') {
+        const hood = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.3, 8), topMat);
+        hood.position.set(0, headY + 0.18, headZ - 0.04);
+        group.add(hood);
+    }
+
+    if (rifle) {
+        const gun = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.12, 0.85),
+            new THREE.MeshStandardMaterial({ color: 0x222226, roughness: 0.5, metalness: 0.6 }));
+        gun.position.set(0.12, 1.25, 0.3);
+        gun.rotation.x = -0.08;
+        gun.castShadow = true;
+        group.add(gun);
+    }
+
+    if (spikes) {
+        const spikeMat = mat(0x1c1c1c, 0.9);
+        for (let i = 0; i < 5; i++) {
+            const spike = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.35, 5), spikeMat);
+            spike.position.set((i - 2) * 0.11, 1.62 - Math.abs(i - 2) * 0.05, -0.2 - hunch * 0.1);
+            spike.rotation.x = -0.5;
+            group.add(spike);
+        }
+    }
+
+    return { group, limbs };
+}
+
+/**
  * AI States for enemy behavior
  */
 export const AIState = {
@@ -79,29 +181,14 @@ export class Enemy extends Entity {
     }
 
     createMesh() {
-        // Placeholder enemy mesh - replace with loaded model
-        const geometry = new THREE.CapsuleGeometry(0.4, 1.2, 4, 8);
-        const material = new THREE.MeshStandardMaterial({ 
-            color: 0x4a4a4a,
-            roughness: 0.8
+        // Gaunt anomaly stalker - humanoid figure
+        const { group, limbs } = buildHumanoid({
+            skin: 0x7d8a6f, top: 0x35383d, bottom: 0x26262a,
+            hunch: 0.35, armLen: 0.8, eyeColor: 0xff2222, hat: 'hood'
         });
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        
-        // Add eyes (for visual feedback)
-        const eyeGeometry = new THREE.SphereGeometry(0.08);
-        const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-        
-        const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-        leftEye.position.set(-0.15, 0.8, -0.35);
-        mesh.add(leftEye);
-        
-        const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-        rightEye.position.set(0.15, 0.8, -0.35);
-        mesh.add(rightEye);
-        
-        this.setMesh(mesh);
+        this.limbs = limbs;
+        this.walkPhase = 0;
+        this.setMesh(group);
     }
 
     update(deltaTime) {
@@ -111,6 +198,7 @@ export class Enemy extends Entity {
         this.updateAI(deltaTime);
         this.updateMovement(deltaTime);
         this.updateCombat(deltaTime);
+        this.updateWalkAnimation(deltaTime);
         
         super.update(deltaTime);
     }
@@ -389,7 +477,28 @@ export class Enemy extends Entity {
         }
     }
 
+    updateWalkAnimation(deltaTime) {
+        if (!this.limbs) return;
+        // Measure horizontal speed from position delta
+        if (!this._lastAnimPos) this._lastAnimPos = this.position.clone();
+        const dx = this.position.x - this._lastAnimPos.x;
+        const dz = this.position.z - this._lastAnimPos.z;
+        const speed = Math.sqrt(dx * dx + dz * dz) / Math.max(deltaTime, 0.001);
+        this._lastAnimPos.copy(this.position);
+        
+        const moving = speed > 0.3;
+        const targetAmp = moving ? 0.55 : 0;
+        this._limbAmp = (this._limbAmp ?? 0) + (targetAmp - (this._limbAmp ?? 0)) * Math.min(1, deltaTime * 8);
+        if (moving) this.walkPhase = (this.walkPhase || 0) + deltaTime * (4 + speed * 0.8);
+        const p = this.walkPhase || 0, a = this._limbAmp || 0;
+        this.limbs.legL.rotation.x = Math.sin(p) * a;
+        this.limbs.legR.rotation.x = Math.sin(p + Math.PI) * a;
+        this.limbs.armL.rotation.x = Math.sin(p + Math.PI) * a * 0.8;
+        this.limbs.armR.rotation.x = Math.sin(p) * a * 0.8;
+    }
+
     updateMovement(deltaTime) {
+
         // Follow rolling terrain instead of assuming a flat world
         let groundY = 0;
         const wm = this.game && this.game.worldManager;
@@ -419,8 +528,20 @@ export class Enemy extends Entity {
         }
     }
 
+    createMesh() {
+        // Bandit - human scavenger with cap and rifle
+        const { group, limbs } = buildHumanoid({
+            skin: 0x9a8266, top: 0x5d4a33, bottom: 0x3a3f4a,
+            hunch: 0.1, armLen: 0.7, eyeColor: 0xffeeaa, hat: 'cap', rifle: true
+        });
+        this.limbs = limbs;
+        this.walkPhase = 0;
+        this.setMesh(group);
+    }
+
     performAttack() {
         if (!this.target || !this.canAttack) return;
+
         
         this.canAttack = false;
         this.attackCooldown = 1 / this.attackRate;
@@ -448,15 +569,17 @@ export class Enemy extends Entity {
             this.lastKnownTargetPosition.copy(source.position);
         }
         
-        // Visual feedback
+        // Visual feedback - flash all child materials red (mesh may be a Group)
         if (this.mesh) {
-            // Flash red
-            const originalColor = this.mesh.material.color.clone();
-            this.mesh.material.color.setHex(0xff0000);
-            setTimeout(() => {
-                if (this.mesh && this.mesh.material) {
-                    this.mesh.material.color.copy(originalColor);
+            const mats = [];
+            this.mesh.traverse((child) => {
+                if (child.isMesh && child.material && child.material.color) {
+                    mats.push({ mat: child.material, color: child.material.color.clone() });
+                    child.material.color.setHex(0xff2222);
                 }
+            });
+            setTimeout(() => {
+                for (const { mat, color } of mats) mat.color.copy(color);
             }, 100);
         }
         
@@ -558,29 +681,15 @@ export class Mutant extends Enemy {
     }
 
     createMesh() {
-        // Different mesh based on mutant type
-        const geometry = new THREE.SphereGeometry(0.6, 8, 6);
-        const material = new THREE.MeshStandardMaterial({
-            color: 0x2d4a2d,
-            roughness: 0.9
+        // Hulking mutant brute - hunched, spiked, long arms
+        const { group, limbs } = buildHumanoid({
+            skin: 0x4a5d3a, top: 0x3d4a2f, bottom: 0x2e3823,
+            hunch: 0.85, armLen: 1.0, spikes: true, eyeColor: 0xffcc00
         });
-        const mesh = new THREE.Mesh(geometry, material);
-        
-        // Add spikes/details
-        const spikeGeometry = new THREE.ConeGeometry(0.1, 0.4, 4);
-        const spikeMaterial = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
-        
-        for (let i = 0; i < 8; i++) {
-            const spike = new THREE.Mesh(spikeGeometry, spikeMaterial);
-            const angle = (i / 8) * Math.PI * 2;
-            spike.position.set(Math.cos(angle) * 0.5, 0.3, Math.sin(angle) * 0.5);
-            spike.rotation.x = Math.PI / 4;
-            spike.rotation.y = angle;
-            mesh.add(spike);
-        }
-        
-        mesh.castShadow = true;
-        this.setMesh(mesh);
+        group.scale.setScalar(1.25);
+        this.limbs = limbs;
+        this.walkPhase = 0;
+        this.setMesh(group);
     }
 }
 
