@@ -107,7 +107,7 @@ export class NPC extends Entity {
         // Draw name
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
         ctx.fillRect(0, 0, 256, 64);
-        ctx.fillStyle = '#c4a000';
+        ctx.fillStyle = '#b08d4f'; // muted brass (theme accent)
         ctx.font = 'bold 24px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';

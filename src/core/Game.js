@@ -4,6 +4,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 
 import { EventBus, globalEventBus, GameEvents } from './EventBus.js';
 import { InputManager } from './InputManager.js';
@@ -289,13 +290,29 @@ export class Game {
         this.shakeDuration = 0;
         this.shakeOffset = new THREE.Vector3();
         
-        // Settings
+        // Settings (defaults; the settings menu persists overrides in localStorage
+        // and pushes them through the 'settings:graphics' event -> applyGraphicsSettings)
         this.settings = {
             quality: 'medium',
+            renderScale: 1.0,      // 0.5..1.0 fraction of native resolution
             shadows: true,
-            postProcessing: true,
+            postProcessing: true,  // master post-processing switch
+            bloom: true,
+            antiAliasing: true,    // FXAA
+            filmGrain: true,
+            vignette: true,
+            chroma: false,         // chromatic aberration
             fov: 75,
-            renderDistance: 500
+            renderDistance: 500,
+            autoQuality: false
+        };
+        // Auto-quality governor state
+        this._autoQuality = {
+            lastCheck: 0,
+            emaFps: 60,
+            emaMs: 16.6,
+            goodStreak: 0,
+            effRenderScale: 1.0   // governor-adjusted scale (<= settings.renderScale)
         };
     }
 
@@ -444,87 +461,257 @@ export class Game {
     }
 
     /**
-     * Setup post-processing effects
+     * Quality tier baselines. User-facing toggles/sliders override these.
+     */
+    static qualityTiers() {
+        return {
+            low:    { pixelRatioCap: 1.0, shadowSize: 0,    bloom: false, aa: false, grain: false, renderDistance: 300,  rain: 6000 },
+            medium: { pixelRatioCap: 1.5, shadowSize: 1024, bloom: true,  aa: false, grain: true,  renderDistance: 500,  rain: 10000 },
+            high:   { pixelRatioCap: 2.0, shadowSize: 2048, bloom: true,  aa: true,  grain: true,  renderDistance: 750,  rain: 15000 },
+            ultra:  { pixelRatioCap: 3.0, shadowSize: 4096, bloom: true,  aa: true,  grain: true,  renderDistance: 1000, rain: 20000 }
+        };
+    }
+
+    /**
+     * Setup post-processing (initial build; rebuilt on graphics changes)
      */
     setupPostProcessing() {
-        if (!this.settings.postProcessing) return;
-        
+        this.buildComposer();
+    }
+
+    /**
+     * (Re)build the EffectComposer chain from the current settings.
+     * Disposes the previous chain so toggling effects never leaks targets.
+     */
+    buildComposer() {
+        const s = this.settings;
+        const tier = (Game.qualityTiers()[s.quality] || Game.qualityTiers().medium);
+
+        // Dispose the old chain first
+        if (this.composer) {
+            for (const pass of this.composer.passes) {
+                pass.dispose?.();
+            }
+            this.composer.dispose?.();
+            this.composer = null;
+        }
+        this.gradePass = null;
+        this.grainPass = null;
+        this.fxaaPass = null;
+
+        const usePost = s.postProcessing !== false;
+        if (!usePost) return; // direct rendering, no composer
+
         this.composer = new EffectComposer(this.renderer);
-        
-        // Render pass
-        const renderPass = new RenderPass(this.scene, this.camera);
-        this.composer.addPass(renderPass);
-        
-        // Bloom pass (for lights, fire effects)
-        const bloomPass = new UnrealBloomPass(
-            new THREE.Vector2(window.innerWidth, window.innerHeight),
-            0.3,  // strength
-            0.4,  // radius
-            0.85  // threshold
-        );
-        this.composer.addPass(bloomPass);
-        
-        // Custom vignette/color grading shader
-        const colorGradingShader = {
+
+        // 1. Scene render
+        this.composer.addPass(new RenderPass(this.scene, this.camera));
+
+        // 2. Bloom for emissives, muzzle flash, anomaly glow
+        const wantBloom = s.bloom && tier.bloom;
+        if (wantBloom) {
+            const bloomPass = new UnrealBloomPass(
+                new THREE.Vector2(window.innerWidth, window.innerHeight),
+                s.quality === 'ultra' ? 0.38 : 0.3,  // strength
+                0.5,   // radius
+                0.82   // threshold
+            );
+            this.composer.addPass(bloomPass);
+        }
+
+        // 3. Color grade: vignette / saturation / contrast / brightness / lift
+        const gradePass = new ShaderPass(Game.gradeShader());
+        gradePass.uniforms.vignetteAmount.value = s.vignette ? 0.32 : 0.0;
+        gradePass.uniforms.saturation.value = 0.92;
+        gradePass.uniforms.contrast.value = 1.08;
+        gradePass.uniforms.lift.value = 0.015;
+        this.composer.addPass(gradePass);
+        this.gradePass = gradePass;
+
+        // 4. Animated film grain (separate pass, subtle)
+        if (s.filmGrain && tier.grain) {
+            const grainPass = new ShaderPass(Game.grainShader());
+            grainPass.uniforms.amount.value = 0.028;
+            this.composer.addPass(grainPass);
+            this.grainPass = grainPass;
+        }
+
+        // 5. Chromatic aberration (optional, very subtle)
+        if (s.chroma) {
+            const chromaPass = new ShaderPass(Game.chromaShader());
+            chromaPass.uniforms.amount.value = 0.0012;
+            this.composer.addPass(chromaPass);
+        }
+
+        // 6. FXAA in linear space before output transform (quality-gated)
+        if (s.antiAliasing && tier.aa) {
+            const fxaaPass = new ShaderPass(FXAAShader);
+            this._updateFxaaResolution(fxaaPass);
+            this.composer.addPass(fxaaPass);
+            this.fxaaPass = fxaaPass;
+        }
+
+        // 7. Output: tone mapping + sRGB. Must stay last — without this the
+        // composer writes raw linear HDR to the canvas and everything
+        // renders near-black.
+        this.composer.addPass(new OutputPass());
+
+        this._syncComposerSize();
+    }
+
+    /**
+     * Keep the composer on the same pixel ratio / size as the renderer
+     */
+    _syncComposerSize() {
+        if (!this.composer) return;
+        const pr = this.renderer.getPixelRatio();
+        this.composer.setPixelRatio(pr);
+        this.composer.setSize(window.innerWidth, window.innerHeight);
+        if (this.fxaaPass) this._updateFxaaResolution(this.fxaaPass);
+    }
+
+    _updateFxaaResolution(fxaaPass) {
+        const pr = this.renderer.getPixelRatio();
+        const res = fxaaPass.material.uniforms.resolution;
+        res.value.set(1 / (window.innerWidth * pr), 1 / (window.innerHeight * pr));
+    }
+
+    /**
+     * Filmic color-grade shader: vignette, saturation, contrast, lift, brightness
+     */
+    static gradeShader() {
+        return {
             uniforms: {
                 tDiffuse: { value: null },
-                time: { value: 0 },
-                vignetteAmount: { value: 0.3 },
-                saturation: { value: 0.9 },
-                contrast: { value: 1.1 },
-                brightness: { value: 0.0 }
+                vignetteAmount: { value: 0.32 },
+                saturation: { value: 0.92 },
+                contrast: { value: 1.08 },
+                brightness: { value: 0.0 },
+                lift: { value: 0.015 }
             },
-            vertexShader: `
+            vertexShader: /* glsl */`
                 varying vec2 vUv;
                 void main() {
                     vUv = uv;
                     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                 }
             `,
-            fragmentShader: `
+            fragmentShader: /* glsl */`
                 uniform sampler2D tDiffuse;
-                uniform float time;
                 uniform float vignetteAmount;
                 uniform float saturation;
                 uniform float contrast;
                 uniform float brightness;
+                uniform float lift;
                 varying vec2 vUv;
-                
+
+                // Filmic-ish soft vignette with smooth falloff
+                float vignette(vec2 uv, float amount) {
+                    vec2 d = (uv - 0.5) * vec2(1.15, 1.0);
+                    float v = smoothstep(0.95, 0.35, dot(d, d) * amount * 2.2);
+                    return mix(1.0, v, clamp(amount * 2.4, 0.0, 1.0));
+                }
+
                 void main() {
                     vec4 color = texture2D(tDiffuse, vUv);
-                    
-                    // Vignette
-                    vec2 center = vUv - 0.5;
-                    float vignette = 1.0 - dot(center, center) * vignetteAmount;
-                    color.rgb *= vignette;
-                    
-                    // Saturation
+
+                    // Lift blacks slightly for a filmic toe
+                    color.rgb = color.rgb * (1.0 - lift) + lift;
+
+                    // Saturation (luma-weighted)
                     float gray = dot(color.rgb, vec3(0.299, 0.587, 0.114));
                     color.rgb = mix(vec3(gray), color.rgb, saturation);
-                    
-                    // Contrast
+
+                    // Contrast around mid-gray
                     color.rgb = (color.rgb - 0.5) * contrast + 0.5;
-                    
+
                     // Brightness
                     color.rgb += brightness;
 
-                    // Animated film grain - breaks up flat digital gradients
-                    float grain = fract(sin(dot(vUv * (mod(time, 10.0) + 1.0), vec2(12.9898, 78.233))) * 43758.5453);
-                    color.rgb += (grain - 0.5) * 0.02;
-                    
+                    // Vignette
+                    color.rgb *= vignette(vUv, vignetteAmount);
+
                     gl_FragColor = color;
                 }
             `
         };
-        
-        const colorGradingPass = new ShaderPass(colorGradingShader);
-        this.composer.addPass(colorGradingPass);
-        this.colorGradingPass = colorGradingPass;
+    }
 
-        // Output pass: applies tone mapping + sRGB conversion.
-        // Without this, the composer writes raw linear HDR values to the
-        // canvas and the whole image renders nearly black.
-        this.composer.addPass(new OutputPass());
+    /**
+     * Animated film grain shader (hash without texture lookups)
+     */
+    static grainShader() {
+        return {
+            uniforms: {
+                tDiffuse: { value: null },
+                time: { value: 0 },
+                amount: { value: 0.028 }
+            },
+            vertexShader: /* glsl */`
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: /* glsl */`
+                uniform sampler2D tDiffuse;
+                uniform float time;
+                uniform float amount;
+                varying vec2 vUv;
+
+                float hash(vec2 p) {
+                    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+                    p3 += dot(p3, p3.yzx + 33.33);
+                    return fract((p3.x + p3.y) * p3.z);
+                }
+
+                void main() {
+                    vec4 color = texture2D(tDiffuse, vUv);
+                    // Two decorrelated samples: finer, less "crawly" grain
+                    float g = hash(vUv * vec2(1920.0, 1080.0) + fract(time) * 271.0) - 0.5;
+                    float g2 = hash(vUv * vec2(1280.0, 720.0) - fract(time * 1.7) * 173.0) - 0.5;
+                    float luma = dot(color.rgb, vec3(0.299, 0.587, 0.114));
+                    // Grain is stronger in shadows, gentler in highlights
+                    float mask = mix(1.0, 0.35, smoothstep(0.0, 0.9, luma));
+                    color.rgb += (g * 0.7 + g2 * 0.3) * amount * mask;
+                    gl_FragColor = color;
+                }
+            `
+        };
+    }
+
+    /**
+     * Subtle radial chromatic aberration
+     */
+    static chromaShader() {
+        return {
+            uniforms: {
+                tDiffuse: { value: null },
+                amount: { value: 0.0012 }
+            },
+            vertexShader: /* glsl */`
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: /* glsl */`
+                uniform sampler2D tDiffuse;
+                uniform float amount;
+                varying vec2 vUv;
+                void main() {
+                    vec2 dir = vUv - 0.5;
+                    float r2 = dot(dir, dir);
+                    vec2 off = dir * r2 * amount * 8.0;
+                    float r = texture2D(tDiffuse, vUv - off).r;
+                    float g = texture2D(tDiffuse, vUv).g;
+                    float b = texture2D(tDiffuse, vUv + off).b;
+                    gl_FragColor = vec4(r, g, b, 1.0);
+                }
+            `
+        };
     }
 
     /**
@@ -760,31 +947,36 @@ export class Game {
     }
 
     /**
-     * Pause the game
+     * Pause the game. Single source of truth for the paused state:
+     * sets isPaused, releases the pointer, and tells the UI to show
+     * the pause menu via GAME_PAUSE.
      */
     pause() {
+        if (this.gameState !== 'playing' || this.isPaused) return;
         this.isPaused = true;
-        
+
         // Release pointer lock when pausing
         if (this.inputManager) {
             this.inputManager.exitPointerLock();
         }
-        
-        this.uiManager?.showPauseMenu();
+
+        globalEventBus.emit(GameEvents.GAME_PAUSE);
     }
 
     /**
-     * Resume the game
+     * Resume the game. Mirrors pause(): clears isPaused, tells the UI to
+     * close the pause menu via GAME_RESUME, then re-locks the pointer.
      */
     resume() {
+        if (!this.isPaused) return;
         this.isPaused = false;
-        
+
+        globalEventBus.emit(GameEvents.GAME_RESUME);
+
         // Request pointer lock when resuming
         if (this.inputManager && this.canvas) {
             this.inputManager.requestPointerLock();
         }
-        
-        this.uiManager?.hidePauseMenu();
     }
 
     /**
@@ -798,22 +990,33 @@ export class Game {
         // Calculate delta time
         this.deltaTime = Math.min(this.clock.getDelta(), 0.1); // Cap at 100ms
         
-        // FPS counter
+        // FPS counter + frame-time EMA (feeds the overlay and auto-quality)
+        const frameStart = performance.now();
         this.frameCount++;
-        if (performance.now() - this.lastFpsUpdate >= 1000) {
+        if (frameStart - this.lastFpsUpdate >= 1000) {
             this.fps = this.frameCount;
             this.frameCount = 0;
-            this.lastFpsUpdate = performance.now();
-            
+            this.lastFpsUpdate = frameStart;
+
             // Debug FPS display
             if (this.debug) {
                 console.log(`FPS: ${this.fps}`);
             }
+            this.uiManager?.updateFps(this.fps, this._autoQuality.emaMs);
         }
         
-        // Check for pause input (not while sitting at the main menu)
-        if (this.inputManager && this.gameState !== 'menu' && this.inputManager.isActionJustPressed('pause')) {
-            if (this.isPaused) {
+        // Check for pause input (only during active gameplay, never in menus)
+        if (this.inputManager && this.gameState === 'playing' && !this.isLoading &&
+            this.inputManager.isActionJustPressed('pause')) {
+            const ui = this.uiManager;
+            const openMenu = ui?.activeMenu;
+            if (openMenu && openMenu !== 'pause' && openMenu !== 'settings') {
+                // Esc first closes whatever is open (inventory, map, loot...)
+                ui.closeMenu(openMenu);
+            } else if (openMenu === 'settings') {
+                // ...and backs out of settings to the pause menu
+                ui.closeSettings();
+            } else if (this.isPaused) {
                 this.resume();
             } else {
                 this.pause();
@@ -828,11 +1031,64 @@ export class Game {
         
         // Always render
         this.render();
+
+        // Frame-time EMA + auto-quality governor
+        const frameMs = performance.now() - frameStart;
+        const aq = this._autoQuality;
+        aq.emaMs += (frameMs - aq.emaMs) * 0.06;
+        aq.emaFps += ((1000 / Math.max(frameMs, 0.01)) - aq.emaFps) * 0.06;
+        this._tickAutoQuality(frameStart);
         
         // Clear input state for next frame
         if (this.inputManager) {
             this.inputManager.update();
         }
+    }
+
+    /**
+     * Auto-quality governor: holds frame rate by easing the render scale
+     * between 0.6 and the user's chosen render scale. Only acts when the
+     * user enabled "Auto Quality" in settings.
+     */
+    _tickAutoQuality(now) {
+        const aq = this._autoQuality;
+        if (!this.settings.autoQuality) {
+            // Governor off: track the user's scale directly
+            if (aq.effRenderScale !== this.settings.renderScale) {
+                aq.effRenderScale = this.settings.renderScale;
+                this._applyRenderScale();
+            }
+            return;
+        }
+        if (now - aq.lastCheck < 2000) return;
+        aq.lastCheck = now;
+
+        const target = this.settings.renderScale;
+        const fps = aq.emaFps;
+        if (fps < 45 && aq.effRenderScale > 0.6) {
+            aq.effRenderScale = Math.max(0.6, aq.effRenderScale - 0.1);
+            aq.goodStreak = 0;
+            this._applyRenderScale();
+        } else if (fps > 57 && aq.effRenderScale < target) {
+            aq.goodStreak++;
+            if (aq.goodStreak >= 3) {
+                aq.goodStreak = 0;
+                aq.effRenderScale = Math.min(target, aq.effRenderScale + 0.05);
+                this._applyRenderScale();
+            }
+        } else if (fps >= 45) {
+            aq.goodStreak = 0;
+        }
+    }
+
+    /**
+     * Apply the effective render scale (user scale x governor scale)
+     */
+    _applyRenderScale() {
+        const tier = (Game.qualityTiers()[this.settings.quality] || Game.qualityTiers().medium);
+        const pr = Math.min(window.devicePixelRatio || 1, tier.pixelRatioCap) * this._autoQuality.effRenderScale;
+        this.renderer.setPixelRatio(pr);
+        this._syncComposerSize();
     }
 
     /**
@@ -914,8 +1170,8 @@ export class Game {
         
         // Render with post-processing or standard
         if (this.composer && this.settings.postProcessing) {
-            if (this.colorGradingPass?.uniforms?.time) {
-                this.colorGradingPass.uniforms.time.value = performance.now() * 0.001;
+            if (this.grainPass?.uniforms?.time) {
+                this.grainPass.uniforms.time.value = performance.now() * 0.001;
             }
             this.composer.render();
         } else {
@@ -977,57 +1233,105 @@ export class Game {
         // Update renderer
         this.renderer.setSize(width, height);
         
-        // Update composer
-        if (this.composer) {
-            this.composer.setSize(width, height);
+        // Update composer (keeps pixel ratio + FXAA resolution in sync)
+        this._syncComposerSize();
+    }
+
+    /**
+     * Apply graphics settings. The quality tier sets baselines; individual
+     * toggles/sliders from the settings menu override the tier.
+     * @param {Object} settings - Graphics settings
+     */
+    applyGraphicsSettings(settings) {
+        const s = this.settings;
+        const tiers = Game.qualityTiers();
+        const prevQuality = s.quality;
+        const prevFlags = [s.postProcessing, s.bloom, s.antiAliasing, s.filmGrain, s.vignette, s.chroma].join('|');
+
+        if (settings.quality && tiers[settings.quality]) s.quality = settings.quality;
+        const tier = tiers[s.quality];
+
+        if (settings.renderScale !== undefined) {
+            s.renderScale = Math.min(1, Math.max(0.5, settings.renderScale));
+            this._autoQuality.effRenderScale = s.renderScale;
+            this._autoQuality.goodStreak = 0;
+        }
+        if (settings.shadows !== undefined) s.shadows = !!settings.shadows;
+        if (settings.postProcessing !== undefined) s.postProcessing = !!settings.postProcessing;
+        if (settings.bloom !== undefined) s.bloom = !!settings.bloom;
+        if (settings.antiAliasing !== undefined) s.antiAliasing = !!settings.antiAliasing;
+        if (settings.filmGrain !== undefined) s.filmGrain = !!settings.filmGrain;
+        if (settings.vignette !== undefined) s.vignette = !!settings.vignette;
+        if (settings.chroma !== undefined) s.chroma = !!settings.chroma;
+        if (settings.autoQuality !== undefined) s.autoQuality = !!settings.autoQuality;
+
+        // Pixel ratio: tier cap x effective render scale
+        this._applyRenderScale();
+
+        // Shadows
+        this.renderer.shadowMap.enabled = s.shadows;
+        this.renderer.shadowMap.type = s.quality === 'low' ? THREE.BasicShadowMap
+            : s.quality === 'medium' ? THREE.PCFShadowMap
+            : THREE.PCFSoftShadowMap;
+        this._applyShadowSize(s.shadows ? tier.shadowSize : 0);
+
+        // FOV
+        if (settings.fov && this.camera) {
+            s.fov = settings.fov;
+            this.camera.fov = settings.fov;
+            this.camera.updateProjectionMatrix();
+        }
+
+        // Render distance
+        const rd = settings.renderDistance || tier.renderDistance;
+        if (rd !== s.renderDistance) {
+            s.renderDistance = rd;
+            if (this.camera) {
+                this.camera.far = rd;
+                this.camera.updateProjectionMatrix();
+            }
+            if (this.scene?.fog) this.scene.fog.far = rd;
+        }
+
+        // Rebuild the composer when the pass set may have changed
+        const nextFlags = [s.postProcessing, s.bloom, s.antiAliasing, s.filmGrain, s.vignette, s.chroma].join('|');
+        if (s.quality !== prevQuality || nextFlags !== prevFlags) {
+            this.buildComposer();
+        } else if (this.gradePass && settings.vignette !== undefined) {
+            // Cheap path: just retune the vignette amount
+            this.gradePass.uniforms.vignetteAmount.value = s.vignette ? 0.32 : 0.0;
+        }
+
+        // Tell the weather system to scale precipitation with quality
+        globalEventBus.emit('settings:rainCount', { count: tier.rain });
+
+        // Materials may need a refresh when the shadow type changes
+        if (this.scene) {
+            this.scene.traverse((obj) => {
+                if (obj.material) obj.material.needsUpdate = true;
+            });
         }
     }
 
     /**
-     * Apply graphics settings
-     * @param {Object} settings - Graphics settings
+     * Resize shadow maps on the sun/moon lights (DayNightCycle owns them)
      */
-    applyGraphicsSettings(settings) {
-        if (settings.shadows !== undefined) {
-            this.renderer.shadowMap.enabled = settings.shadows;
-            this.settings.shadows = settings.shadows;
-        }
-        
-        if (settings.quality) {
-            this.settings.quality = settings.quality;
-            
-            switch (settings.quality) {
-                case 'low':
-                    this.renderer.setPixelRatio(1);
-                    this.renderer.shadowMap.type = THREE.BasicShadowMap;
-                    break;
-                case 'medium':
-                    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-                    this.renderer.shadowMap.type = THREE.PCFShadowMap;
-                    break;
-                case 'high':
-                    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-                    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-                    break;
-                case 'ultra':
-                    this.renderer.setPixelRatio(window.devicePixelRatio);
-                    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-                    break;
+    _applyShadowSize(px) {
+        const dn = this.dayNightCycle;
+        if (!dn) return;
+        for (const light of [dn.sunLight, dn.moonLight]) {
+            if (!light?.shadow) continue;
+            if (px <= 0) {
+                light.castShadow = false;
+                continue;
             }
-        }
-        
-        if (settings.postProcessing !== undefined) {
-            this.settings.postProcessing = settings.postProcessing;
-        }
-        
-        if (settings.renderDistance) {
-            this.settings.renderDistance = settings.renderDistance;
-            if (this.camera) {
-                this.camera.far = settings.renderDistance;
-                this.camera.updateProjectionMatrix();
-            }
-            if (this.scene?.fog) {
-                this.scene.fog.far = settings.renderDistance;
+            light.castShadow = true;
+            if (light.shadow.mapSize.x !== px) {
+                light.shadow.mapSize.set(px, px);
+                if (light.shadow.map) {
+                    light.shadow.map.dispose();
+                    light.shadow.map = null;
+                }
             }
         }
     }

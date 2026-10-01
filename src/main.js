@@ -399,7 +399,7 @@ function showWebGLError() {
                 justify-content: center;
                 height: 100%;
                 background: #0a0a0a;
-                color: #c4a000;
+                color: #b08d4f;
                 font-family: 'Courier New', monospace;
                 text-align: center;
                 padding: 20px;
@@ -428,7 +428,7 @@ function showError(message) {
         loadingScreen.innerHTML = `
             <div class="loading-content">
                 <h1 style="color: #ff0000;">ERROR</h1>
-                <p style="color: #c4a000; margin: 20px 0;">${message}</p>
+                <p style="color: #b08d4f; margin: 20px 0;">${message}</p>
                 <button onclick="location.reload()" class="menu-button">
                     Reload Game
                 </button>

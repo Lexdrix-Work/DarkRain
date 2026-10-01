@@ -45,15 +45,13 @@ export class Minimap {
         // Create container
         const container = document.createElement('div');
         container.id = 'minimap-container';
+        // Tell the stylesheet the minimap exists so the ammo readout shifts up
+        document.body.classList.add('has-minimap');
+        // Position comes from the stylesheet (#minimap-container: bottom-right,
+        // clear of the quest tracker). Only the dynamic size is set here.
         container.style.cssText = `
-            position: absolute;
-            top: 20px;
-            right: 20px;
             width: ${this.size}px;
             height: ${this.size}px;
-            border: 2px solid #c4a000;
-            border-radius: 50%;
-            overflow: hidden;
             pointer-events: none;
         `;
         
@@ -88,11 +86,9 @@ export class Minimap {
             const marker = document.createElement('span');
             marker.textContent = dir;
             marker.className = 'minimap-direction';
+            // Theme visuals come from .minimap-direction; only the
+            // per-direction placement is inline.
             marker.style.cssText = `
-                position: absolute;
-                color: #c4a000;
-                font-size: 10px;
-                font-weight: bold;
                 ${Object.entries(positions[i]).map(([k, v]) => `${k}: ${v}`).join('; ')}
             `;
             container.appendChild(marker);

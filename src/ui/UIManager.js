@@ -31,6 +31,9 @@ export class UIManager {
             inventoryGrid: document.getElementById('inventory-grid'),
             notificationArea: document.getElementById('notification-area'),
             pauseMenu: document.getElementById('pause-menu'),
+            settingsMenu: document.getElementById('settings-menu'),
+            confirmDialog: document.getElementById('confirm-dialog'),
+            fpsCounter: document.getElementById('fps-counter'),
             loadingScreen: document.getElementById('loading-screen'),
             loadingProgress: document.getElementById('loading-progress'),
             loadingText: document.getElementById('loading-text'),
@@ -109,9 +112,11 @@ export class UIManager {
             this.toggleMenu('map');
         });
         
-        this.eventBus.on('input:toggle:pause', () => {
-            this.toggleMenu('pause');
-        });
+        // Pause is owned by the Game (single source of truth for isPaused).
+        // Esc in the game loop calls game.pause()/resume(), which emit
+        // GAME_PAUSE/GAME_RESUME — the UI only mirrors that state here.
+        // (There is intentionally no input:toggle:pause -> toggleMenu path;
+        // that dual path left the game simulating behind the pause menu.)
 
         this.eventBus.on('input:toggle:favorites', () => {
             this.toggleFavorites();
@@ -140,33 +145,70 @@ export class UIManager {
         
         this.eventBus.on('flashlight:toggle', (data) => {
             if (this.elements.flashlightUI) {
-                this.elements.flashlightUI.style.display = data.isOn ? 'block' : 'none';
+                this.elements.flashlightUI.style.display = data.isOn ? '' : 'none';
             }
         });
     }
 
     setupPauseMenu() {
-        const resumeBtn = document.getElementById('resume-btn');
-        const settingsBtn = document.getElementById('settings-btn');
-        const quitBtn = document.getElementById('quit-btn');
-        
-        if (resumeBtn) {
-            resumeBtn.addEventListener('click', () => {
-                this.eventBus.emit(GameEvents.GAME_RESUME);
-            });
+        const on = (id, fn) => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('click', fn);
+        };
+        on('resume-btn', () => this.eventBus.emit(GameEvents.GAME_RESUME));
+        on('save-btn', () => this.saveFromPause());
+        on('load-btn', () => this.loadFromPause());
+        on('settings-btn', () => this.showSettings());
+        on('quit-btn', () => this.confirmQuit());
+        // In-game confirm dialog buttons
+        on('confirm-cancel', () => this.hideConfirm());
+        on('confirm-ok', () => {
+            const cb = this._confirmCallback;
+            this.hideConfirm();
+            if (typeof cb === 'function') cb();
+        });
+    }
+
+    /**
+     * Save from the pause menu without leaving it
+     */
+    saveFromPause() {
+        if (!this.game) return;
+        this.eventBus.emit(GameEvents.SAVE_GAME);
+        this.showNotification('Game saved', 'success');
+    }
+
+    /**
+     * Load the autosave from the pause menu (resume into the loaded game)
+     */
+    loadFromPause() {
+        if (!this.game?.saveSystem?.hasSave || !this.game.saveSystem.hasSave('autosave')) {
+            this.showNotification('No saved game found', 'warning');
+            return;
         }
-        
-        if (settingsBtn) {
-            settingsBtn.addEventListener('click', () => {
-                this.showSettings();
-            });
-        }
-        
-        if (quitBtn) {
-            quitBtn.addEventListener('click', () => {
-                this.confirmQuit();
-            });
-        }
+        this.showConfirm('Load Game', 'Load the last save? Unsaved progress will be lost.', () => {
+            this.eventBus.emit(GameEvents.GAME_RESUME);
+            this.eventBus.emit(GameEvents.LOAD_GAME);
+        });
+    }
+
+    /**
+     * In-game confirm dialog (replaces the native confirm() popup)
+     */
+    showConfirm(title, message, onConfirm) {
+        this._confirmCallback = onConfirm;
+        const titleEl = document.getElementById('confirm-title');
+        const msgEl = document.getElementById('confirm-message');
+        if (titleEl) titleEl.textContent = title;
+        if (msgEl) msgEl.textContent = message;
+        const dlg = this.elements.confirmDialog || document.getElementById('confirm-dialog');
+        if (dlg) this._showEl(dlg);
+    }
+
+    hideConfirm() {
+        this._confirmCallback = null;
+        const dlg = this.elements.confirmDialog || document.getElementById('confirm-dialog');
+        if (dlg) this._hideEl(dlg);
     }
 
     /**
@@ -201,8 +243,7 @@ export class UIManager {
         this.hideAllMenus();
         const menu = document.getElementById('main-menu');
         if (menu) {
-            menu.classList.remove('hidden');
-            menu.style.display = 'flex';
+            this._showEl(menu);
         }
         // Disable Continue/Load when no save exists
         const hasSave = this.game?.saveSystem?.hasSave('autosave');
@@ -218,8 +259,7 @@ export class UIManager {
     hideMainMenu() {
         const menu = document.getElementById('main-menu');
         if (menu) {
-            menu.classList.add('hidden');
-            menu.style.display = 'none';
+            this._hideEl(menu);
         }
         this.setHudVisible(true);
     }
@@ -273,11 +313,11 @@ export class UIManager {
         if (document.pointerLockElement) document.exitPointerLock();
         const el = document.getElementById('death-screen');
         if (el) {
-            el.classList.remove('hidden');
-            el.style.display = 'flex';
+            this._showEl(el);
         }
         const r = document.getElementById('death-reason');
-        if (r && reason) r.textContent = reason;
+        const reasonText = typeof reason === 'string' ? reason : (reason?.message || reason?.cause || '');
+        if (r && reasonText) r.textContent = reasonText;
         const rb = document.getElementById('reload-btn');
         if (rb) rb.disabled = !this.game?.saveSystem?.hasSave('autosave');
         this.updatePointerHint(false);
@@ -310,66 +350,28 @@ export class UIManager {
      * Confirm quit dialog
      */
     confirmQuit() {
-        const confirmed = confirm('Quit to the main menu? Unsaved progress will be lost.');
-        if (confirmed) this.quitToMenu();
+        this.showConfirm('Quit to Menu', 'Return to the main menu? Unsaved progress will be lost.', () => {
+            this.quitToMenu();
+        });
     }
 
     /**
      * Create flashlight UI elements
      */
     createFlashlightUI() {
-        // Create battery indicator
+        // Battery indicator — visual styling lives in the stylesheet
+        // (.flashlight-indicator, .battery-bar, .battery-fill, .battery-text)
         this.elements.flashlightUI = document.createElement('div');
         this.elements.flashlightUI.id = 'flashlight-ui';
+        this.elements.flashlightUI.className = 'flashlight-indicator';
+        this.elements.flashlightUI.style.display = 'none';
         this.elements.flashlightUI.innerHTML = `
-            <div class="flashlight-indicator">
-                <span class="flashlight-icon">🔦</span>
-                <div class="battery-bar">
-                    <div class="battery-fill" id="battery-fill"></div>
-                </div>
-                <span class="battery-text" id="battery-text">100%</span>
+            <span class="flashlight-icon">🔦</span>
+            <div class="battery-bar">
+                <div class="battery-fill" id="battery-fill"></div>
             </div>
+            <span class="battery-text" id="battery-text">100%</span>
         `;
-        this.elements.flashlightUI.style.cssText = `
-            position: fixed;
-            bottom: 20px;
-            left: 20px;
-            display: none;
-            background: rgba(0,0,0,0.6);
-            padding: 8px 12px;
-            border-radius: 4px;
-            color: white;
-            font-family: monospace;
-            z-index: 100;
-            border: 1px solid #c4a000;
-        `;
-        
-        // Style the battery bar
-        const style = document.createElement('style');
-        style.textContent = `
-            .battery-bar {
-                width: 60px;
-                height: 12px;
-                background: #333;
-                border: 1px solid #666;
-                margin: 0 8px;
-                display: inline-block;
-                vertical-align: middle;
-            }
-            .battery-fill {
-                height: 100%;
-                width: 100%;
-                background: #4a4;
-                transition: width 0.3s, background 0.3s;
-            }
-            .flashlight-indicator {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            }
-        `;
-        document.head.appendChild(style);
-        
         document.body.appendChild(this.elements.flashlightUI);
     }
 
@@ -400,6 +402,38 @@ export class UIManager {
     }
 
     /**
+     * Fluid show: mount the element, then transition it in on the next frame.
+     * @param {HTMLElement} el
+     */
+    _showEl(el) {
+        el.classList.remove('hidden');
+        el.style.display = 'flex';
+        // Force a reflow so the transition runs from the hidden state
+        void el.offsetWidth;
+        el.classList.add('visible');
+    }
+
+    /**
+     * Fluid hide: transition out, then unmount when the transition ends.
+     * @param {HTMLElement} el
+     */
+    _hideEl(el) {
+        if (el.classList.contains('hidden')) return;
+        el.classList.remove('visible');
+        let done = false;
+        const cleanup = () => {
+            if (done) return;
+            done = true;
+            el.classList.add('hidden');
+            el.style.display = 'none';
+            el.removeEventListener('transitionend', cleanup);
+        };
+        el.addEventListener('transitionend', cleanup);
+        // Fallback in case transitionend never fires
+        setTimeout(cleanup, 260);
+    }
+
+    /**
      * Toggle a menu open/closed
      * @param {string} menuName - Name of the menu
      */
@@ -427,13 +461,10 @@ export class UIManager {
         this.menuStates[menuName] = true;
         this.activeMenu = menuName;
         
-        // Show the menu
+        // Show the menu (fluid transition)
         const menuElement = this.getMenuElement(menuName);
         if (menuElement) {
-            menuElement.classList.remove('hidden');
-            menuElement.classList.add('visible');
-            menuElement.style.display = 'flex';
-            
+            this._showEl(menuElement);
             // Exit pointer lock when menu opens
             if (document.pointerLockElement) {
                 document.exitPointerLock();
@@ -584,10 +615,8 @@ export class UIManager {
                 this.activeMenu = null;
             }
             
-            // Hide the menu
-            menuElement.classList.add('hidden');
-            menuElement.classList.remove('visible');
-            menuElement.style.display = 'none';
+            // Hide the menu (fluid transition out)
+            this._hideEl(menuElement);
             
             // Emit events
             this.eventBus.emit('ui:menuClosed', { menu: menuName });
@@ -618,6 +647,13 @@ export class UIManager {
         // Special handling for pause
         if (menuName === 'pause') {
             return this.elements.pauseMenu;
+        }
+        // Settings menu (static element id is settings-menu)
+        if (menuName === 'settings') {
+            if (!this.elements.settingsMenu) {
+                this.elements.settingsMenu = document.getElementById('settings-menu');
+            }
+            return this.elements.settingsMenu;
         }
         // Loot container menu
         if (menuName === 'loot') {
@@ -758,16 +794,7 @@ export class UIManager {
             <span class="notification-text">${message}</span>
         `;
         
-        // Style based on type
-        const colors = {
-            info: '#c4a000',
-            warning: '#ff8800',
-            danger: '#ff0000',
-            success: '#00ff00'
-        };
-        
-        notification.style.borderLeftColor = colors[type] || colors.info;
-        
+        // Type styling comes from the stylesheet (.notification-<type>)
         this.elements.notificationArea.appendChild(notification);
         this.notifications.push(notification);
         
@@ -916,13 +943,8 @@ export class UIManager {
         
         const menu = document.createElement('div');
         menu.className = 'item-context-menu';
-        menu.style.position = 'absolute';
         menu.style.left = `${event.clientX}px`;
         menu.style.top = `${event.clientY}px`;
-        menu.style.background = 'rgba(20, 20, 20, 0.95)';
-        menu.style.border = '1px solid #c4a000';
-        menu.style.padding = '5px 0';
-        menu.style.zIndex = '1000';
         
         const options = [
             { label: 'Use', action: () => this.useItem(index, item) },
@@ -938,16 +960,6 @@ export class UIManager {
             const option = document.createElement('div');
             option.className = 'context-menu-option';
             option.textContent = opt.label;
-            option.style.padding = '8px 20px';
-            option.style.cursor = 'pointer';
-            option.style.color = '#c4a000';
-            
-            option.addEventListener('mouseenter', () => {
-                option.style.background = 'rgba(196, 160, 0, 0.2)';
-            });
-            option.addEventListener('mouseleave', () => {
-                option.style.background = 'transparent';
-            });
             option.addEventListener('click', () => {
                 opt.action();
                 menu.remove();
@@ -1010,107 +1022,35 @@ export class UIManager {
     }
 
     /**
-     * Show settings panel
+     * Show the settings menu (static DOM, styled by CSS).
+     * Remembers whether it was opened over the pause menu so Done
+     * returns there instead of resuming the game.
      */
     showSettings() {
-        // Never stack duplicate panels
-        document.getElementById('settings-panel')?.remove();
-        // Create settings panel dynamically
-        const settingsPanel = document.createElement('div');
-        settingsPanel.id = 'settings-panel';
-        settingsPanel.className = 'settings-panel';
-        settingsPanel.innerHTML = `
-            <h2>SETTINGS</h2>
-            
-            <div class="settings-section">
-                <h3>Audio</h3>
-                <div class="setting-row">
-                    <label>Master Volume</label>
-                    <input type="range" id="master-volume" min="0" max="100" value="100">
-                </div>
-                <div class="setting-row">
-                    <label>Music Volume</label>
-                    <input type="range" id="music-volume" min="0" max="100" value="50">
-                </div>
-                <div class="setting-row">
-                    <label>SFX Volume</label>
-                    <input type="range" id="sfx-volume" min="0" max="100" value="80">
-                </div>
-            </div>
-            
-            <div class="settings-section">
-                <h3>Controls</h3>
-                <div class="setting-row">
-                    <label>Mouse Sensitivity</label>
-                    <input type="range" id="mouse-sensitivity" min="1" max="100" value="50">
-                </div>
-                <div class="setting-row">
-                    <label>Invert Y-Axis</label>
-                    <input type="checkbox" id="invert-y">
-                </div>
-            </div>
-            
-            <div class="settings-section">
-                <h3>Graphics</h3>
-                <div class="setting-row">
-                    <label>Quality</label>
-                    <select id="graphics-quality">
-                        <option value="low">Low</option>
-                        <option value="medium" selected>Medium</option>
-                        <option value="high">High</option>
-                        <option value="ultra">Ultra</option>
-                    </select>
-                </div>
-                <div class="setting-row">
-                    <label>Shadows</label>
-                    <input type="checkbox" id="shadows-enabled" checked>
-                </div>
-            </div>
-            
-            <div class="settings-buttons">
-                <button id="settings-apply">Apply</button>
-                <button id="settings-back">Back</button>
-            </div>
-        `;
-        
-        // Style the panel
-        settingsPanel.style.cssText = `
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(20, 20, 20, 0.95);
-            border: 2px solid #c4a000;
-            padding: 30px;
-            min-width: 400px;
-            color: #c4a000;
-            font-family: 'Courier New', monospace;
-            z-index: 1001;
-        `;
-        
-        document.body.appendChild(settingsPanel);
+        this._settingsReturn = this.activeMenu === 'pause' ? 'pause' : null;
         this.populateSettingsPanel();
-        
-        // Event handlers
-        document.getElementById('settings-back').addEventListener('click', () => {
-            this.closeMenu('settings');  // Close first (updates state)
-            settingsPanel.remove();       // Then remove element
-        });
-
-        document.getElementById('settings-apply').addEventListener('click', () => {
-            this.applySettings();
-            this.closeMenu('settings');
-            settingsPanel.remove();
-        });
-        
         this.openMenu('settings');
+    }
+
+    /**
+     * Close settings, returning to the pause menu when it was opened from there
+     */
+    closeSettings() {
+        this.closeMenu('settings', false);
+        if (this._settingsReturn === 'pause' && this.game?.isPaused) {
+            this.openMenu('pause');
+        }
+        this._settingsReturn = null;
     }
 
     getStoredSettings() {
         const defaults = {
+            fullscreen: false, fov: 75, showFps: false,
+            quality: 'medium', renderScale: 100, renderDistance: 500,
+            shadows: true, autoQuality: false,
+            post: true, bloom: true, aa: true, grain: true, vignette: true, chroma: false,
             masterVolume: 100, musicVolume: 50, sfxVolume: 80,
-            sensitivity: 50, invertY: false,
-            quality: 'medium', shadows: true
+            sensitivity: 50, invertY: false
         };
         try {
             const raw = localStorage.getItem('darkrain_settings');
@@ -1119,17 +1059,118 @@ export class UIManager {
         return defaults;
     }
 
+    saveStoredSettings(st) {
+        try {
+            localStorage.setItem('darkrain_settings', JSON.stringify(st));
+        } catch (_) { /* storage unavailable */ }
+    }
+
     populateSettingsPanel() {
         const st = this.getStoredSettings();
-        const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+        const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
         const setChecked = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
-        set('master-volume', st.masterVolume);
-        set('music-volume', st.musicVolume);
-        set('sfx-volume', st.sfxVolume);
-        set('mouse-sensitivity', st.sensitivity);
-        setChecked('invert-y', st.invertY);
-        set('graphics-quality', st.quality);
-        setChecked('shadows-enabled', st.shadows);
+        const setLabel = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+
+        setChecked('set-fullscreen', st.fullscreen);
+        setVal('set-fov', st.fov); setLabel('set-fov-val', st.fov);
+        setChecked('set-show-fps', st.showFps);
+
+        setVal('set-quality', st.quality);
+        setVal('set-render-scale', st.renderScale); setLabel('set-render-scale-val', st.renderScale + '%');
+        setVal('set-render-distance', st.renderDistance); setLabel('set-render-distance-val', st.renderDistance + 'm');
+        setChecked('set-shadows', st.shadows);
+        setChecked('set-auto-quality', st.autoQuality);
+
+        setChecked('set-post', st.post);
+        setChecked('set-bloom', st.bloom);
+        setChecked('set-aa', st.aa);
+        setChecked('set-grain', st.grain);
+        setChecked('set-vignette', st.vignette);
+        setChecked('set-chroma', st.chroma);
+
+        setVal('set-master-volume', st.masterVolume); setLabel('set-master-volume-val', st.masterVolume);
+        setVal('set-music-volume', st.musicVolume); setLabel('set-music-volume-val', st.musicVolume);
+        setVal('set-sfx-volume', st.sfxVolume); setLabel('set-sfx-volume-val', st.sfxVolume);
+
+        setVal('set-sensitivity', st.sensitivity); setLabel('set-sensitivity-val', st.sensitivity);
+        setChecked('set-invert-y', st.invertY);
+
+        this._wireSettingsControls();
+    }
+
+    /**
+     * Wire live-apply listeners once (guarded so we never double-bind)
+     */
+    _wireSettingsControls() {
+        if (this._settingsWired) return;
+        this._settingsWired = true;
+
+        const live = () => this.applySettings({ silent: true });
+
+        // Range inputs: update the value label live, apply on change
+        const ranges = [
+            ['set-fov', 'set-fov-val', v => `${v}`],
+            ['set-render-scale', 'set-render-scale-val', v => `${v}%`],
+            ['set-render-distance', 'set-render-distance-val', v => `${v}m`],
+            ['set-master-volume', 'set-master-volume-val', v => `${v}`],
+            ['set-music-volume', 'set-music-volume-val', v => `${v}`],
+            ['set-sfx-volume', 'set-sfx-volume-val', v => `${v}`],
+            ['set-sensitivity', 'set-sensitivity-val', v => `${v}`],
+        ];
+        for (const [id, labelId, fmt] of ranges) {
+            const el = document.getElementById(id);
+            if (!el) continue;
+            el.addEventListener('input', () => {
+                const label = document.getElementById(labelId);
+                if (label) label.textContent = fmt(el.value);
+            });
+            el.addEventListener('change', live);
+        }
+
+        // Toggles and selects apply immediately
+        for (const id of ['set-fullscreen', 'set-show-fps', 'set-quality', 'set-shadows',
+                          'set-auto-quality', 'set-post', 'set-bloom', 'set-aa',
+                          'set-grain', 'set-vignette', 'set-chroma', 'set-invert-y']) {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('change', live);
+        }
+
+        document.getElementById('settings-back')?.addEventListener('click', () => this.closeSettings());
+        document.getElementById('settings-reset')?.addEventListener('click', () => {
+            try { localStorage.removeItem('darkrain_settings'); } catch (_) {}
+            this.populateSettingsPanel();
+            this.applySettings({ silent: true });
+            this.showNotification('Settings reset to defaults', 'info');
+        });
+    }
+
+    /**
+     * Read the settings panel into a settings object
+     */
+    readSettingsPanel() {
+        const val = (id) => document.getElementById(id)?.value;
+        const checked = (id) => !!document.getElementById(id)?.checked;
+        return {
+            fullscreen: checked('set-fullscreen'),
+            fov: parseInt(val('set-fov'), 10) || 75,
+            showFps: checked('set-show-fps'),
+            quality: val('set-quality') || 'medium',
+            renderScale: parseInt(val('set-render-scale'), 10) || 100,
+            renderDistance: parseInt(val('set-render-distance'), 10) || 500,
+            shadows: checked('set-shadows'),
+            autoQuality: checked('set-auto-quality'),
+            post: checked('set-post'),
+            bloom: checked('set-bloom'),
+            aa: checked('set-aa'),
+            grain: checked('set-grain'),
+            vignette: checked('set-vignette'),
+            chroma: checked('set-chroma'),
+            masterVolume: parseInt(val('set-master-volume'), 10) ?? 100,
+            musicVolume: parseInt(val('set-music-volume'), 10) ?? 50,
+            sfxVolume: parseInt(val('set-sfx-volume'), 10) ?? 80,
+            sensitivity: parseInt(val('set-sensitivity'), 10) || 50,
+            invertY: checked('set-invert-y')
+        };
     }
 
     /**
@@ -1137,58 +1178,82 @@ export class UIManager {
      */
     applyStoredSettings() {
         const st = this.getStoredSettings();
-        if (this.game?.audioManager) {
-            this.game.audioManager.setMasterVolume(st.masterVolume / 100);
-            this.game.audioManager.setMusicVolume(st.musicVolume / 100);
-            this.game.audioManager.setSFXVolume(st.sfxVolume / 100);
-        }
-        if (this.game?.player) {
-            this.game.player.mouseSensitivity = 0.001 * (st.sensitivity / 50);
-            this.game.player.invertY = st.invertY;
-        }
-        this.eventBus.emit('settings:graphics', { quality: st.quality, shadows: st.shadows });
+        this._applySettingsObject(st);
     }
 
     /**
-     * Apply settings from settings panel
+     * Apply settings from the settings panel (live as the user changes them)
      */
-    applySettings() {
-        const masterVolume = document.getElementById('master-volume')?.value / 100;
-        const musicVolume = document.getElementById('music-volume')?.value / 100;
-        const sfxVolume = document.getElementById('sfx-volume')?.value / 100;
-        const sensitivity = document.getElementById('mouse-sensitivity')?.value / 50;
-        const invertY = document.getElementById('invert-y')?.checked;
-        const quality = document.getElementById('graphics-quality')?.value;
-        const shadows = document.getElementById('shadows-enabled')?.checked;
-        
-        // Apply to game systems
+    applySettings(opts = {}) {
+        const st = this.readSettingsPanel();
+        this.saveStoredSettings(st);
+        this._applySettingsObject(st);
+        if (!opts.silent) this.showNotification('Settings applied', 'success');
+    }
+
+    /**
+     * Push a settings object into the live game systems
+     */
+    _applySettingsObject(st) {
         if (this.game?.audioManager) {
-            this.game.audioManager.setMasterVolume(masterVolume);
-            this.game.audioManager.setMusicVolume(musicVolume);
-            this.game.audioManager.setSFXVolume(sfxVolume);
+            this.game.audioManager.setMasterVolume((st.masterVolume ?? 100) / 100);
+            this.game.audioManager.setMusicVolume((st.musicVolume ?? 50) / 100);
+            this.game.audioManager.setSFXVolume((st.sfxVolume ?? 80) / 100);
         }
-        
         if (this.game?.player) {
-            this.game.player.mouseSensitivity = 0.001 * sensitivity;
-            this.game.player.invertY = invertY;
+            this.game.player.mouseSensitivity = 0.001 * ((st.sensitivity ?? 50) / 50);
+            this.game.player.invertY = !!st.invertY;
         }
-        
-        // Graphics settings
-        this.eventBus.emit('settings:graphics', { quality, shadows });
-        
-        // Persist
+        // Fullscreen is applied here (not in the graphics event)
+        this._applyFullscreen(!!st.fullscreen);
+        // FPS overlay visibility
+        this.updateFpsVisibility(!!st.showFps);
+        // Everything render-related goes through the graphics event
+        this.eventBus.emit('settings:graphics', {
+            quality: st.quality,
+            renderScale: (st.renderScale ?? 100) / 100,
+            renderDistance: st.renderDistance,
+            shadows: st.shadows,
+            autoQuality: st.autoQuality,
+            postProcessing: st.post,
+            bloom: st.bloom,
+            antiAliasing: st.aa,
+            filmGrain: st.grain,
+            vignette: st.vignette,
+            chroma: st.chroma,
+            fov: st.fov
+        });
+    }
+
+    /**
+     * Toggle fullscreen on the document element
+     */
+    _applyFullscreen(on) {
         try {
-            localStorage.setItem('darkrain_settings', JSON.stringify({
-                masterVolume: document.getElementById('master-volume')?.value,
-                musicVolume: document.getElementById('music-volume')?.value,
-                sfxVolume: document.getElementById('sfx-volume')?.value,
-                sensitivity: document.getElementById('mouse-sensitivity')?.value,
-                invertY: document.getElementById('invert-y')?.checked,
-                quality, shadows
-            }));
-        } catch (_) { /* storage unavailable */ }
-        
-        this.showNotification('Settings applied', 'success');
+            if (on && !document.fullscreenElement) {
+                document.documentElement.requestFullscreen?.().catch(() => {});
+            } else if (!on && document.fullscreenElement) {
+                document.exitFullscreen?.().catch(() => {});
+            }
+        } catch (_) { /* fullscreen unavailable */ }
+    }
+
+    /**
+     * Show/hide the FPS overlay
+     */
+    updateFpsVisibility(show) {
+        const el = this.elements.fpsCounter || document.getElementById('fps-counter');
+        if (el) el.classList.toggle('hidden', !show);
+    }
+
+    /**
+     * Update the FPS overlay text (called by the game loop)
+     */
+    updateFps(fps, ms) {
+        const el = this.elements.fpsCounter || document.getElementById('fps-counter');
+        if (el && !el.classList.contains('hidden')) {
+            el.textContent = `${fps} FPS · ${ms.toFixed(1)} ms`;
+        }
     }
 
     /**

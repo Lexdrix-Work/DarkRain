@@ -127,8 +127,9 @@ export class WeatherSystem {
             }
         };
         
-        // Rain system
+        // Rain system (allocated at max quality; draw range scales it down)
         this.rainParticles = null;
+        this.rainMax = 20000;
         this.rainCount = 15000;
         
         // Lightning
@@ -150,9 +151,22 @@ export class WeatherSystem {
 
     init() {
         this.createRainSystem();
+        // Quality scaling: the graphics settings push a target rain count;
+        // the geometry stays at max size and we just draw a prefix of it.
+        globalEventBus.on('settings:rainCount', ({ count }) => this.setRainCount(count));
         this.createLightning();
         this.createCloudLayer();
         this.setupFog();
+    }
+
+    /**
+     * Scale the active rain particle count (draw-range only, no rebuild)
+     */
+    setRainCount(count) {
+        this.rainCount = count;
+        if (this.rainParticles?.geometry) {
+            this.rainParticles.geometry.setDrawRange(0, Math.min(count, this.rainMax));
+        }
     }
 
     setupFog() {
@@ -274,10 +288,10 @@ export class WeatherSystem {
 
     createRainSystem() {
         const geometry = new THREE.BufferGeometry();
-        const positions = new Float32Array(this.rainCount * 3);
-        const velocities = new Float32Array(this.rainCount);
+        const positions = new Float32Array(this.rainMax * 3);
+        const velocities = new Float32Array(this.rainMax);
         
-        for (let i = 0; i < this.rainCount; i++) {
+        for (let i = 0; i < this.rainMax; i++) {
             positions[i * 3] = (Math.random() - 0.5) * 100;
             positions[i * 3 + 1] = Math.random() * 50;
             positions[i * 3 + 2] = (Math.random() - 0.5) * 100;
@@ -604,4 +618,4 @@ export class WeatherSystem {
             clearInterval(this.emissionDamageInterval);
         }
     }
-}
+}

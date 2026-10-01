@@ -6,7 +6,7 @@
     <meta name="description" content="Dark Rain: Pool of Darkness - A S.T.A.L.K.E.R.-inspired survival horror game">
     <title>Dark Rain: Pool of Darkness</title>
     <link rel="stylesheet" href="/src/styles/main.css">
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0a0a'/%3E%3Ctext x='16' y='23' font-size='20' text-anchor='middle' fill='%23c4a000'%3E%E2%98%82%3C/text%3E%3C/svg%3E">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0a0a'/%3E%3Ctext x='16' y='23' font-size='20' text-anchor='middle' fill='%23b08d4f'%3E%E2%98%82%3C/text%3E%3C/svg%3E">
 </head>
 <body>
     <div id="game-container">
@@ -50,6 +50,8 @@
             </div>
             
             <div id="status-effects"></div>
+
+            <div id="fps-counter" class="hidden">60 FPS</div>
         </div>
         
         <!-- Inventory Menu -->
@@ -146,14 +148,161 @@
         <!-- Pause Menu -->
         <div id="pause-menu" class="menu hidden">
             <div class="menu-header">
-                <h2>PAUSED</h2>
+                <h2>Paused</h2>
             </div>
             <div class="menu-content">
-                <button id="resume-btn" class="menu-button">Resume</button>
+                <button id="resume-btn" class="menu-button primary">Resume</button>
                 <button id="save-btn" class="menu-button">Save Game</button>
                 <button id="load-btn" class="menu-button">Load Game</button>
                 <button id="settings-btn" class="menu-button">Settings</button>
-                <button id="quit-btn" class="menu-button">Quit to Menu</button>
+                <button id="quit-btn" class="menu-button danger">Quit to Menu</button>
+                <div class="pause-hint">Press Esc to resume</div>
+            </div>
+        </div>
+
+        <!-- Settings Menu -->
+        <div id="settings-menu" class="menu hidden">
+            <div class="menu-header">
+                <h2>Settings</h2>
+            </div>
+            <div class="menu-content">
+                <div class="settings-section">
+                    <h3>Display</h3>
+                    <div class="setting-row">
+                        <label>Fullscreen<span class="setting-desc">Toggle fullscreen window</span></label>
+                        <div class="setting-control"><input type="checkbox" class="toggle" id="set-fullscreen"></div>
+                    </div>
+                    <div class="setting-row">
+                        <label>Field of View<span class="setting-desc">Camera field of view in degrees</span></label>
+                        <div class="setting-control">
+                            <input type="range" id="set-fov" min="60" max="100" step="1">
+                            <span class="setting-value" id="set-fov-val">75</span>
+                        </div>
+                    </div>
+                    <div class="setting-row">
+                        <label>Show FPS<span class="setting-desc">Frame-rate overlay while playing</span></label>
+                        <div class="setting-control"><input type="checkbox" class="toggle" id="set-show-fps"></div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Graphics Quality</h3>
+                    <div class="setting-row">
+                        <label>Quality Preset<span class="setting-desc">Overall detail level</span></label>
+                        <div class="setting-control">
+                            <select id="set-quality">
+                                <option value="low">Low</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                                <option value="ultra">Ultra</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="setting-row">
+                        <label>Render Scale<span class="setting-desc">Internal resolution scale — lower is faster</span></label>
+                        <div class="setting-control">
+                            <input type="range" id="set-render-scale" min="50" max="100" step="5">
+                            <span class="setting-value" id="set-render-scale-val">100%</span>
+                        </div>
+                    </div>
+                    <div class="setting-row">
+                        <label>Render Distance<span class="setting-desc">World draw distance in meters</span></label>
+                        <div class="setting-control">
+                            <input type="range" id="set-render-distance" min="200" max="1000" step="50">
+                            <span class="setting-value" id="set-render-distance-val">500m</span>
+                        </div>
+                    </div>
+                    <div class="setting-row">
+                        <label>Shadows<span class="setting-desc">Dynamic shadow mapping</span></label>
+                        <div class="setting-control"><input type="checkbox" class="toggle" id="set-shadows"></div>
+                    </div>
+                    <div class="setting-row">
+                        <label>Auto Quality<span class="setting-desc">Adjust render scale to hold frame rate</span></label>
+                        <div class="setting-control"><input type="checkbox" class="toggle" id="set-auto-quality"></div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Post-Processing</h3>
+                    <div class="setting-row">
+                        <label>Effects<span class="setting-desc">Master post-processing switch</span></label>
+                        <div class="setting-control"><input type="checkbox" class="toggle" id="set-post"></div>
+                    </div>
+                    <div class="setting-row">
+                        <label>Bloom<span class="setting-desc">Light glow around bright sources</span></label>
+                        <div class="setting-control"><input type="checkbox" class="toggle" id="set-bloom"></div>
+                    </div>
+                    <div class="setting-row">
+                        <label>Anti-Aliasing<span class="setting-desc">FXAA edge smoothing</span></label>
+                        <div class="setting-control"><input type="checkbox" class="toggle" id="set-aa"></div>
+                    </div>
+                    <div class="setting-row">
+                        <label>Film Grain<span class="setting-desc">Subtle animated grain</span></label>
+                        <div class="setting-control"><input type="checkbox" class="toggle" id="set-grain"></div>
+                    </div>
+                    <div class="setting-row">
+                        <label>Vignette<span class="setting-desc">Darkened screen edges</span></label>
+                        <div class="setting-control"><input type="checkbox" class="toggle" id="set-vignette"></div>
+                    </div>
+                    <div class="setting-row">
+                        <label>Chromatic Aberration<span class="setting-desc">Subtle color fringing at edges</span></label>
+                        <div class="setting-control"><input type="checkbox" class="toggle" id="set-chroma"></div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Audio</h3>
+                    <div class="setting-row">
+                        <label>Master Volume</label>
+                        <div class="setting-control">
+                            <input type="range" id="set-master-volume" min="0" max="100" step="1">
+                            <span class="setting-value" id="set-master-volume-val">100</span>
+                        </div>
+                    </div>
+                    <div class="setting-row">
+                        <label>Music Volume</label>
+                        <div class="setting-control">
+                            <input type="range" id="set-music-volume" min="0" max="100" step="1">
+                            <span class="setting-value" id="set-music-volume-val">50</span>
+                        </div>
+                    </div>
+                    <div class="setting-row">
+                        <label>SFX Volume</label>
+                        <div class="setting-control">
+                            <input type="range" id="set-sfx-volume" min="0" max="100" step="1">
+                            <span class="setting-value" id="set-sfx-volume-val">80</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Controls</h3>
+                    <div class="setting-row">
+                        <label>Mouse Sensitivity</label>
+                        <div class="setting-control">
+                            <input type="range" id="set-sensitivity" min="1" max="100" step="1">
+                            <span class="setting-value" id="set-sensitivity-val">50</span>
+                        </div>
+                    </div>
+                    <div class="setting-row">
+                        <label>Invert Y-Axis</label>
+                        <div class="setting-control"><input type="checkbox" class="toggle" id="set-invert-y"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="settings-buttons">
+                <button id="settings-reset" class="menu-button">Defaults</button>
+                <button id="settings-back" class="menu-button primary">Done</button>
+            </div>
+        </div>
+
+        <!-- Confirm dialog -->
+        <div id="confirm-dialog" class="menu hidden">
+            <div class="menu-header"><h2 id="confirm-title">Confirm</h2></div>
+            <div class="menu-content"><p id="confirm-message"></p></div>
+            <div class="menu-actions">
+                <button id="confirm-cancel" class="menu-button">Cancel</button>
+                <button id="confirm-ok" class="menu-button primary">Confirm</button>
             </div>
         </div>
         
@@ -172,7 +321,7 @@
         </div>
         
         <!-- Main Menu (shown before game starts) -->
-        <div id="main-menu" class="hidden">
+        <div id="main-menu" class="menu hidden">
             <div class="menu-background"></div>
             <div class="menu-content">
                 <h1 class="game-title">Dark Rain</h1>
@@ -187,7 +336,7 @@
         </div>
         
         <!-- Death Screen -->
-        <div id="death-screen" class="hidden">
+        <div id="death-screen" class="menu hidden">
             <div class="death-content">
                 <h1>YOU DIED</h1>
                 <p id="death-reason">The Zone claims another stalker...</p>
@@ -203,7 +352,7 @@
          background:#0a0a0a; color:#e8e0c8; font-family:monospace;
          align-items:center; justify-content:center; text-align:center; padding:40px;">
         <div>
-            <h2 style="color:#c4a000;">DARK RAIN failed to start</h2>
+            <h2 style="color:#b08d4f;">DARK RAIN failed to start</h2>
             <p id="boot-error-detail">The game did not finish loading. Check the console (F12) for errors.</p>
             <p style="opacity:0.7; font-size:12px;">If this is the desktop build, try deleting the<br>save data folder and relaunching.</p>
         </div>
