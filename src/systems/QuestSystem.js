@@ -666,4 +666,4 @@ export const SampleQuests = [
         },
         timeLimit: 3600 // 1 hour
     }
-];
+];

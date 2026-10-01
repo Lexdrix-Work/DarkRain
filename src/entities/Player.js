@@ -206,6 +206,10 @@ export class Player extends Entity {
         let speed = this.moveSpeed;
         if (this.isSprinting) speed *= this.sprintMultiplier;
         if (this.isCrouching) speed *= this.crouchMultiplier;
+        // Encumbrance: a heavy pack slows you down (Elder Scrolls-style)
+        const enc = this.game?.inventorySystem?.getEncumbrance?.() || 0;
+        if (enc > 0.8) speed *= 0.85;
+        if (enc > 0.95) speed *= 0.8;
         
         // Calculate desired horizontal velocity
         const targetVelocity = new THREE.Vector3();
@@ -539,9 +543,13 @@ export class Player extends Entity {
         let closestDistance = this.interactionRange;
         
         for (const intersection of intersections) {
-            if (intersection.distance < closestDistance && 
-                intersection.object.userData?.isInteractive) {
-                closestObject = intersection.object;
+            if (intersection.distance >= closestDistance) continue;
+            // Metadata may live on a parent group (e.g. loot containers are
+            // Groups whose child meshes are what the ray actually hits)
+            let obj = intersection.object;
+            while (obj && !obj.userData?.isInteractive) obj = obj.parent;
+            if (obj) {
+                closestObject = obj;
                 closestDistance = intersection.distance;
             }
         }
@@ -630,4 +638,4 @@ export class Player extends Entity {
         this.cameraYaw = data.cameraYaw;
         this.cameraPitch = data.cameraPitch;
     }
-}
+}

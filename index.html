@@ -65,6 +65,66 @@
             </div>
         </div>
         
+        <!-- Character Creator Menu -->
+        <div id="creator-menu" class="menu hidden">
+            <div class="menu-header">
+                <h2>WHO ARE YOU, STALKER?</h2>
+            </div>
+            <div class="menu-content creator-layout">
+                <div class="creator-preview">
+                    <canvas id="creator-canvas" width="260" height="260"></canvas>
+                    <input id="creator-name" type="text" maxlength="24" placeholder="Callsign..." />
+                </div>
+                <div class="creator-options">
+                    <div class="creator-group">
+                        <div class="creator-label">Headgear</div>
+                        <div id="creator-hats" class="creator-swatches"></div>
+                    </div>
+                    <div class="creator-group">
+                        <div class="creator-label">Hat Color</div>
+                        <div id="creator-hat-colors" class="creator-swatches"></div>
+                    </div>
+                    <div class="creator-group">
+                        <div class="creator-label">Skin Tone</div>
+                        <div id="creator-skins" class="creator-swatches"></div>
+                    </div>
+                    <div class="creator-group">
+                        <div class="creator-label">Jacket</div>
+                        <div id="creator-sleeves" class="creator-swatches"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="menu-actions creator-actions">
+                <button id="creator-back" class="menu-button">Back</button>
+                <button id="creator-begin" class="menu-button primary">Enter the Zone</button>
+            </div>
+        </div>
+
+        <!-- Favorites Menu -->
+        <div id="favorites-menu" class="menu hidden">
+            <div class="menu-header">
+                <h2>FAVORITES</h2>
+            </div>
+            <div class="menu-content">
+                <div id="favorites-list"></div>
+                <div class="favorites-hint">Press 1-8 or click to use/equip · Star items in your inventory [Tab] to add them here</div>
+            </div>
+        </div>
+
+        <!-- Loot Container Menu -->
+        <div id="loot-menu" class="menu hidden">
+            <div class="menu-header">
+                <h2 id="loot-title">CONTAINER</h2>
+            </div>
+            <div class="menu-content">
+                <div id="loot-items"></div>
+                <div class="menu-actions">
+                    <button id="loot-take-all" class="menu-button">Take All [R]</button>
+                    <button id="loot-close" class="menu-button">Close [Esc]</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Map Menu -->
         <div id="map-menu" class="menu hidden">
             <div class="menu-header">

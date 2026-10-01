@@ -20,6 +20,9 @@ export class InventorySystem {
         // Quick slots (belt)
         this.quickSlots = [null, null, null, null];
         
+        // Favorites (Elder Scrolls-style quick access, max 8 item ids)
+        this.favorites = [];
+        
         // Equipment slots
         this.equipment = {
             armor: null,
@@ -65,7 +68,32 @@ export class InventorySystem {
             });
             return false;
         }
-        
+
+        // Transactional add: verify the FULL amount fits before touching any
+        // slot. A partial add that returns false would let loot sources keep
+        // the whole stack and hand it out again (item duplication).
+        let remaining = amount;
+        if (item.stackable) {
+            for (const slot of this.slots) {
+                if (slot && slot.id === item.id && slot.count < slot.maxStack) {
+                    remaining -= Math.min(remaining, slot.maxStack - slot.count);
+                    if (remaining <= 0) break;
+                }
+            }
+        }
+        if (remaining > 0) {
+            const perSlot = item.stackable ? item.maxStack : 1;
+            const slotsNeeded = Math.ceil(remaining / perSlot);
+            const emptySlots = this.slots.filter(s => s === null).length;
+            if (emptySlots < slotsNeeded) {
+                globalEventBus.emit(GameEvents.NOTIFICATION, {
+                    message: 'Inventory full!',
+                    type: 'warning'
+                });
+                return false;
+            }
+        }
+
         // Try to stack with existing items
         if (item.stackable) {
             for (let i = 0; i < this.slots.length; i++) {
@@ -74,7 +102,7 @@ export class InventorySystem {
                     const canAdd = Math.min(amount, slot.maxStack - slot.count);
                     slot.count += canAdd;
                     amount -= canAdd;
-                    
+
                     if (amount <= 0) {
                         this.recalculateWeight();
                         this.notifyChange();
@@ -83,18 +111,19 @@ export class InventorySystem {
                 }
             }
         }
-        
+
         // Find empty slot for remaining items
         while (amount > 0) {
             const emptySlot = this.slots.findIndex(s => s === null);
             if (emptySlot === -1) {
+                // Unreachable after the capacity pre-check, but stay safe
                 globalEventBus.emit(GameEvents.NOTIFICATION, {
                     message: 'Inventory full!',
                     type: 'warning'
                 });
                 return false;
             }
-            
+
             const stackAmount = item.stackable ? Math.min(amount, item.maxStack) : 1;
             this.slots[emptySlot] = createItem(item.id, stackAmount);
             amount -= stackAmount;
@@ -102,6 +131,7 @@ export class InventorySystem {
         
         this.recalculateWeight();
         this.notifyChange();
+        this._checkEncumbranceWarnings();
         
         globalEventBus.emit(GameEvents.NOTIFICATION, {
             message: `Picked up ${item.name}`,
@@ -491,6 +521,34 @@ export class InventorySystem {
     }
 
     /**
+     * Encumbrance ratio 0..1 (Elder Scrolls-style carry weight feedback)
+     * @returns {number}
+     */
+    getEncumbrance() {
+        return this.maxWeight > 0 ? this.currentWeight / this.maxWeight : 0;
+    }
+
+    /**
+     * Warn once per threshold crossing as the pack fills up
+     */
+    _checkEncumbranceWarnings() {
+        const enc = this.getEncumbrance();
+        const prev = this._lastEncWarn || 0;
+        // Check the higher threshold first so a single big pickup that jumps
+        // straight past 80% still fires the over-encumbered warning
+        if (enc >= 0.95 && prev < 0.95) {
+            globalEventBus.emit(GameEvents.NOTIFICATION, {
+                message: 'Over-encumbered! Drop something or you can barely move', type: 'danger'
+            });
+        } else if (enc >= 0.8 && prev < 0.8) {
+            globalEventBus.emit(GameEvents.NOTIFICATION, {
+                message: 'You are heavily loaded - movement slowed', type: 'warning'
+            });
+        }
+        this._lastEncWarn = enc;
+    }
+
+    /**
      * Notify UI of inventory change
      */
     notifyChange() {
@@ -510,7 +568,8 @@ export class InventorySystem {
         return {
             slots: this.slots.map(s => s ? { ...s } : null),
             quickSlots: [...this.quickSlots],
-            equipment: { ...this.equipment }
+            equipment: { ...this.equipment },
+            favorites: [...this.favorites]
         };
     }
 
@@ -521,6 +580,7 @@ export class InventorySystem {
     deserialize(data) {
         this.slots = data.slots || new Array(this.maxSlots).fill(null);
         this.quickSlots = data.quickSlots || [null, null, null, null];
+        this.favorites = Array.isArray(data.favorites) ? data.favorites.slice(0, 8) : [];
         this.equipment = data.equipment || {
             armor: null,
             helmet: null,
@@ -533,4 +593,46 @@ export class InventorySystem {
         this.applyEquipmentEffects();
         this.notifyChange();
     }
-}
+
+    /* ------------------------------ favorites ------------------------------ */
+
+    /**
+     * Toggle an item id in the favorites list (max 8)
+     * @param {string} itemId
+     * @returns {boolean} true if now favorited
+     */
+    toggleFavorite(itemId) {
+        const i = this.favorites.indexOf(itemId);
+        if (i >= 0) {
+            this.favorites.splice(i, 1);
+            this.notifyChange();
+            return false;
+        }
+        if (this.favorites.length >= 8) {
+            globalEventBus.emit(GameEvents.NOTIFICATION, {
+                message: 'Favorites full (8 max) - remove one first', type: 'warning'
+            });
+            return false;
+        }
+        this.favorites.push(itemId);
+        this.notifyChange();
+        return true;
+    }
+
+    isFavorite(itemId) {
+        return this.favorites.includes(itemId);
+    }
+
+    /**
+     * Favorites that the player actually carries right now
+     * @returns {Array} slots with a favorite item id
+     */
+    getCarriedFavorites() {
+        const out = [];
+        for (const favId of this.favorites) {
+            const idx = this.slots.findIndex(s => s && s.id === favId);
+            if (idx >= 0) out.push({ index: idx, item: this.slots[idx] });
+        }
+        return out;
+    }
+}

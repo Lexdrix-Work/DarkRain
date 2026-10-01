@@ -604,4 +604,4 @@ export class WeatherSystem {
             clearInterval(this.emissionDamageInterval);
         }
     }
-}
+}

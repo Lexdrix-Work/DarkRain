@@ -11,6 +11,9 @@ import { globalEventBus, GameEvents, eventBus } from './core/EventBus.js';
 
 // Systems
 import { InventorySystem } from './systems/InventorySystem.js';
+import { ViewmodelSystem } from './systems/ViewmodelSystem.js';
+import { LootSystem } from './systems/LootSystem.js';
+import { CompassSystem } from './systems/CompassSystem.js';
 import { WeaponManager } from './systems/WeaponSystem.js';
 import { SurvivalSystem } from './systems/SurvivalSystem.js';
 import { QuestSystem, SampleQuests } from './systems/QuestSystem.js';
@@ -44,6 +47,13 @@ class StalkerGame extends Game {
             
             // Initialize additional systems
             this.initAdditionalSystems();
+
+            // Base init loaded the level before loot/compass systems existed,
+            // so their populate step was skipped - run it now that they do
+            if (this.worldManager?.currentLevel) {
+                this.compassSystem?.populateLevel(this.worldManager.currentLevel);
+                this.lootSystem?.populateLevel(this.worldManager.currentLevel);
+            }
             
             // Register sample content
             this.registerSampleContent();
@@ -98,9 +108,24 @@ class StalkerGame extends Game {
         
         // Inventory system
         this.inventorySystem = new InventorySystem(this);
+
+        // Loot system (containers, corpses, stashes) - created before the
+        // weapon manager so enemy-death loot events have a listener
+        this.lootSystem = new LootSystem(this);
+
+        // Compass + sneak indicator (Elder Scrolls-style)
+        this.compassSystem = new CompassSystem(this);
         
         // Weapon manager
         this.weaponManager = new WeaponManager(this);
+
+        // First-person viewmodel overlay (weapon/arms/hat render pass)
+        this.viewmodelSystem = new ViewmodelSystem(this);
+
+        // Player character customization (hat, skin, sleeves) - the character
+        // creator overwrites this on New Game; default keeps old saves working
+        this.character = SaveSystem.loadCharacter?.() || ViewmodelSystem.defaultCharacter();
+        this.viewmodelSystem.setCharacter(this.character);
         
         // Survival system
         this.survivalSystem = new SurvivalSystem(this);
@@ -180,6 +205,21 @@ class StalkerGame extends Game {
             this.inventorySystem.addItem('water_bottle', 2);
             this.inventorySystem.addItem('ammo_pistol', 48);
             this.inventorySystem.addItem('detector_basic', 1);
+        }
+    }
+
+    /**
+     * Apply character-creator choices: persist them and rebuild the
+     * first-person arms + hat brim to match.
+     * @param {Object} character - { name, hat, hatColor, skinTone, sleeveColor }
+     */
+    applyCharacter(character) {
+        this.character = character;
+        SaveSystem.saveCharacter(character);
+        this.viewmodelSystem?.setCharacter(character);
+        // Weapons rebuild their arms to match the new look
+        for (const weapon of this.weaponManager?.weapons.values() || []) {
+            weapon.setCharacter(character);
         }
     }
 

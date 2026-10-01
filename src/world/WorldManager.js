@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { globalEventBus, GameEvents } from '../core/EventBus.js';
 import { Enemy, Mutant, HumanEnemy } from '../entities/Enemy.js';
+import { getProceduralSet } from './ProceduralTextures.js';
+import { ItemMeshFactory } from '../systems/LootSystem.js';
 
 // Scratch vector reused for per-bullet raycast directions (avoids per-frame allocation)
 const _bulletDir = new THREE.Vector3();
@@ -171,6 +173,45 @@ export class WorldManager {
             roughness: 0.9,
             metalness: 0.0
         });
+
+        // Procedural detail: canvas-generated grain/stain/bump maps so surfaces
+        // read as concrete, asphalt, dirt, metal and rubble instead of flat color
+        for (const m of this.materials.buildingColors) this._applyProcedural(m, 'concrete', 2, 2);
+        this._applyProcedural(this.materials.damaged, 'rubble', 2, 2);
+        this._applyProcedural(this.materials.road, 'asphalt', 6, 6);
+        this._applyProcedural(this.materials.crackedRoad, 'asphalt', 6, 6);
+        this._applyProcedural(this.materials.sidewalk, 'concrete', 4, 4);
+        this._applyProcedural(this.materials.ground, 'ground', 40, 40);
+        this._applyProcedural(this.materials.rustyMetal, 'metal', 1, 1);
+        this._applyProcedural(this.materials.debris, 'rubble', 2, 2);
+        this._applyProcedural(this.materials.deadVegetation, 'ground', 10, 10);
+    }
+
+    /**
+     * Apply a procedural texture set (map + bump) to a material.
+     * Textures are cloned per material so repeat can differ per surface.
+     */
+    _applyProcedural(material, kind, repeatX = 1, repeatY = 1) {
+        if (!material) return;
+        try {
+            const set = getProceduralSet(kind);
+            if (set.map) {
+                const map = set.map.clone();
+                map.repeat.set(repeatX, repeatY);
+                map.needsUpdate = true;
+                material.map = map;
+            }
+            if (set.bumpMap) {
+                const bump = set.bumpMap.clone();
+                bump.repeat.set(repeatX, repeatY);
+                bump.needsUpdate = true;
+                material.bumpMap = bump;
+                material.bumpScale = set.bumpScale || 0.5;
+            }
+            material.needsUpdate = true;
+        } catch (e) {
+            console.warn('Procedural texture failed for', kind, e);
+        }
     }
 
     /**
@@ -666,7 +707,7 @@ export class WorldManager {
      * Create building material with guaranteed visibility.
      * Palettes vary per district for a less monotonous skyline.
      */
-    createBuildingMaterial(district = 'outskirts') {
+    createBuildingMaterial(district = 'outskirts', width = 12, height = 12) {
         const palettes = {
             downtown:   [0x8a94a0, 0x9aa2ae, 0x7a8494, 0xa0a8b4, 0x8b95a5, 0x6a7688],
             outskirts:  [0x8a7a6a, 0x9a6a5a, 0x7a6a5a, 0x8a5a4a, 0x9a8a7a, 0x8a8a8a],
@@ -677,11 +718,17 @@ export class WorldManager {
 
         const color = colors[Math.floor(Math.random() * colors.length)];
 
-        return new THREE.MeshStandardMaterial({
+        const mat = new THREE.MeshStandardMaterial({
             color: color,
             roughness: 0.85 + Math.random() * 0.1,
             metalness: 0.05 + Math.random() * 0.1,
         });
+        // Density-correct repeat: ~1 texture tile per 6m so grain scale is
+        // consistent whether the building is a shack or a tower
+        this._applyProcedural(mat, 'concrete',
+            Math.max(1, Math.round(width / 6)),
+            Math.max(1, Math.round(height / 6)));
+        return mat;
     }
 
     /**
@@ -698,11 +745,26 @@ export class WorldManager {
         }
 
         const group = new THREE.Group();
-        group.position.set(x, this.getTerrainHeight(x, z), z);
+        // Foundation fix: sample terrain at the corners + center and seat the
+        // building on the LOWEST point, sunk 0.5m. On sloped terrain a single
+        // center sample left corners floating in mid-air or buried.
+        const hx = width / 2, hz = depth / 2;
+        const baseY = Math.min(
+            this.getTerrainHeight(x - hx, z - hz),
+            this.getTerrainHeight(x + hx, z - hz),
+            this.getTerrainHeight(x - hx, z + hz),
+            this.getTerrainHeight(x + hx, z + hz),
+            this.getTerrainHeight(x, z)
+        ) - 0.5;
+        group.position.set(x, baseY, z);
+
+        // Remember the footprint so loot containers can spawn at doorways
+        if (!this.buildingSpots) this.buildingSpots = [];
+        this.buildingSpots.push({ x, z, width, depth, baseY, isDamaged });
 
         const material = isDamaged
             ? this.materials.damaged
-            : this.createBuildingMaterial(district);
+            : this.createBuildingMaterial(district, width, actualHeight);
 
         // Tall ruined buildings can collapse into jagged concrete towers
         const ruin = (this.city && this.city.ruinLevel) || 0;
@@ -907,6 +969,7 @@ export class WorldManager {
     addFacadeDetails(group, width, depth, height, floors, isDamaged) {
         if (!this._corniceMat) {
             this._corniceMat = new THREE.MeshStandardMaterial({ color: 0x6f6a62, roughness: 0.9 });
+            this._applyProcedural(this._corniceMat, 'concrete', 2, 1);
         }
         // Cornice band at the roofline
         const cornice = new THREE.Mesh(
@@ -1357,7 +1420,7 @@ export class WorldManager {
      */
     createDebrisPile(x, z) {
         const group = new THREE.Group();
-        group.position.set(x, this.getTerrainHeight(x, z), z);
+        group.position.set(x, this.getTerrainHeight(x, z) - 0.15, z); // sink slightly: never floats on slopes
 
         const ruin = (this.city && this.city.ruinLevel) || 0;
         const pieceCount = 10 + Math.floor(Math.random() * 15) + Math.floor(ruin * 12);
@@ -1453,7 +1516,7 @@ export class WorldManager {
      */
     createLamppost(x, z, isBent) {
         const group = new THREE.Group();
-        group.position.set(x, this.getTerrainHeight(x, z), z);
+        group.position.set(x, this.getTerrainHeight(x, z) - 0.15, z); // sink slightly: never floats on slopes
         
         const poleHeight = 4;
         const poleRadius = 0.1;
@@ -1541,7 +1604,7 @@ export class WorldManager {
      */
     createAbandonedVehicle(x, z) {
         const group = new THREE.Group();
-        group.position.set(x, this.getTerrainHeight(x, z), z);
+        group.position.set(x, this.getTerrainHeight(x, z) - 0.15, z); // sink slightly: never floats on slopes
         group.rotation.y = Math.random() * Math.PI * 2;
         
         const isVan = Math.random() > 0.7;
@@ -1722,7 +1785,7 @@ export class WorldManager {
      */
     createDeadTree(x, z) {
         const group = new THREE.Group();
-        group.position.set(x, this.getTerrainHeight(x, z), z);
+        group.position.set(x, this.getTerrainHeight(x, z) - 0.15, z); // sink slightly: never floats on slopes
         
         const height = 3 + Math.random() * 4;
         const trunkRadius = 0.15;
@@ -2026,16 +2089,10 @@ export class WorldManager {
     }
 
     createPickup(data) {
-        const geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
-        const material = new THREE.MeshStandardMaterial({
-            color: this.getItemColor(data.item),
-            emissive: this.getItemColor(data.item),
-            emissiveIntensity: 0.2
-        });
-        
-        const mesh = new THREE.Mesh(geometry, material);
+        // The mesh looks like the actual item instead of a glowing cube
+        const mesh = ItemMeshFactory.build(data.item);
         mesh.position.fromArray(data.position);
-        mesh.castShadow = true;
+        mesh.position.y = Math.max(mesh.position.y, this.getTerrainHeight(mesh.position.x, mesh.position.z) + 0.12);
         
         const pickup = {
             id: `pickup_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -2078,8 +2135,14 @@ export class WorldManager {
         
         pickup.isActive = false;
         this.scene.remove(pickup.mesh);
-        pickup.mesh.geometry.dispose();
-        pickup.mesh.material.dispose();
+        // Pickup meshes are often Groups (item-shaped models) - dispose recursively
+        pickup.mesh.traverse(o => {
+            if (o.geometry) o.geometry.dispose();
+            if (o.material) {
+                if (Array.isArray(o.material)) o.material.forEach(m => m && m.dispose && m.dispose());
+                else if (o.material.dispose) o.material.dispose();
+            }
+        });
         this.pickups.delete(pickupId);
         
         return { item: pickup.item, amount: pickup.amount };
@@ -2450,8 +2513,14 @@ export class WorldManager {
         // Remove pickups
         for (const pickup of this.pickups.values()) {
             this.scene.remove(pickup.mesh);
-            if (pickup.mesh.geometry) pickup.mesh.geometry.dispose();
-            if (pickup.mesh.material) pickup.mesh.material.dispose();
+            // Pickup meshes are often Groups - dispose recursively
+            pickup.mesh.traverse(o => {
+                if (o.geometry) o.geometry.dispose();
+                if (o.material) {
+                    if (Array.isArray(o.material)) o.material.forEach(m => m && m.dispose && m.dispose());
+                    else if (o.material.dispose) o.material.dispose();
+                }
+            });
         }
         this.pickups.clear();
         
@@ -2494,6 +2563,9 @@ export class WorldManager {
 
         // Clear colliders
         this.colliders = [];
+
+        // Clear building footprints (loot placement must not see the old city)
+        this.buildingSpots = [];
 
         // Clear spatial grid
         this.spatialGrid.clear();
@@ -2669,4 +2741,4 @@ export class WorldManager {
         
         console.log('WorldManager disposed');
     }
-}
+}

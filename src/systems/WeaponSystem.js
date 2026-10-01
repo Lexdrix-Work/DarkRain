@@ -213,22 +213,21 @@ export class Weapon {
     }
 
     /**
-     * Attach weapon to camera
-     * @param {THREE.Camera} camera - Player camera
+     * Attach weapon to the first-person overlay (ViewmodelSystem). The
+     * overlay renders in its own scene after the main pass, so the weapon
+     * can never clip through walls.
+     * @param {THREE.Camera} camera - Player camera (fallback parent)
      */
     attachToCamera(camera) {
-        if (this.mesh) {
-            camera.add(this.mesh);
+        const vm = this.game?.viewmodelSystem;
+        if (vm && this.mesh) {
+            vm.attach(this.mesh);
+        } else if (this.mesh) {
+            camera.add(this.mesh); // fallback before the overlay exists
         }
-        // Subtle fill so the viewmodel reads in any lighting; layer 1 = viewmodel only
-        camera.layers.enable(1);
-        if (!camera.userData.viewmodelFill) {
-            const fill = new THREE.PointLight(0xfff0dd, 0.9, 3, 1.6);
-            fill.position.set(0.15, 0.1, 0.15);
-            fill.layers.set(1);
-            camera.add(fill);
-            camera.userData.viewmodelFill = fill;
-        }
+        // Arms match the player's character and are parented to the weapon
+        // so they follow recoil, sway and aim transitions exactly
+        this.setCharacter(this.game?.character);
     }
 
     /**
@@ -238,6 +237,69 @@ export class Weapon {
         if (this.mesh && this.mesh.parent) {
             this.mesh.parent.remove(this.mesh);
         }
+    }
+
+    /**
+     * Build first-person arms parented to the weapon so they track recoil,
+     * sway and aim transitions. Grip points differ per weapon type.
+     * @param {Object} character - { skinTone, sleeveColor }
+     */
+    setCharacter(character) {
+        if (this.armGroup && this.mesh) {
+            this.mesh.remove(this.armGroup);
+            this.armGroup = null;
+        }
+        if (!character || !this.mesh) return;
+
+        const sleeveMat = new THREE.MeshStandardMaterial({ color: character.sleeveColor ?? 0x4a5240, roughness: 0.9 });
+        const skinMat = new THREE.MeshStandardMaterial({ color: character.skinTone ?? 0xc9a186, roughness: 0.7 });
+        const arms = new THREE.Group();
+
+        const limb = (from, to, r, mat) => {
+            const dir = new THREE.Vector3().subVectors(to, from);
+            const len = dir.length();
+            const m = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.85, r, len, 10), mat);
+            m.position.copy(from).addScaledVector(dir, 0.5);
+            m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+            return m;
+        };
+        const hand = (x, y, z, rx = 0.3, ry = 0) => {
+            const h = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.05, 0.12), skinMat);
+            h.position.set(x, y, z);
+            h.rotation.set(rx, ry, 0);
+            return h;
+        };
+
+        // Grip points per weapon type (weapon-local space, -Z forward)
+        const grips = {
+            pistol:  { r: [0, -0.09, 0.05],  l: [0.03, -0.14, 0.02], twoHand: true },
+            rifle:   { r: [0, -0.08, -0.02], l: [0.01, -0.06, -0.42] },
+            shotgun: { r: [0, -0.07, 0.08],  l: [0.01, -0.07, -0.32] },
+            sniper:  { r: [0, -0.08, 0.02],  l: [0.01, -0.06, -0.30] },
+            melee:   { r: [0, -0.06, 0.05],  l: null },
+        };
+        const gp = grips[this.data.type] || grips.rifle;
+        const rElbow = new THREE.Vector3(0.30, -0.42, 0.30);
+        const lElbow = new THREE.Vector3(-0.10, -0.42, 0.18);
+
+        const rHand = new THREE.Vector3(...gp.r);
+        arms.add(hand(rHand.x, rHand.y, rHand.z, 0.35, 0.2));
+        arms.add(limb(rElbow, rHand, 0.055, sleeveMat));
+
+        if (gp.l) {
+            const lHand = new THREE.Vector3(...gp.l);
+            arms.add(hand(lHand.x, lHand.y, lHand.z, 0.4, -0.15));
+            arms.add(limb(lElbow, lHand, 0.055, sleeveMat));
+        } else {
+            // Off hand rests low for melee
+            const rest = new THREE.Vector3(-0.05, -0.35, 0.1);
+            arms.add(hand(rest.x, rest.y, rest.z, 0.2, 0));
+            arms.add(limb(lElbow, rest, 0.055, sleeveMat));
+        }
+
+        arms.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
+        this.armGroup = arms;
+        this.mesh.add(arms);
     }
 
     /**
@@ -661,4 +723,4 @@ export class WeaponManager {
         this.weapons.clear();
         this.equippedWeapon = null;
     }
-}
+}

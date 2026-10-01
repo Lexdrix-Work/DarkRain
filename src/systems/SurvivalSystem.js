@@ -374,4 +374,4 @@ export class SurvivalSystem {
     dispose() {
         this.statusEffects.clear();
     }
-}
+}

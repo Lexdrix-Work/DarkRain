@@ -374,4 +374,4 @@ export function createItem(id, count = 1) {
  */
 export function getItemsByType(type) {
     return Object.values(Items).filter(item => item.type === type);
-}
+}

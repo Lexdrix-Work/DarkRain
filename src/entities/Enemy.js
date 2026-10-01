@@ -618,9 +618,11 @@ export class Enemy extends Entity {
             { item: 'bandage', chance: 0.4, amount: [1, 3] }
         ];
         
-        // Emit loot drop event for world manager to handle
-        globalEventBus.emit('loot:drop', {
+        // Emit corpse event - the LootSystem turns the kill into a
+        // searchable body instead of floating loot cubes
+        globalEventBus.emit('loot:corpse', {
             position: this.position.clone(),
+            kind: this.tags?.has('mutant') ? 'mutant' : 'human',
             lootTable
         });
     }
@@ -736,4 +738,4 @@ export class HumanEnemy extends Enemy {
             direction: new THREE.Vector3().subVectors(this.target.position, this.position).normalize()
         });
     }
-}
+}

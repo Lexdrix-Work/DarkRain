@@ -418,4 +418,21 @@ export class SaveSystem {
     dispose() {
         this.stopAutoSave();
     }
-}
+
+    /** Persist the character-creator choices separately from world saves */
+    static saveCharacter(character) {
+        try {
+            localStorage.setItem('darkrain_character', JSON.stringify(character));
+        } catch (e) { /* storage unavailable */ }
+    }
+
+    /** Load character-creator choices (null when the player never made one) */
+    static loadCharacter() {
+        try {
+            const raw = localStorage.getItem('darkrain_character');
+            return raw ? JSON.parse(raw) : null;
+        } catch (e) {
+            return null;
+        }
+    }
+}

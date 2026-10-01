@@ -373,4 +373,4 @@ export class DayNightCycle {
             this.scene.remove(this.moonMesh);
         }
     }
-}
+}

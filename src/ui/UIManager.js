@@ -1,4 +1,6 @@
 import { globalEventBus, GameEvents } from '../core/EventBus.js';
+import { getItem } from '../data/items.js';
+import { CharacterCreator } from './CharacterCreator.js';
 import * as THREE from 'three';
 
 /**
@@ -111,6 +113,21 @@ export class UIManager {
             this.toggleMenu('pause');
         });
 
+        this.eventBus.on('input:toggle:favorites', () => {
+            this.toggleFavorites();
+        });
+
+        // Digit keys 1-8 select a favorite while the favorites menu is open
+        document.addEventListener('keydown', (e) => {
+            if (this.activeMenu !== 'favorites') return;
+            const m = e.code.match(/^Digit([1-8])$/);
+            if (m) {
+                const carried = this.game?.inventorySystem?.getCarriedFavorites() || [];
+                const entry = carried[parseInt(m[1], 10) - 1];
+                if (entry) this.useFavorite(entry.index);
+            }
+        });
+
         // Show a click-to-resume hint when pointer lock is lost mid-game
         this.eventBus.on('input:pointerlock', ({ locked }) => {
             this.updatePointerHint(!locked);
@@ -208,13 +225,22 @@ export class UIManager {
     }
 
     /**
-     * Start a new game session from the main menu
+     * Start a new game session from the main menu - goes through the
+     * character creator first so the player picks their look
      */
     startNewGame() {
         this.hideMainMenu();
-        if (this.game && typeof this.game.beginSession === 'function') {
-            this.game.beginSession(false);
+        this.showCharacterCreator();
+    }
+
+    /**
+     * Open the character creator (New Game only - Continue/Load skip it)
+     */
+    showCharacterCreator() {
+        if (!this.characterCreator) {
+            this.characterCreator = new CharacterCreator(this.game);
         }
+        this.characterCreator.show();
     }
 
     /**
@@ -437,6 +463,114 @@ export class UIManager {
     }
 
     /**
+     * Show the loot container menu for a searched container
+     * @param {Object} container - { id, label, items: [{id, count}] }
+     */
+    showLootContainer(container) {
+        this.currentLootId = container.id;
+        const title = document.getElementById('loot-title');
+        if (title) title.textContent = container.label.toUpperCase();
+
+        const list = document.getElementById('loot-items');
+        if (list) {
+            list.innerHTML = '';
+            if (container.items.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'loot-empty';
+                empty.textContent = 'Nothing left to take';
+                list.appendChild(empty);
+            } else {
+                container.items.forEach((entry, index) => {
+                    const def = getItem(entry.id);
+                    const row = document.createElement('div');
+                    row.className = 'loot-row';
+                    const name = document.createElement('span');
+                    name.className = 'loot-name';
+                    name.textContent = (def?.name || entry.id) + (entry.count > 1 ? ` ×${entry.count}` : '');
+                    const take = document.createElement('button');
+                    take.className = 'loot-take-btn';
+                    take.textContent = 'Take';
+                    take.addEventListener('click', () => {
+                        this.game.lootSystem?.takeItem(container.id, index);
+                    });
+                    row.appendChild(name);
+                    row.appendChild(take);
+                    list.appendChild(row);
+                });
+            }
+        }
+
+        const takeAll = document.getElementById('loot-take-all');
+        if (takeAll) {
+            takeAll.onclick = () => this.game.lootSystem?.takeAll(container.id);
+        }
+        const closeBtn = document.getElementById('loot-close');
+        if (closeBtn) {
+            closeBtn.onclick = () => this.closeLootContainer();
+        }
+
+        this.openMenu('loot');
+    }
+
+    /**
+     * Toggle the favorites quick-access menu (Q)
+     */
+    toggleFavorites() {
+        if (this.activeMenu === 'favorites') {
+            this.closeMenu('favorites');
+        } else {
+            this.showFavorites();
+        }
+    }
+
+    /**
+     * Show the favorites menu - carried favorited items, 1-8 to use/equip
+     */
+    showFavorites() {
+        const list = document.getElementById('favorites-list');
+        const invSys = this.game?.inventorySystem;
+        if (list && invSys) {
+            list.innerHTML = '';
+            const carried = invSys.getCarriedFavorites();
+            if (carried.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'favorites-empty';
+                empty.textContent = 'No favorites yet - star items in your inventory';
+                list.appendChild(empty);
+            } else {
+                carried.forEach(({ index, item }, i) => {
+                    const row = document.createElement('div');
+                    row.className = 'favorite-row';
+                    row.innerHTML = `<span class="favorite-key">${i + 1}</span><span class="favorite-name">${item.name}${item.stackable ? ` ×${item.count}` : ''}</span>`;
+                    row.addEventListener('click', () => this.useFavorite(index));
+                    list.appendChild(row);
+                });
+            }
+        }
+        this.openMenu('favorites');
+    }
+
+    /**
+     * Use or equip a favorited inventory slot, then close the menu
+     */
+    useFavorite(slotIndex) {
+        const item = this.game?.inventorySystem?.slots[slotIndex];
+        if (!item) return;
+        this.closeMenu('favorites');
+        this.onInventorySlotClick(slotIndex, item);
+    }
+
+    /**
+     * Close the loot container menu (pointer lock re-engages for play)
+     */
+    closeLootContainer() {
+        this.currentLootId = null;
+        if (this.activeMenu === 'loot') {
+            this.closeMenu('loot');
+        }
+    }
+
+    /**
      * Close a specific menu
      * @param {string} menuName - Name of the menu to close
      * @param {boolean} [requestPointerLock=true] - Whether to request pointer lock after closing
@@ -484,6 +618,27 @@ export class UIManager {
         // Special handling for pause
         if (menuName === 'pause') {
             return this.elements.pauseMenu;
+        }
+        // Loot container menu
+        if (menuName === 'loot') {
+            if (!this.elements.lootMenu) {
+                this.elements.lootMenu = document.getElementById('loot-menu');
+            }
+            return this.elements.lootMenu;
+        }
+        // Character creator menu
+        if (menuName === 'creator') {
+            if (!this.elements.creatorMenu) {
+                this.elements.creatorMenu = document.getElementById('creator-menu');
+            }
+            return this.elements.creatorMenu;
+        }
+        // Favorites menu
+        if (menuName === 'favorites') {
+            if (!this.elements.favoritesMenu) {
+                this.elements.favoritesMenu = document.getElementById('favorites-menu');
+            }
+            return this.elements.favoritesMenu;
         }
         // Fallback to generic naming
         const elementKey = `${menuName}Panel`;
@@ -572,8 +727,7 @@ export class UIManager {
      * Show interaction prompt
      * @param {string} text - Prompt text
      */
-    showInteractionPrompt(text = 'Press [E] to interact') {
-        if (this.elements.interactionPrompt) {
+    showInteractionPrompt(text = 'Press [E] to interact') {        if (this.elements.interactionPrompt) {
             this.elements.interactionPrompt.textContent = text;
             this.elements.interactionPrompt.classList.remove('hidden');
         }
@@ -676,12 +830,23 @@ export class UIManager {
             
             const item = inventory[i];
             if (item) {
+                const isFav = invSys?.isFavorite(item.id);
                 slot.innerHTML = `
                     <div class="item-icon" style="background-color: ${this.getItemColor(item.type)}"></div>
                     <span class="item-name">${item.name}</span>
                     ${item.stackable ? `<span class="item-count">${item.count}</span>` : ''}
+                    <span class="fav-star ${isFav ? 'favorited' : ''}" title="Toggle favorite">★</span>
                 `;
                 slot.classList.add('has-item');
+
+                // Star toggle (stopPropagation so it doesn't use the item)
+                const star = slot.querySelector('.fav-star');
+                star.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const nowFav = invSys.toggleFavorite(item.id);
+                    star.classList.toggle('favorited', nowFav);
+                    this.showNotification(nowFav ? `Favorited ${item.name}` : `Unfavorited ${item.name}`, 'info', 1500);
+                });
                 
                 // Click handlers
                 slot.addEventListener('click', () => this.onInventorySlotClick(i, item));
@@ -692,6 +857,16 @@ export class UIManager {
             }
             
             this.elements.inventoryGrid.appendChild(slot);
+        }
+
+        // Carry-weight readout with encumbrance state
+        const weightEl = document.getElementById('weight-display');
+        if (weightEl && invSys) {
+            const w = invSys.currentWeight.toFixed(1);
+            weightEl.textContent = `Weight: ${w}/${invSys.maxWeight} kg`;
+            const enc = invSys.getEncumbrance();
+            weightEl.classList.toggle('enc-warn', enc >= 0.8 && enc < 0.95);
+            weightEl.classList.toggle('enc-danger', enc >= 0.95);
         }
     }
 
@@ -1144,15 +1319,10 @@ export class UIManager {
     /**
      * Update compass direction
      * @param {number} rotation - Player Y rotation in radians
+     * @deprecated Compass strip is owned by CompassSystem now; this is a no-op.
      */
     updateCompass(rotation) {
-        if (!this.elements.compass) return;
-        
-        const degrees = THREE.MathUtils.radToDeg(rotation);
-        const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-        const index = Math.round(((degrees % 360) + 360) % 360 / 45) % 8;
-        
-        this.elements.compass.textContent = directions[index];
+        // No-op: CompassSystem renders the compass strip each frame.
     }
 
     /**
@@ -1178,7 +1348,8 @@ export class UIManager {
         
         // Update interaction prompt
         if (this.game.player.lookingAt) {
-            this.showInteractionPrompt();
+            const prompt = this.game.player.lookingAt.userData.promptText;
+            this.showInteractionPrompt(prompt ? `Press [E] - ${prompt}` : undefined);
         } else {
             this.hideInteractionPrompt();
         }

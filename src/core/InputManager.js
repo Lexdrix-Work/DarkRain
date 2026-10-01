@@ -30,7 +30,7 @@ export class InputManager {
         
         // Track menu states for toggle functionality
         this.menuStates = new Map();
-        this.menuActions = new Set(['inventory', 'map', 'pause']); // Actions that should toggle
+        this.menuActions = new Set(['inventory', 'map', 'pause', 'favorites']); // Actions that should toggle
         
         // Event listeners for menu state changes
         this.eventListeners = new Map();
@@ -65,6 +65,7 @@ export class InputManager {
         this.bindings.set('inventory', ['Tab', 'KeyI']);
         this.bindings.set('flashlight', ['KeyF']);
         this.bindings.set('map', ['KeyM']);
+        this.bindings.set('favorites', ['KeyQ']);
         this.bindings.set('quicksave', ['F5']);
         this.bindings.set('quickload', ['F9']);
         

@@ -316,7 +316,7 @@ export class Game {
             this.setupPostProcessing();
             
             // Initialize managers
-            this.inputManager = new InputManager(null, this.canvas); // Pass canvas to InputManager
+            this.inputManager = new InputManager(globalEventBus, this.canvas); // Pass canvas to InputManager
             this.assetManager = new AssetManager();
             
             // Setup asset loading callbacks
@@ -468,6 +468,7 @@ export class Game {
         const colorGradingShader = {
             uniforms: {
                 tDiffuse: { value: null },
+                time: { value: 0 },
                 vignetteAmount: { value: 0.3 },
                 saturation: { value: 0.9 },
                 contrast: { value: 1.1 },
@@ -482,6 +483,7 @@ export class Game {
             `,
             fragmentShader: `
                 uniform sampler2D tDiffuse;
+                uniform float time;
                 uniform float vignetteAmount;
                 uniform float saturation;
                 uniform float contrast;
@@ -505,6 +507,10 @@ export class Game {
                     
                     // Brightness
                     color.rgb += brightness;
+
+                    // Animated film grain - breaks up flat digital gradients
+                    float grain = fract(sin(dot(vUv * (mod(time, 10.0) + 1.0), vec2(12.9898, 78.233))) * 43758.5453);
+                    color.rgb += (grain - 0.5) * 0.02;
                     
                     gl_FragColor = color;
                 }
@@ -513,6 +519,7 @@ export class Game {
         
         const colorGradingPass = new ShaderPass(colorGradingShader);
         this.composer.addPass(colorGradingPass);
+        this.colorGradingPass = colorGradingPass;
 
         // Output pass: applies tone mapping + sRGB conversion.
         // Without this, the composer writes raw linear HDR values to the
@@ -597,6 +604,17 @@ export class Game {
             }
             
             this.uiManager?.updateLoadingProgress(85, 'Setting up environment...');
+
+            // Scatter lootable containers through the world (crates, corpses,
+            // stashes) - needs buildings + anomaly fields to exist first.
+            // Compass markers go first so loot can add stash markers after.
+            if (this.compassSystem) {
+                this.compassSystem.populateLevel(levelData);
+            }
+            if (this.lootSystem) {
+                this.uiManager?.updateLoadingProgress(88, 'Hiding loot...');
+                this.lootSystem.populateLevel(levelData);
+            }
             
             // Set initial weather
             if (this.weatherSystem && levelData.weather) {
@@ -837,6 +855,15 @@ export class Game {
         
         // Update UI
         this.uiManager?.update(deltaTime);
+
+        // First-person overlay (weapon viewmodel, arms, hat brim)
+        this.viewmodelSystem?.update(deltaTime);
+
+        // Loot containers (bobbing, prompt refresh)
+        this.lootSystem?.update(deltaTime);
+
+        // Compass + sneak indicator
+        this.compassSystem?.update(deltaTime);
         
         // Update camera shake
         this.updateCameraShake(deltaTime);
@@ -887,10 +914,18 @@ export class Game {
         
         // Render with post-processing or standard
         if (this.composer && this.settings.postProcessing) {
+            if (this.colorGradingPass?.uniforms?.time) {
+                this.colorGradingPass.uniforms.time.value = performance.now() * 0.001;
+            }
             this.composer.render();
         } else {
             this.renderer.render(this.scene, this.camera);
         }
+
+        // First-person overlay (weapon viewmodel, arms, hat brim): separate
+        // scene + camera rendered after the main pass with depth cleared, so
+        // the viewmodel can never clip through walls.
+        this.viewmodelSystem?.render(this.renderer);
     }
 
     /**
