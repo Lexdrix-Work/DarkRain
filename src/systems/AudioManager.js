@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { globalEventBus } from '../core/EventBus.js';
+import { AmbientMusicSystem } from './AmbientMusicSystem.js';
 
 /**
  * AudioManager - Handles all game audio (music, SFX, ambient)
@@ -31,6 +32,7 @@ export class AudioManager {
         // Music system
         this.musicFadeTime = 2.0;
         this.isMusicFading = false;
+        this.musicSystem = null; // Procedural generative ambient music
         
         // Spatial audio settings
         this.maxDistance = 50;
@@ -51,12 +53,25 @@ export class AudioManager {
         // Procedurally synthesized Zone sounds (no audio assets needed)
         this.registerProceduralSounds();
         
-        // Handle audio context state
-        document.addEventListener('click', () => {
+        // Generative ambient music engine (WebAudio, no audio files)
+        this.musicSystem = new AmbientMusicSystem(this);
+        
+        // Handle audio context state + start music after first user gesture
+        // (browser autoplay policy: no audio before user interaction)
+        const unlockAudio = () => {
             if (this.audioContext.state === 'suspended') {
                 this.audioContext.resume();
             }
-        }, { once: true });
+            if (this.musicSystem && !this.musicSystem.started) {
+                this.musicSystem.start();
+            }
+        };
+        document.addEventListener('pointerdown', unlockAudio);
+        document.addEventListener('keydown', unlockAudio);
+        document.addEventListener('click', unlockAudio);
+        // Also try on GAME_START event (New Game button)
+        globalEventBus.on('game:start', unlockAudio);
+        globalEventBus.on(GameEvents.GAME_START, unlockAudio);
     }
 
     setupEvents() {
@@ -538,6 +553,9 @@ export class AudioManager {
         if (this.currentMusic) {
             this.currentMusic.setVolume(this.musicVolume * this.masterVolume);
         }
+        if (this.musicSystem) {
+            this.musicSystem.setVolume(this.musicVolume * this.masterVolume);
+        }
     }
 
     /**
@@ -567,6 +585,9 @@ export class AudioManager {
         if (this.currentMusic) {
             this.currentMusic.setVolume(this.musicVolume * this.masterVolume);
         }
+        if (this.musicSystem) {
+            this.musicSystem.setVolume(this.musicVolume * this.masterVolume);
+        }
         
         // Update ambience
         this.currentAmbience.forEach(({ audio, name }) => {
@@ -582,6 +603,8 @@ export class AudioManager {
         if (this.game.player?.camera) {
             // Listener is attached to camera, position updates automatically
         }
+        // Drive the generative ambient music (mood, layers, scheduler)
+        this.musicSystem?.update(deltaTime);
     }
 
     dispose() {
@@ -593,6 +616,7 @@ export class AudioManager {
         
         // Stop music
         this.stopMusic(false);
+        this.musicSystem?.stop();
         
         // Stop ambience
         this.currentAmbience.forEach(({ audio }) => audio.stop());
@@ -610,4 +634,4 @@ export class AudioManager {
             if (audio.isPlaying) audio.stop();
         });
     }
-}
+}

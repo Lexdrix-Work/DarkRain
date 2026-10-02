@@ -96,9 +96,7 @@ export class StaticBatcher {
             return null;
         }
         merged.computeBoundingSphere();
-        const _mesh = new THREE.Mesh(merged, material);
-        _mesh.matrixAutoUpdate = false; // static: skip per-frame matrix updates
-        return _mesh;
+        return new THREE.Mesh(merged, material);
     }
 
     /**
