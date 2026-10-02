@@ -29,8 +29,8 @@ export class SurvivalSystem {
     }
 
     setupEventListeners() {
-        globalEventBus.on('item:use', (data) => {
-            this.onItemUsed(data.item);
+        globalEventBus.on('item:applied', (data) => {
+            if (data.item) this.onItemUsed(data.item);
         });
         
         globalEventBus.on('emission:damage', (data) => {
@@ -374,4 +374,4 @@ export class SurvivalSystem {
     dispose() {
         this.statusEffects.clear();
     }
-}
+}

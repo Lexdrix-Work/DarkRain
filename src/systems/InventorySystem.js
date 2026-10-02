@@ -248,6 +248,10 @@ export class InventorySystem {
         if (consumed) {
             this.removeItem(slotIndex, 1);
         }
+
+        // Notify effect handlers (SurvivalSystem applies medical/food/antirad effects).
+        // Separate event from 'item:use' (which triggers useItem) to avoid recursion.
+        globalEventBus.emit('item:applied', { item, slotIndex });
     }
 
     /**
@@ -653,4 +657,4 @@ export class InventorySystem {
         }
         return out;
     }
-}
+}
