@@ -192,13 +192,20 @@ export class Enemy extends Entity {
     }
 
     update(deltaTime) {
-        if (!this.isActive || this.aiState === AIState.DEAD) return;
+        if (this.aiState === AIState.DEAD) {
+            // Keep death animation playing even though AI is off.
+            // (No super.update: it would overwrite the animated mesh transform.)
+            this.updateDeathAnimation(deltaTime);
+            return;
+        }
+        if (!this.isActive) return;
         
         this.updatePerception(deltaTime);
         this.updateAI(deltaTime);
         this.updateMovement(deltaTime);
         this.updateCombat(deltaTime);
         this.updateWalkAnimation(deltaTime);
+        this.updateDeathAnimation(deltaTime);
         
         super.update(deltaTime);
     }
@@ -479,6 +486,20 @@ export class Enemy extends Entity {
 
     updateWalkAnimation(deltaTime) {
         if (!this.limbs) return;
+        // Attack swipe overrides walk cycle
+        if (this._attackAnim !== undefined && this._attackAnim < 1) {
+            this._attackAnim = Math.min(1, this._attackAnim + deltaTime * 3);
+            const t = this._attackAnim;
+            const raise = Math.sin(t * Math.PI);
+            this.limbs.armL.rotation.x = -1.8 * raise;
+            this.limbs.armR.rotation.x = -1.8 * raise;
+            this.limbs.armL.rotation.z = 0.4 * raise;
+            this.limbs.armR.rotation.z = -0.4 * raise;
+            if (t >= 1) this._attackAnim = undefined;
+            return;
+        }
+        // Idle breathing when still
+        const t = (this._idleT = (this._idleT || 0) + deltaTime);
         // Measure horizontal speed from position delta
         if (!this._lastAnimPos) this._lastAnimPos = this.position.clone();
         const dx = this.position.x - this._lastAnimPos.x;
@@ -495,6 +516,28 @@ export class Enemy extends Entity {
         this.limbs.legR.rotation.x = Math.sin(p + Math.PI) * a;
         this.limbs.armL.rotation.x = Math.sin(p + Math.PI) * a * 0.8;
         this.limbs.armR.rotation.x = Math.sin(p) * a * 0.8;
+        // Subtle idle sway/breathing layered on top
+        const breathe = Math.sin(t * 2.2) * 0.04 * (1 - Math.min(1, a * 2));
+        this.limbs.armL.rotation.x += breathe;
+        this.limbs.armR.rotation.x -= breathe;
+        if (this.mesh) this.mesh.position.y += Math.sin(t * 2.2) * 0.008 * (1 - Math.min(1, a * 2));
+    }
+
+    updateDeathAnimation(deltaTime) {
+        if (this._deathAnim === undefined || !this.mesh) return;
+        this._deathAnim = Math.min(1, this._deathAnim + deltaTime * 2.2);
+        const t = this._deathAnim;
+        // Ease-out fall to the side
+        const e = 1 - Math.pow(1 - t, 3);
+        this.mesh.rotation.z = e * (Math.PI / 2) * 0.9;
+        this.mesh.rotation.x = e * 0.25;
+        // Slight sink at the end
+        if (t > 0.6) this.mesh.position.y -= deltaTime * 0.25 * (t - 0.6);
+        // Deactivate once the fall completes (stops further updates)
+        if (t >= 1) {
+            this.isActive = false;
+            this._deathAnim = undefined;
+        }
     }
 
     updateMovement(deltaTime) {
@@ -542,7 +585,8 @@ export class Enemy extends Entity {
     performAttack() {
         if (!this.target || !this.canAttack) return;
 
-        
+        // Attack animation: arms raise then swipe
+        this._attackAnim = 0;
         this.canAttack = false;
         this.attackCooldown = 1 / this.attackRate;
         
@@ -590,15 +634,13 @@ export class Enemy extends Entity {
 
     die() {
         this.aiState = AIState.DEAD;
-        this.isActive = false;
+        // Keep isActive true so update() runs the death animation;
+        // deactivated in updateDeathAnimation when the fall completes.
         this.isCollidable = false;
         this.alive = false;
         
-        // Death animation (placeholder - rotate mesh)
-        if (this.mesh) {
-            this.mesh.rotation.x = Math.PI / 2;
-            this.mesh.position.y = 0.3;
-        }
+        // Death animation: smooth fall + sink (updated in updateDeathAnimation)
+        this._deathAnim = 0;
         
         globalEventBus.emit(GameEvents.ENEMY_DEATH, { enemy: this });
         

@@ -324,6 +324,8 @@ export class Weapon {
         
         // Apply recoil
         this.applyRecoil();
+        // Kick the first-person viewmodel
+        try { this.game.viewmodelSystem?.kick(this.data.recoil || 1); } catch (e) {}
         
         // Muzzle flash
         this.showMuzzleFlash();
@@ -723,4 +725,4 @@ export class WeaponManager {
         this.weapons.clear();
         this.equippedWeapon = null;
     }
-}
+}

@@ -1,6 +1,7 @@
 import { globalEventBus, GameEvents } from '../core/EventBus.js';
 import { getItem } from '../data/items.js';
 import { CharacterCreator } from './CharacterCreator.js';
+import { ItemIcons } from './ItemIcons.js';
 import * as THREE from 'three';
 
 /**
@@ -648,6 +649,12 @@ export class UIManager {
                     const def = getItem(entry.id);
                     const row = document.createElement('div');
                     row.className = 'loot-row';
+                    const icon = document.createElement('img');
+                    icon.className = 'loot-icon';
+                    icon.src = ItemIcons.get(def?.icon || entry.id);
+                    icon.alt = '';
+                    icon.draggable = false;
+                    row.appendChild(icon);
                     const name = document.createElement('span');
                     name.className = 'loot-name';
                     name.textContent = (def?.name || entry.id) + (entry.count > 1 ? ` ×${entry.count}` : '');
@@ -992,7 +999,7 @@ export class UIManager {
             if (item) {
                 const isFav = invSys?.isFavorite(item.id);
                 slot.innerHTML = `
-                    <div class="item-icon" style="background-color: ${this.getItemColor(item.type)}"></div>
+                    <img class="item-icon" src="${ItemIcons.get(item.icon || item.id)}" alt="" draggable="false">
                     <span class="item-name">${item.name}</span>
                     ${item.stackable ? `<span class="item-count">${item.count}</span>` : ''}
                     <span class="fav-star ${isFav ? 'favorited' : ''}" title="Toggle favorite">★</span>

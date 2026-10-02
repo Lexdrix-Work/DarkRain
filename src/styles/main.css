@@ -811,10 +811,19 @@ button, input, select {
 }
 
 .inventory-slot .item-icon {
-    width: 30px;
-    height: 30px;
-    border-radius: 4px;
+    width: 34px;
+    height: 34px;
+    border-radius: 6px;
     pointer-events: none;
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5));
+}
+.loot-row .loot-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    flex-shrink: 0;
+    margin-right: 8px;
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5));
 }
 
 .inventory-slot .item-name {

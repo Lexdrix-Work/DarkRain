@@ -98,7 +98,74 @@ export class ViewmodelSystem {
         this.rig.add(hat);
     }
 
+    /**
+     * Procedural weapon motion: walk bob, mouse sway, fire recoil, reload dip.
+     */
+    updateWeaponMotion(deltaTime) {
+        if (!this.rig) return;
+        const player = this.game.player;
+        const t = (this._vmT = (this._vmT || 0) + deltaTime);
+
+        // --- Walk bob: figure-eight based on player speed ---
+        let speed = 0;
+        if (player && player.velocity) {
+            speed = Math.hypot(player.velocity.x, player.velocity.z);
+        } else if (player && player.position && this._lastPPos) {
+            speed = Math.hypot(
+                player.position.x - this._lastPPos.x,
+                player.position.z - this._lastPPos.z) / Math.max(deltaTime, 0.001);
+        }
+        if (player && player.position) {
+            this._lastPPos = this._lastPPos || player.position.clone();
+            this._lastPPos.copy(player.position);
+        }
+        const moving = Math.min(1, speed / 3);
+        this._bobPhase = (this._bobPhase || 0) + deltaTime * (5 + speed * 1.2) * moving;
+        const bp = this._bobPhase || 0;
+        const bobX = Math.cos(bp) * 0.012 * moving;
+        const bobY = Math.abs(Math.sin(bp)) * 0.014 * moving;
+
+        // --- Mouse sway: rig lags behind look delta ---
+        const yaw = player?.cameraYaw || 0, pitch = player?.cameraPitch || 0;
+        const dyaw = yaw - (this._lastYaw ?? yaw);
+        const dpitch = pitch - (this._lastPitch ?? pitch);
+        this._lastYaw = yaw; this._lastPitch = pitch;
+        this._swayX = (this._swayX || 0) + ((-dyaw * 2.2) - (this._swayX || 0)) * Math.min(1, deltaTime * 9);
+        this._swayY = (this._swayY || 0) + ((dpitch * 2.2) - (this._swayY || 0)) * Math.min(1, deltaTime * 9);
+        // Clamp sway so fast flicks don't throw the gun off-screen
+        this._swayX = Math.max(-0.06, Math.min(0.06, this._swayX));
+        this._swayY = Math.max(-0.06, Math.min(0.06, this._swayY));
+
+        // --- Fire recoil: kick back + up, spring back ---
+        this._recoil = Math.max(0, (this._recoil || 0) - deltaTime * 6);
+        const rk = this._recoil;
+
+        // --- Reload dip: gun tilts down while reloading ---
+        const w = this.game.weaponManager?.equippedWeapon;
+        const reloading = w?.isReloading;
+        this._reloadDip = ((this._reloadDip || 0) +
+            ((reloading ? 1 : 0) - (this._reloadDip || 0)) * Math.min(1, deltaTime * 7));
+
+        // Compose final rig transform (base offsets are baked into children)
+        this.rig.position.set(
+            bobX + (this._swayX || 0),
+            bobY + (this._swayY || 0) - this._reloadDip * 0.09,
+            rk * 0.09
+        );
+        this.rig.rotation.set(
+            rk * 0.35 + this._reloadDip * 0.55 + (this._swayY || 0) * 1.4,
+            (this._swayX || 0) * 1.6,
+            this._reloadDip * 0.25
+        );
+    }
+
+    /** Call on weapon fire to kick the viewmodel. */
+    kick(recoilAmount = 1) {
+        this._recoil = Math.min(1.2, (this._recoil || 0) + 0.55 * recoilAmount);
+    }
+
     update(deltaTime) {
+        this.updateWeaponMotion(deltaTime);
         // Fade the hat brim in as the player looks down past ~-20 degrees
         if (this.hatBrim) {
             const pitch = this.game.player?.cameraPitch || 0;

@@ -76,7 +76,14 @@ export class WorldManager {
 
     setupEventListeners() {
         globalEventBus.on(GameEvents.ENEMY_DEATH, (data) => {
-            this.removeEnemy(data.enemy);
+            // Delay removal so the death animation can play (~0.6s fall).
+            // The enemy's updateDeathAnimation deactivates it when done;
+            // this is a safety net in case the anim doesn't run.
+            setTimeout(() => {
+                if (data.enemy && this.entities.has(data.enemy.id)) {
+                    this.removeEnemy(data.enemy);
+                }
+            }, 800);
         });
         
         globalEventBus.on('loot:drop', (data) => {
@@ -2747,4 +2754,4 @@ export class WorldManager {
         
         console.log('WorldManager disposed');
     }
-}
+}
