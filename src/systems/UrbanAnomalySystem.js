@@ -130,10 +130,7 @@ export default class UrbanAnomalySystem {
             group.add(line);
         }
 
-        // Point light
-        const light = new THREE.PointLight(0x00ffff, 1, 10);
-        light.position.y = 1.5;
-        group.add(light);
+        // Point light removed for perf
 
         this.scene.add(group);
         return group;
@@ -211,9 +208,9 @@ export default class UrbanAnomalySystem {
         }
 
         // Point light
-        const light = new THREE.PointLight(0x44ff00, 0.5, 8);
-        light.position.y = 0.5;
-        group.add(light);
+        // const light = new THREE.PointLight(0x44ff00, 0.5, 8); // REMOVED
+        // light.position.y = 0.5; // REMOVED
+        // group.add(light); // REMOVED
 
         this.scene.add(group);
         return group;
@@ -268,9 +265,9 @@ export default class UrbanAnomalySystem {
         group.add(particles);
 
         // Point light
-        const light = new THREE.PointLight(0xffaa00, 0.5, 10);
-        light.position.y = 1;
-        group.add(light);
+        // const light = new THREE.PointLight(0xffaa00, 0.5, 10); // REMOVED
+        // light.position.y = 1; // REMOVED
+        // group.add(light); // REMOVED
 
         this.scene.add(group);
         return group;
@@ -307,9 +304,9 @@ export default class UrbanAnomalySystem {
         group.add(core);
 
         // Point light
-        const light = new THREE.PointLight(0x8800ff, 1, 8);
-        light.position.y = 1;
-        group.add(light);
+        // const light = new THREE.PointLight(0x8800ff, 1, 8); // REMOVED
+        // light.position.y = 1; // REMOVED
+        // group.add(light); // REMOVED
 
         this.scene.add(group);
         return group;
@@ -329,9 +326,9 @@ export default class UrbanAnomalySystem {
         sphere.position.y = 1;
         group.add(sphere);
 
-        const light = new THREE.PointLight(0xff00ff, 0.5, 6);
-        light.position.y = 1;
-        group.add(light);
+        // const light = new THREE.PointLight(0xff00ff, 0.5, 6); // REMOVED
+        // light.position.y = 1; // REMOVED
+        // group.add(light); // REMOVED
 
         this.scene.add(group);
         return group;
