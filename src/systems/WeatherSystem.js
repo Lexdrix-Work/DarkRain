@@ -47,7 +47,7 @@ export class WeatherSystem {
         this.presets = {
             [WeatherType.CLEAR]: {
                 cloudDensity: 0.1,
-                fogDensity: 0.01,
+                fogDensity: 0.004,
                 rainIntensity: 0,
                 windStrength: 0.1,
                 lightningChance: 0,
@@ -57,7 +57,7 @@ export class WeatherSystem {
             },
             [WeatherType.CLOUDY]: {
                 cloudDensity: 0.5,
-                fogDensity: 0.02,
+                fogDensity: 0.008,
                 rainIntensity: 0,
                 windStrength: 0.3,
                 lightningChance: 0,
@@ -67,7 +67,7 @@ export class WeatherSystem {
             },
             [WeatherType.OVERCAST]: {
                 cloudDensity: 0.9,
-                fogDensity: 0.04,
+                fogDensity: 0.014,
                 rainIntensity: 0,
                 windStrength: 0.4,
                 lightningChance: 0,
@@ -77,7 +77,7 @@ export class WeatherSystem {
             },
             [WeatherType.RAIN]: {
                 cloudDensity: 0.8,
-                fogDensity: 0.06,
+                fogDensity: 0.02,
                 rainIntensity: 0.5,
                 windStrength: 0.5,
                 lightningChance: 0.01,
@@ -87,7 +87,7 @@ export class WeatherSystem {
             },
             [WeatherType.HEAVY_RAIN]: {
                 cloudDensity: 1.0,
-                fogDensity: 0.1,
+                fogDensity: 0.03,
                 rainIntensity: 1.0,
                 windStrength: 0.8,
                 lightningChance: 0.05,
@@ -97,7 +97,7 @@ export class WeatherSystem {
             },
             [WeatherType.THUNDERSTORM]: {
                 cloudDensity: 1.0,
-                fogDensity: 0.08,
+                fogDensity: 0.025,
                 rainIntensity: 0.8,
                 windStrength: 1.0,
                 lightningChance: 0.15,
@@ -107,7 +107,7 @@ export class WeatherSystem {
             },
             [WeatherType.FOG]: {
                 cloudDensity: 0.3,
-                fogDensity: 0.3,
+                fogDensity: 0.045,
                 rainIntensity: 0,
                 windStrength: 0.1,
                 lightningChance: 0,
@@ -117,7 +117,7 @@ export class WeatherSystem {
             },
             [WeatherType.EMISSION]: {
                 cloudDensity: 1.0,
-                fogDensity: 0.15,
+                fogDensity: 0.035,
                 rainIntensity: 0,
                 windStrength: 1.0,
                 lightningChance: 0.3,
@@ -415,8 +415,20 @@ export class WeatherSystem {
     }
 
     updateTransition(deltaTime) {
+        // Guard: zero-duration transitions snap instantly (avoids 0/0 = NaN
+        // when deltaTime is also 0, which poisoned all light intensities).
+        if (this.transitionDuration <= 0) {
+            this.transitionProgress = 1;
+            for (const key in this.targetParams) {
+                const v = this.targetParams[key];
+                if (typeof v === 'number' && isFinite(v)) this.params[key] = v;
+            }
+            return;
+        }
         if (this.transitionProgress < 1) {
             this.transitionProgress += deltaTime / this.transitionDuration;
+            // Clamp out NaN/Infinity (e.g. deltaTime=0 on a paused frame)
+            if (!isFinite(this.transitionProgress)) this.transitionProgress = 1;
             this.transitionProgress = Math.min(1, this.transitionProgress);
             
             // Lerp parameters

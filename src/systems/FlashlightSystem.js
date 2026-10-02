@@ -30,22 +30,22 @@ export class FlashlightSystem {
             outerColor: 0xffecd0,
             
             // Main beam settings
-            intensity: 8,
-            distance: 100,
-            angle: Math.PI / 4.5, // ~40 degrees - wider cone
-            penumbra: 0.6, // Soft edges
+            intensity: 40,
+            distance: 90,
+            angle: Math.PI / 5, // ~36 degrees - focused tactical beam
+            penumbra: 0.45, // Tighter hotspot, soft edge
             decay: 1.0, // Less decay for further reach
             
             // Outer glow settings (secondary light)
-            outerIntensity: 3,
-            outerDistance: 60,
+            outerIntensity: 10,
+            outerDistance: 50,
             outerAngle: Math.PI / 3, // ~60 degrees - very wide soft glow
             outerPenumbra: 1.0, // Maximum softness
             outerDecay: 1.5,
             
             // Ambient fill light
-            fillIntensity: 0.5,
-            fillDistance: 8,
+            fillIntensity: 1.2,
+            fillDistance: 10,
             
             // Position offset from camera
             offsetX: 0.3,
@@ -81,8 +81,8 @@ export class FlashlightSystem {
         );
         
         this.spotLight.castShadow = true;
-        this.spotLight.shadow.mapSize.width = 2048;
-        this.spotLight.shadow.mapSize.height = 2048;
+        this.spotLight.shadow.mapSize.width = 1024;
+        this.spotLight.shadow.mapSize.height = 1024;
         this.spotLight.shadow.camera.near = 0.5;
         this.spotLight.shadow.camera.far = this.settings.distance;
         this.spotLight.shadow.bias = -0.0003;

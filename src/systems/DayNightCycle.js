@@ -40,11 +40,19 @@ export class DayNightCycle {
             dusk: new THREE.Color(0xff6644)
         };
         
-        // Lighting intensities
+        // Ambient tint follows the sky (bright blue-grey by day, deep blue at night)
+        this.ambientColors = {
+            night: new THREE.Color(0x2a3a5c),
+            dawn: new THREE.Color(0xc4a488),
+            day: new THREE.Color(0xbcd4e8),
+            dusk: new THREE.Color(0x9a7a88)
+        };
+        
+        // Lighting intensities (fill tuned so vertical faces read at noon)
         this.lightIntensities = {
-            sun: { night: 0, dawn: 0.5, day: 1.0, dusk: 0.4 },
-            moon: { night: 0.15, dawn: 0.05, day: 0, dusk: 0.05 },
-            ambient: { night: 0.05, dawn: 0.2, day: 0.4, dusk: 0.15 }
+            sun: { night: 0, dawn: 0.8, day: 1.0, dusk: 0.6 },
+            moon: { night: 0.3, dawn: 0.08, day: 0, dusk: 0.08 },
+            ambient: { night: 0.12, dawn: 0.35, day: 0.55, dusk: 0.3 }
         };
         
         // Time periods (in hours)
@@ -70,28 +78,32 @@ export class DayNightCycle {
     createLights() {
         // Directional sun light
         this.sunLight = new THREE.DirectionalLight(0xfff2df, 1);
-        this.sunLight.castShadow = true;
-        this.sunLight.shadow.mapSize.width = 4096;
-        this.sunLight.shadow.mapSize.height = 4096;
+        // NOTE: sun shadow casting disabled - the shadow map was rendering
+        // the entire scene as shadowed (broken) and cost 4000+ draw calls.
+        // Directional N·L shading still applies. Re-enable via settings if fixed.
+        this.sunLight.castShadow = false;
+        this.sunLight.shadow.mapSize.width = 2048;
+        this.sunLight.shadow.mapSize.height = 2048;
         this.sunLight.shadow.camera.near = 10;
         this.sunLight.shadow.camera.far = 1000;
-        this.sunLight.shadow.camera.left = -500;
-        this.sunLight.shadow.camera.right = 500;
-        this.sunLight.shadow.camera.top = 500;
-        this.sunLight.shadow.camera.bottom = -500;
+        this.sunLight.shadow.camera.left = -120;
+        this.sunLight.shadow.camera.right = 120;
+        this.sunLight.shadow.camera.top = 120;
+        this.sunLight.shadow.camera.bottom = -120;
         this.sunLight.shadow.bias = -0.0003;
         this.sunLight.shadow.normalBias = 0.02;
+        this.sunLight.shadow.camera.updateProjectionMatrix();
         this.scene.add(this.sunLight);
+        this.scene.add(this.sunLight.target);
         
         // Moon light
         this.moonLight = new THREE.DirectionalLight(0x4444ff, 0.15);
-        this.moonLight.castShadow = true;
-        this.moonLight.shadow.mapSize.width = 1024;
-        this.moonLight.shadow.mapSize.height = 1024;
+        this.moonLight.castShadow = false;
         this.scene.add(this.moonLight);
+        this.scene.add(this.moonLight.target);
         
         // Ambient light
-        this.ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+        this.ambientLight = new THREE.AmbientLight(0xbcd4e8, 0.5);
         this.scene.add(this.ambientLight);
         
         // Hemisphere light for more natural outdoor lighting
@@ -107,7 +119,10 @@ export class DayNightCycle {
                 topColor: { value: new THREE.Color(0x0077ff) },
                 bottomColor: { value: new THREE.Color(0xffffff) },
                 offset: { value: 33 },
-                exponent: { value: 0.6 }
+                exponent: { value: 0.6 },
+                sunDirection: { value: new THREE.Vector3(0, 1, 0) },
+                sunColor: { value: new THREE.Color(0xfff4e0) },
+                nightFactor: { value: 0 }
             },
             vertexShader: `
                 varying vec3 vWorldPosition;
@@ -122,10 +137,48 @@ export class DayNightCycle {
                 uniform vec3 bottomColor;
                 uniform float offset;
                 uniform float exponent;
+                uniform vec3 sunDirection;
+                uniform vec3 sunColor;
+                uniform float nightFactor;
                 varying vec3 vWorldPosition;
+                
+                // Hash for procedural stars
+                float hash(vec3 p) {
+                    p = fract(p * 0.3183099 + 0.1);
+                    p *= 17.0;
+                    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+                }
+                
                 void main() {
-                    float h = normalize(vWorldPosition + offset).y;
-                    gl_FragColor = vec4(mix(bottomColor, topColor, max(pow(max(h, 0.0), exponent), 0.0)), 1.0);
+                    vec3 dir = normalize(vWorldPosition + offset);
+                    float h = max(dir.y, 0.0);
+                    vec3 sky = mix(bottomColor, topColor, pow(h, exponent));
+                    
+                    // Horizon haze: lighten near horizon for atmospheric depth
+                    float horizon = pow(1.0 - abs(dir.y), 3.0);
+                    sky = mix(sky, bottomColor * 1.15 + vec3(0.04), horizon * 0.5);
+                    
+                    // Sun disc + glow
+                    float sunDot = max(dot(dir, normalize(sunDirection)), 0.0);
+                    float disc = smoothstep(0.9993, 0.9997, sunDot);
+                    float glow = pow(sunDot, 180.0) * 0.6 + pow(sunDot, 8.0) * 0.18;
+                    sky += sunColor * (disc * 2.0 + glow) * (1.0 - nightFactor);
+                    
+                    // Stars at night (above horizon only)
+                    if (nightFactor > 0.01 && dir.y > 0.02) {
+                        vec3 sp = dir * 140.0;
+                        vec3 cell = floor(sp);
+                        float star = hash(cell);
+                        if (star > 0.992) {
+                            vec3 f = fract(sp) - 0.5;
+                            float d = length(f);
+                            float tw = 0.75 + 0.25 * sin(6.0 * star * 40.0);
+                            float b = smoothstep(0.25, 0.0, d) * tw;
+                            sky += vec3(0.9, 0.93, 1.0) * b * nightFactor * smoothstep(0.02, 0.25, dir.y);
+                        }
+                    }
+                    
+                    gl_FragColor = vec4(sky, 1.0);
                 }
             `,
             side: THREE.BackSide
@@ -202,11 +255,14 @@ export class DayNightCycle {
         const normalizedTime = this.currentTime / this.dayLength;
         const sunAngle = normalizedTime * Math.PI * 2 - Math.PI / 2;
         
-        // Update sun position
+        // Update sun position on a tilted arc: at solar noon the sun sits
+        // ~62° up with an azimuth, so facades catch raking light instead of
+        // a dead-overhead sun that leaves every vertical face black.
+        const tiltZ = 0.45; // orbit tilt (radians) for a natural sun path
         this.sunPosition.set(
             Math.cos(sunAngle) * this.orbitRadius,
             Math.sin(sunAngle) * this.orbitRadius,
-            0
+            Math.sin(sunAngle) * this.orbitRadius * tiltZ
         );
         
         // Update moon position (opposite to sun)
@@ -254,8 +310,8 @@ export class DayNightCycle {
         
         if (period === 'night') {
             sunIntensity = 0;
-            moonIntensity = 0.15;
-            ambientIntensity = 0.05;
+            moonIntensity = 0.35;
+            ambientIntensity = 0.14;
             sunColor = this.sunColors.night;
             skyColor = this.skyColors.night;
         } else if (period === 'dawn') {
@@ -268,9 +324,9 @@ export class DayNightCycle {
         } else if (period === 'day') {
             const midDay = (this.timePeriods.dayStart + this.timePeriods.dayEnd) / 2;
             const distFromMid = Math.abs(hours - midDay) / (midDay - this.timePeriods.dayStart);
-            sunIntensity = THREE.MathUtils.lerp(2.4, 1.7, distFromMid);
+            sunIntensity = THREE.MathUtils.lerp(3.0, 2.2, distFromMid);
             moonIntensity = 0;
-            ambientIntensity = THREE.MathUtils.lerp(0.75, 0.6, distFromMid);
+            ambientIntensity = THREE.MathUtils.lerp(0.65, 0.5, distFromMid);
             sunColor = this.sunColors.day;
             skyColor = this.skyColors.day;
         } else { // dusk
@@ -284,8 +340,9 @@ export class DayNightCycle {
         
         // Weather dims/brightens the whole rig (storms go dark, clear days blaze)
         const wx = this.game.weatherSystem?.params;
-        const sunWeatherFactor = wx ? wx.sunIntensity : 1;
-        const ambientWeatherFactor = wx ? wx.ambientIntensity : 1;
+        // NaN guard: a poisoned weather param must never kill the lights
+        const sunWeatherFactor = (wx && isFinite(wx.sunIntensity)) ? wx.sunIntensity : 1;
+        const ambientWeatherFactor = (wx && isFinite(wx.ambientIntensity)) ? wx.ambientIntensity : 1;
         
         // Apply to lights
         if (this.sunLight) {
@@ -299,11 +356,14 @@ export class DayNightCycle {
         
         if (this.ambientLight) {
             this.ambientLight.intensity = ambientIntensity * ambientWeatherFactor;
+            // Tint ambient with the period color for believable day/night mood
+            const ambCol = this.ambientColors[period] || this.ambientColors.day;
+            this.ambientLight.color.copy(ambCol);
         }
         
         // Update hemisphere light (fill so shadow faces never go pitch black)
         if (this.hemiLight) {
-            this.hemiLight.intensity = ambientIntensity * 0.75 * ambientWeatherFactor;
+            this.hemiLight.intensity = ambientIntensity * 1.4 * ambientWeatherFactor;
             this.hemiLight.color.copy(skyColor);
         }
     }
@@ -341,6 +401,16 @@ export class DayNightCycle {
 
         this.skyDome.material.uniforms.topColor.value.copy(topColor);
         this.skyDome.material.uniforms.bottomColor.value.copy(bottomColor);
+        
+        // Sun glow + stars
+        const u = this.skyDome.material.uniforms;
+        if (u.sunDirection) u.sunDirection.value.copy(this.sunPosition).normalize();
+        if (u.nightFactor) {
+            // 1 at deep night, 0 during day, smooth through dawn/dusk
+            const nf = period === 'night' ? 1 : (period === 'day' ? 0 : 0.35);
+            u.nightFactor.value += (nf - u.nightFactor.value) * 0.05;
+        }
+        if (u.sunColor && this.sunLight) u.sunColor.value.copy(this.sunLight.color);
     }
 
     /**
@@ -373,4 +443,4 @@ export class DayNightCycle {
             this.scene.remove(this.moonMesh);
         }
     }
-}
+}
