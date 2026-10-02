@@ -26,8 +26,8 @@ const LEVEL_CONFIGS = {
         name: 'Zone Outskirts',
         // City generation configuration
         city: {
-            blocksX: 6,
-            blocksZ: 6,
+            blocksX: 12,
+            blocksZ: 12,
             blockSize: 30,
             roadWidth: 6,
             buildingSpacing: 8,
@@ -35,7 +35,7 @@ const LEVEL_CONFIGS = {
             streetLightEvery: 1,
             district: 'outskirts',
             ruinLevel: 0.55,
-            terrainAmplitude: 9
+            terrainAmplitude: 11
         },
         spawnPoints: {
             player: [[0, 1, 10]],
@@ -84,8 +84,8 @@ const LEVEL_CONFIGS = {
     'pripyat_downtown': {
         name: 'Pripyat Downtown',
         city: {
-            blocksX: 8,
-            blocksZ: 8,
+            blocksX: 14,
+            blocksZ: 14,
             blockSize: 35,
             roadWidth: 8,
             buildingSpacing: 10,
@@ -121,8 +121,8 @@ const LEVEL_CONFIGS = {
     'industrial_zone': {
         name: 'Industrial Zone',
         city: {
-            blocksX: 5,
-            blocksZ: 5,
+            blocksX: 10,
+            blocksZ: 10,
             blockSize: 40,
             roadWidth: 8,
             buildingSpacing: 12,
@@ -154,8 +154,8 @@ const LEVEL_CONFIGS = {
     'dead_city': {
         name: 'Dead City',
         city: {
-            blocksX: 10,
-            blocksZ: 10,
+            blocksX: 16,
+            blocksZ: 16,
             blockSize: 32,
             roadWidth: 7,
             buildingSpacing: 9,

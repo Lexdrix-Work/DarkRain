@@ -3,6 +3,7 @@ import { globalEventBus, GameEvents } from '../core/EventBus.js';
 import { Enemy, Mutant, HumanEnemy, PackHound, Lurker } from '../entities/Enemy.js';
 import { getProceduralSet } from './ProceduralTextures.js';
 import { ItemMeshFactory } from '../systems/LootSystem.js';
+import { StaticBatcher } from './StaticBatcher.js';
 
 // Scratch vector reused for per-bullet raycast directions (avoids per-frame allocation)
 const _bulletDir = new THREE.Vector3();
@@ -44,6 +45,10 @@ export class WorldManager {
         // Collision acceleration structure
         this.collisionGrid = new Map();
         this.collisionGridSize = 10;
+        
+        // Building footprints for cheap shelter checks (EmissionSystem).
+        // Recorded at generation time: { x, z, hw, hd }
+        this.buildingFootprints = [];
         
         // Spawn points
         this.spawnPoints = {
@@ -319,24 +324,24 @@ export class WorldManager {
      * DEFAULT SIZE INCREASED 10X (from 6x6 to ~19x19 blocks)
      */
     generateAbandonedCity(cityData = {}) {
-        console.log('Generating abandoned city (10x size)...');
+        console.log('Generating abandoned city (20x size)...');
         
         const cfg = {
-            // 10x area increase: sqrt(10) ≈ 3.16, so 6 * 3.16 ≈ 19
-            blocksX: cityData.blocksX || 19,
-            blocksZ: cityData.blocksZ || 19,
+            // 20x area increase: 27x27 blocks
+            blocksX: cityData.blocksX || 27,
+            blocksZ: cityData.blocksZ || 27,
             blockSize: cityData.blockSize || 40,
             roadWidth: cityData.roadWidth || 8,
             buildingSpacing: cityData.buildingSpacing || 10,
             maxFloors: cityData.maxFloors || 12,
             minFloors: cityData.minFloors || 2,
-            damageLevel: cityData.damageLevel || 0.3,
+            damageLevel: cityData.damageLevel || 0.5,
             // District identity drives architecture, palettes and ruin density
             district: cityData.district || 'outskirts',
-            ruinLevel: cityData.ruinLevel !== undefined ? cityData.ruinLevel : 0.45,
+            ruinLevel: cityData.ruinLevel !== undefined ? cityData.ruinLevel : 0.65,
             // Rolling-hill terrain: amplitude in world units, flat urban-core radius
-            terrainAmplitude: cityData.terrainAmplitude !== undefined ? cityData.terrainAmplitude : 7,
-            terrainFlatRadius: cityData.terrainFlatRadius !== undefined ? cityData.terrainFlatRadius : 90,
+            terrainAmplitude: cityData.terrainAmplitude !== undefined ? cityData.terrainAmplitude : 11,
+            terrainFlatRadius: cityData.terrainFlatRadius !== undefined ? cityData.terrainFlatRadius : 45,
             terrainSeed: cityData.terrainSeed || 1337,
         };
 
@@ -362,8 +367,215 @@ export class WorldManager {
         // Add environmental details
         this.addEnvironmentalDetails(cfg, totalWidth, totalDepth);
 
+        // Merge the ~19k static meshes into a handful of draw calls.
+        // Colliders are rebuilt from the same pass (kept functional).
+        this._mergeStaticGeometry();
+
         console.log(`City generated: ${this._cityObjects.length} objects, ${this.colliders.length} colliders`);
     }
+
+    /**
+     * Merge all static city geometry into a handful of draw calls.
+     *
+     * Buckets meshes by material signature, bakes each building's color into
+     * vertex colors (one shared vertex-colored material per texture kind) and
+     * bakes each source material's texture repeat into the UVs so the merged
+     * result looks identical. Collidable geometry is additionally merged per
+     * spatial super-cell into invisible, raycastable chunks registered in the
+     * fine collision grid - bullets and AI keep working, just faster.
+     *
+     * Kept as-is: the vertex-colored terrain mesh and InstancedMesh scatter.
+     */
+    _mergeStaticGeometry() {
+        const batcher = new StaticBatcher();
+        this.scene.updateMatrixWorld(true);
+
+        // Map procedural texture canvases -> kind so every bucket can share
+        // ONE texture instance (the old code cloned textures per building).
+        if (!this._procKindByImage) {
+            this._procKindByImage = new Map();
+            this._masterTextures = new Set();
+            for (const kind of ['concrete', 'asphalt', 'ground', 'metal', 'rubble']) {
+                try {
+                    const set = getProceduralSet(kind);
+                    if (set && set.map && set.map.image) {
+                        this._procKindByImage.set(set.map.image, kind);
+                    }
+                    if (set && set.map) this._masterTextures.add(set.map);
+                    if (set && set.bumpMap) this._masterTextures.add(set.bumpMap);
+                } catch (e) { /* procedural set unavailable - bucket falls back to plain */ }
+            }
+        }
+
+        // Shared resources that must survive the pass (reused across levels)
+        const protectedGeoms = new Set(
+            [this._winGeom, this._winFrameGeom, this._winSillGeom].filter(Boolean)
+        );
+        const protectedMats = new Set();
+        for (const k in this.materials) {
+            const m = this.materials[k];
+            if (Array.isArray(m)) m.forEach(x => { if (x) protectedMats.add(x); });
+            else if (m) protectedMats.add(m);
+        }
+        if (this._winFrameMat) protectedMats.add(this._winFrameMat);
+        if (this._winSillMat) protectedMats.add(this._winSillMat);
+        if (this._corniceMat) protectedMats.add(this._corniceMat);
+
+        let sourceMeshes = 0;
+        const keptObjects = new Set();
+
+        for (const obj of [...this._cityObjects]) {
+            // Keep the vertex-colored terrain and instanced scatter untouched
+            let keep = false;
+            if (obj.traverse) {
+                obj.traverse(o => {
+                    if (o.isInstancedMesh) keep = true;
+                    if (o.isMesh && o.geometry && o.geometry.attributes.color) keep = true;
+                });
+            } else if (obj.isInstancedMesh) {
+                keep = true;
+            }
+            if (keep) {
+                keptObjects.add(obj);
+                continue;
+            }
+
+            const meshes = [];
+            if (obj.traverse) {
+                obj.traverse(o => { if (o.isMesh && !o.isInstancedMesh) meshes.push(o); });
+            } else if (obj.isMesh && !obj.isInstancedMesh) {
+                meshes.push(obj);
+            }
+
+            for (const mesh of meshes) {
+                const mat = mesh.material;
+                if (!mat || Array.isArray(mat) || !mesh.geometry) continue;
+                sourceMeshes++;
+
+                // Invisible helpers go to the collision batch only, never visible
+                if (mat.visible === false || mesh.userData.isCollisionOnly) {
+                    batcher.addCollider(mesh.geometry, mesh.matrixWorld);
+                } else {
+                    const bucket = this._classifyStaticMaterial(mat);
+                    const bakeColor = (bucket === 'glass' || bucket === 'glassLit') ? null : mat.color;
+                    const uvRepeat = (bucket.indexOf('tex:') === 0 && mat.map)
+                        ? [mat.map.repeat.x, mat.map.repeat.y]
+                        : null;
+                    batcher.add(mesh.geometry, mesh.matrixWorld, bucket, {
+                        color: bakeColor,
+                        uvRepeat: uvRepeat
+                    });
+                    if (mesh.userData.isCollidable) {
+                        batcher.addCollider(mesh.geometry, mesh.matrixWorld);
+                    }
+                }
+
+                // Retire the original resources (frees thousands of cloned textures)
+                if (!protectedGeoms.has(mesh.geometry)) mesh.geometry.dispose();
+                if (!protectedMats.has(mat)) {
+                    if (mat.map && !this._masterTextures.has(mat.map)) mat.map.dispose();
+                    if (mat.bumpMap && !this._masterTextures.has(mat.bumpMap)) mat.bumpMap.dispose();
+                    mat.dispose();
+                }
+            }
+
+            if (obj.parent) obj.parent.remove(obj);
+        }
+
+        // Rebuild the object/collider lists around the merged output
+        this._cityObjects = [...keptObjects];
+        this.colliders = this.colliders.filter(c => keptObjects.has(c));
+
+        const bucketDefs = [
+            // [bucket, material, castShadow, receiveShadow, collidable]
+            ['tex:concrete', this._mergedBucketMaterial('concrete', 0.9, 0.08), true, true, true],
+            ['tex:rubble', this._mergedBucketMaterial('rubble', 0.95, 0.05), true, true, true],
+            ['tex:asphalt', this._mergedBucketMaterial('asphalt', 0.9, 0.08), false, true, true],
+            ['tex:metal', this._mergedBucketMaterial('metal', 0.7, 0.4), true, true, true],
+            ['tex:ground', this._mergedBucketMaterial('ground', 0.95, 0.0), true, true, true],
+            ['plain', new THREE.MeshStandardMaterial({
+                vertexColors: true, roughness: 0.9, metalness: 0.08
+            }), true, true, true],
+            ['glass', new THREE.MeshStandardMaterial({
+                color: 0x2a3a4a, roughness: 0.2, metalness: 0.6,
+                transparent: true, opacity: 0.9
+            }), false, false, false],
+            ['glassLit', new THREE.MeshStandardMaterial({
+                color: 0x5a4520, emissive: 0x4a3510, emissiveIntensity: 0.8,
+                roughness: 0.3, metalness: 0.2
+            }), false, false, false],
+            ['basic', new THREE.MeshBasicMaterial({ vertexColors: true }), false, false, false]
+        ];
+
+        let mergedMeshes = 0;
+        for (const [bucket, material, castShadow, receiveShadow, collidable] of bucketDefs) {
+            const mesh = batcher.buildBucket(bucket, material);
+            if (!mesh) continue;
+            mesh.castShadow = castShadow;
+            mesh.receiveShadow = receiveShadow;
+            mesh.userData = { isCollidable: collidable, type: 'merged:' + bucket };
+            this.scene.add(mesh);
+            this._cityObjects.push(mesh);
+            mergedMeshes++;
+        }
+
+        // Invisible collision chunks for the bullet/AI raycast grid.
+        // NOT added to the scene: player collision raycasts scene children
+        // (covered by the merged visuals); these serve world.colliders only.
+        const colliderMaterial = new THREE.MeshBasicMaterial({
+            visible: false, transparent: true, opacity: 0
+        });
+        const colliderMeshes = batcher.buildColliders(80, this.collisionGridSize, colliderMaterial);
+        for (const cm of colliderMeshes) {
+            this.colliders.push(cm);
+            this._cityObjects.push(cm);
+        }
+
+        batcher.dispose();
+
+        console.log(
+            `StaticBatch: ${sourceMeshes} source meshes -> ` +
+            `${mergedMeshes} merged visual meshes + ${colliderMeshes.length} collider chunks`
+        );
+    }
+
+    /**
+     * Classify a material into a merge bucket. Buckets share one material;
+     * per-part color variation is baked into vertex colors by the caller.
+     */
+    _classifyStaticMaterial(mat) {
+        if (mat.isMeshBasicMaterial) return 'basic';
+        if (mat.transparent) return 'glass';
+        if (mat.emissive && mat.emissiveIntensity >= 0.5 && mat.emissive.getHex() !== 0) {
+            return 'glassLit';
+        }
+        const img = mat.map && mat.map.image;
+        if (img && this._procKindByImage && this._procKindByImage.has(img)) {
+            return 'tex:' + this._procKindByImage.get(img);
+        }
+        return 'plain';
+    }
+
+    /**
+     * Shared vertex-colored standard material for a procedural texture kind.
+     * The master texture is referenced directly (repeat 1: tiling is baked
+     * into geometry UVs by the batcher).
+     */
+    _mergedBucketMaterial(kind, roughness, metalness) {
+        const set = getProceduralSet(kind);
+        const m = new THREE.MeshStandardMaterial({
+            vertexColors: true,
+            roughness: roughness,
+            metalness: metalness
+        });
+        if (set.map) m.map = set.map;
+        if (set.bumpMap) {
+            m.bumpMap = set.bumpMap;
+            m.bumpScale = set.bumpScale || 0.5;
+        }
+        return m;
+    }
+
 
     /**
      * Simple string hash for terrain seeding
@@ -654,8 +866,9 @@ export class WorldManager {
                 const buildingX = blockX - blockSize / 2 + spacing * (gx + 0.5);
                 const buildingZ = blockZ - blockSize / 2 + spacing * (gz + 0.5);
 
-                const offsetX = (Math.random() - 0.5) * 2;
-                const offsetZ = (Math.random() - 0.5) * 2;
+                // Organic variation: larger jitter breaks the grid rigidity
+                const offsetX = (Math.random() - 0.5) * 6;
+                const offsetZ = (Math.random() - 0.5) * 6;
 
                 const district = cfg.district || 'outskirts';
                 const bx = buildingX + offsetX;
