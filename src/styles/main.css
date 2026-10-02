@@ -1661,3 +1661,188 @@ body.has-minimap #ammo-display {
         display: none;
     }
 }
+
+/* ============================================
+   ZONE UI - PDA feed, emission, detector, psy
+   ============================================ */
+
+#pda-feed {
+    position: absolute;
+    left: 24px;
+    bottom: 74px;
+    width: 330px;
+    max-width: 36vw;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    pointer-events: none;
+    z-index: 40;
+}
+
+.pda-entry {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    background: rgba(10, 12, 14, 0.82);
+    border: 1px solid var(--border);
+    border-left: 2px solid var(--text-faint);
+    border-radius: 0 5px 5px 0;
+    padding: 6px 10px;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-dim);
+    backdrop-filter: blur(6px);
+    animation: pda-in 0.35s ease-out;
+    transition: opacity 0.6s, transform 0.6s;
+}
+
+.pda-entry.out {
+    opacity: 0;
+    transform: translateX(-12px);
+}
+
+.pda-entry .pda-time {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-faint);
+    flex-shrink: 0;
+}
+
+.pda-entry .pda-text {
+    color: var(--text);
+}
+
+.pda-entry.pda-warning { border-left-color: var(--warn); }
+.pda-entry.pda-combat { border-left-color: var(--danger); }
+.pda-entry.pda-combat .pda-text { color: #e8b7b0; }
+
+@keyframes pda-in {
+    from { opacity: 0; transform: translateX(-14px); }
+    to { opacity: 1; transform: none; }
+}
+
+#emission-banner {
+    position: absolute;
+    top: 74px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 10px 22px;
+    background: rgba(20, 8, 6, 0.9);
+    border: 1px solid rgba(200, 60, 40, 0.55);
+    border-radius: 6px;
+    color: #f0c9a8;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    z-index: 60;
+    backdrop-filter: blur(8px);
+    animation: emission-pulse 1.6s ease-in-out infinite;
+    white-space: nowrap;
+}
+
+#emission-banner.critical {
+    background: rgba(46, 8, 8, 0.94);
+    border-color: rgba(255, 70, 50, 0.8);
+    color: #ffd9d0;
+    animation-duration: 0.8s;
+}
+
+#emission-banner .em-timer {
+    font-family: var(--font-mono);
+    color: #ffb08a;
+    margin-left: 10px;
+}
+
+@keyframes emission-pulse {
+    0%, 100% { box-shadow: 0 0 0 rgba(255, 60, 40, 0); }
+    50% { box-shadow: 0 0 26px rgba(255, 60, 40, 0.35); }
+}
+
+#detector-hud {
+    position: absolute;
+    top: 92px;
+    left: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 12px;
+    background: rgba(8, 10, 12, 0.72);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    color: var(--text-dim);
+    z-index: 40;
+    backdrop-filter: blur(6px);
+    pointer-events: none;
+}
+
+#detector-hud.active {
+    border-color: rgba(102, 204, 255, 0.45);
+}
+
+#detector-hud .det-label {
+    color: #8fd0ff;
+    font-weight: 700;
+}
+
+#detector-hud .det-ping.idle { color: var(--text-faint); }
+#detector-hud .det-ping.hot {
+    color: #ffd9a0;
+    animation: det-blink 0.5s steps(2) infinite;
+}
+
+@keyframes det-blink {
+    50% { opacity: 0.45; }
+}
+
+#psy-overlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 35;
+    opacity: 0;
+    transition: opacity 1.2s;
+    background:
+        radial-gradient(ellipse at center, transparent 42%, rgba(20, 8, 30, 0.55) 100%),
+        repeating-conic-gradient(from 0deg at 50% 50%, rgba(120, 80, 200, 0.05) 0deg 2deg, transparent 2deg 6deg);
+    mix-blend-mode: screen;
+}
+
+#psy-overlay.peak {
+    animation: psy-breathe 5s ease-in-out infinite;
+}
+
+#psy-overlay.flicker {
+    animation: psy-flicker 0.45s steps(3);
+}
+
+@keyframes psy-breathe {
+    0%, 100% { filter: hue-rotate(0deg) saturate(1.1); }
+    50% { filter: hue-rotate(28deg) saturate(1.7); }
+}
+
+@keyframes psy-flicker {
+    0% { filter: invert(0.85) hue-rotate(180deg); }
+    40% { filter: none; }
+    70% { filter: invert(0.85) hue-rotate(180deg); }
+    100% { filter: none; }
+}
+
+#emission-overlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 34;
+    opacity: 0;
+    transition: opacity 2s;
+    background: radial-gradient(ellipse at 50% 120%, rgba(160, 20, 10, 0.75), rgba(60, 4, 4, 0.35) 60%, transparent 100%);
+    mix-blend-mode: multiply;
+}
+
+@media (max-width: 760px) {
+    #pda-feed { left: 12px; bottom: 66px; width: 250px; }
+    #detector-hud { left: 12px; top: 12px; }
+    #emission-banner { font-size: 11px; padding: 8px 12px; top: 66px; }
+}

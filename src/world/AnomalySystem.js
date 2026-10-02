@@ -22,6 +22,7 @@ export class Anomaly {
         this.position = new THREE.Vector3().fromArray(options.position || [0, 0, 0]);
         this.radius = options.radius || 3;
         this.damage = options.damage || 10;
+        this.system = null;
         this.damageInterval = options.damageInterval || 0.5;
         this.isActive = true;
         this.isTriggered = false;
@@ -64,6 +65,11 @@ export class Anomaly {
         }
     }
 
+    /** Damage scaled by Zone-wide effects (e.g. emission surge). */
+    get effectiveDamage() {
+        return this.damage * (this.system?.emissionDamageMultiplier || 1);
+    }
+
     /**
      * Check if entity is within anomaly
      * @param {THREE.Vector3} entityPosition - Entity position
@@ -103,7 +109,7 @@ export class Anomaly {
     onTrigger(entity) {
         // Base implementation - deal damage
         if (entity.takeDamage) {
-            entity.takeDamage(this.damage, this);
+            entity.takeDamage(this.effectiveDamage, this);
         }
     }
 
@@ -278,7 +284,7 @@ export class GravitationalAnomaly extends Anomaly {
             if (entity.velocity) {
                 entity.velocity.y = this.launchStrength;
             }
-            entity.takeDamage?.(this.damage * 0.5, this);
+            entity.takeDamage?.(this.effectiveDamage * 0.5, this);
         }
     }
 
@@ -298,7 +304,7 @@ export class GravitationalAnomaly extends Anomaly {
         this.damageTimer += deltaTime;
         if (this.damageTimer >= this.damageInterval) {
             this.damageTimer = 0;
-            entity.takeDamage?.(this.damage * 0.2, this);
+            entity.takeDamage?.(this.effectiveDamage * 0.2, this);
         }
     }
 
@@ -397,7 +403,7 @@ export class ElectricalAnomaly extends Anomaly {
 
     onTrigger(entity) {
         // Electrical shock
-        entity.takeDamage?.(this.damage * 1.5, this);
+        entity.takeDamage?.(this.effectiveDamage * 1.5, this);
         
         // Stun effect (if entity supports it)
         if (entity.applyStatus) {
@@ -409,7 +415,7 @@ export class ElectricalAnomaly extends Anomaly {
         this.damageTimer += deltaTime;
         if (this.damageTimer >= this.damageInterval) {
             this.damageTimer = 0;
-            entity.takeDamage?.(this.damage * 0.3, this);
+            entity.takeDamage?.(this.effectiveDamage * 0.3, this);
         }
     }
 
@@ -530,7 +536,7 @@ export class ChemicalAnomaly extends Anomaly {
         this.damageTimer += deltaTime;
         if (this.damageTimer >= this.damageInterval) {
             this.damageTimer = 0;
-            entity.takeDamage?.(this.damage * 0.2, this);
+            entity.takeDamage?.(this.effectiveDamage * 0.2, this);
             
             // Add radiation
             if (entity.addRadiation) {
@@ -676,7 +682,7 @@ export class ThermalAnomaly extends Anomaly {
         this.damageTimer += deltaTime;
         if (this.damageTimer >= this.damageInterval) {
             this.damageTimer = 0;
-            entity.takeDamage?.(this.damage * 0.4, this);
+            entity.takeDamage?.(this.effectiveDamage * 0.4, this);
         }
     }
 
@@ -722,6 +728,7 @@ export class AnomalySystem {
         
         // Detector state
         this.detectorActive = false;
+        this.emissionDamageMultiplier = 1.0; // scaled up during emissions
         this.detectorRange = 15;
         this.detectorBeepInterval = 0;
     }
@@ -752,6 +759,7 @@ export class AnomalySystem {
         }
 
         anomaly.init(this.scene);
+        anomaly.system = this;
         this.anomalies.set(anomaly.id, anomaly);
 
         return anomaly;
@@ -912,4 +920,4 @@ export class AnomalySystem {
         }
         this.anomalies.clear();
     }
-}
+}

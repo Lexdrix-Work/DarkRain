@@ -48,6 +48,9 @@ export class AudioManager {
         // Setup event listeners
         this.setupEvents();
         
+        // Procedurally synthesized Zone sounds (no audio assets needed)
+        this.registerProceduralSounds();
+        
         // Handle audio context state
         document.addEventListener('click', () => {
             if (this.audioContext.state === 'suspended') {
@@ -88,6 +91,181 @@ export class AudioManager {
             },
             pool: []
         });
+    }
+
+    /**
+     * Register procedurally synthesized Zone sounds.
+     * Buffers are generated with the WebAudio API - no audio assets required.
+     */
+    registerProceduralSounds() {
+        const ctx = this.audioContext;
+        if (!ctx || typeof ctx.createBuffer !== 'function') return;
+
+        const synth = (seconds, fn) => {
+            const rate = ctx.sampleRate;
+            const len = Math.max(1, Math.floor(seconds * rate));
+            const buf = ctx.createBuffer(1, len, rate);
+            const data = buf.getChannelData(0);
+            fn(data, rate, len);
+            return buf;
+        };
+        const noise = () => Math.random() * 2 - 1;
+        const env = (t, a, d) => t < a ? t / a : Math.max(0, 1 - (t - a) / d);
+
+        // Detector blip - short sine ping, faster near anomalies
+        this.registerSound('detector_beep', synth(0.09, (d, rate, len) => {
+            for (let i = 0; i < len; i++) {
+                const t = i / rate;
+                d[i] = Math.sin(2 * Math.PI * 1240 * t) * env(t, 0.005, 0.085) * 0.6;
+            }
+        }), { volume: 0.7, spatial: false, poolSize: 4 });
+
+        // Detector blip for artifacts - distinct two-tone chirp
+        this.registerSound('detector_beep_artifact', synth(0.16, (d, rate, len) => {
+            for (let i = 0; i < len; i++) {
+                const t = i / rate;
+                const f = t < 0.08 ? 880 : 1318;
+                d[i] = Math.sin(2 * Math.PI * f * t) * env(t, 0.005, 0.155) * 0.6;
+            }
+        }), { volume: 0.7, spatial: false, poolSize: 4 });
+
+        // Emission air-raid siren - 6s loop, slow wail
+        this.registerSound('emission_siren', synth(6.0, (d, rate, len) => {
+            let lp = 0;
+            for (let i = 0; i < len; i++) {
+                const t = i / rate;
+                const f = 420 + 380 * Math.sin(2 * Math.PI * t / 6.0);
+                const v = Math.sin(2 * Math.PI * f * t) * 0.5 + noise() * 0.04;
+                lp += 0.2 * (v - lp);
+                const edge = Math.min(1, t / 0.5, (6.0 - t) / 0.5); // loop-safe fade
+                d[i] = lp * edge * 0.8;
+            }
+        }), { volume: 0.8, spatial: false, loop: true, poolSize: 1 });
+
+        // Emission blast wave - deep rumble swell
+        this.registerSound('emission_blast', synth(3.0, (d, rate, len) => {
+            let lp = 0;
+            for (let i = 0; i < len; i++) {
+                const t = i / rate;
+                const swell = Math.sin(Math.PI * Math.min(1, t / 3.0));
+                const v = Math.sin(2 * Math.PI * 38 * t) * 0.7 + noise() * 0.5;
+                lp += 0.06 * (v - lp);
+                d[i] = lp * swell * 1.4;
+            }
+        }), { volume: 0.9, spatial: false, poolSize: 2 });
+
+        // Psy drone - eerie detuned loop for emission peak / psi fields
+        this.registerSound('psy_drone', synth(4.0, (d, rate, len) => {
+            for (let i = 0; i < len; i++) {
+                const t = i / rate;
+                const lfo = 0.6 + 0.4 * Math.sin(2 * Math.PI * 0.25 * t);
+                const edge = Math.min(1, t / 0.4, (4.0 - t) / 0.4);
+                d[i] = (Math.sin(2 * Math.PI * 55 * t) * 0.4 +
+                        Math.sin(2 * Math.PI * 58.3 * t) * 0.35 +
+                        Math.sin(2 * Math.PI * 220.7 * t) * 0.12 * lfo) * edge * 0.7;
+            }
+        }), { volume: 0.65, spatial: false, loop: true, poolSize: 1 });
+
+        // Whisper - filtered noise syllables, for hallucinations
+        this.registerSound('whisper', synth(1.8, (d, rate, len) => {
+            let lp = 0, bp = 0;
+            for (let i = 0; i < len; i++) {
+                const t = i / rate;
+                const syl = 0.5 + 0.5 * Math.sin(2 * Math.PI * 3.1 * t + Math.sin(t * 7));
+                const n = noise();
+                lp += 0.35 * (n - lp);
+                bp += 0.12 * ((n - lp) - bp);
+                d[i] = (lp * 0.4 + bp * 1.6) * syl * env(t, 0.25, 1.55) * 0.55;
+            }
+        }), { volume: 0.75, spatial: false, poolSize: 3 });
+
+        // Anomaly discharge - electrical crackle
+        this.registerSound('anomaly_zap', synth(0.5, (d, rate, len) => {
+            for (let i = 0; i < len; i++) {
+                const t = i / rate;
+                const f = 3200 - 2800 * (t / 0.5);
+                const sq = Math.sign(Math.sin(2 * Math.PI * f * t)) * 0.25;
+                const crackle = noise() * (Math.random() < 0.3 ? 1 : 0.15);
+                d[i] = (sq + crackle * 0.6) * env(t, 0.01, 0.49) * 0.7;
+            }
+        }), { volume: 0.85, poolSize: 4 });
+
+        // Psy hit - dissonant cluster sting
+        this.registerSound('psy_hit', synth(0.7, (d, rate, len) => {
+            for (let i = 0; i < len; i++) {
+                const t = i / rate;
+                const trem = 0.6 + 0.4 * Math.sin(2 * Math.PI * 13 * t);
+                d[i] = (Math.sin(2 * Math.PI * 110 * t) * 0.4 +
+                        Math.sin(2 * Math.PI * 116.5 * t) * 0.4 +
+                        Math.sin(2 * Math.PI * 233 * t) * 0.25) * trem * env(t, 0.02, 0.68) * 0.7;
+            }
+        }), { volume: 0.8, spatial: false, poolSize: 3 });
+
+        // Artifact pickup - soft chime arpeggio
+        this.registerSound('artifact_pickup', synth(0.9, (d, rate, len) => {
+            const notes = [523.25, 659.25, 1046.5];
+            for (let i = 0; i < len; i++) {
+                const t = i / rate;
+                let v = 0;
+                notes.forEach((f, k) => {
+                    const tt = t - k * 0.12;
+                    if (tt > 0) v += Math.sin(2 * Math.PI * f * tt) * Math.exp(-tt * 5) * 0.35;
+                });
+                d[i] = v;
+            }
+        }), { volume: 0.7, spatial: false, poolSize: 2 });
+
+        // Bolt throw whoosh + landing clack
+        this.registerSound('bolt_throw', synth(0.18, (d, rate, len) => {
+            let lp = 0;
+            for (let i = 0; i < len; i++) {
+                const t = i / rate;
+                lp += (0.1 + 0.8 * (t / 0.18)) * (noise() - lp);
+                d[i] = lp * env(t, 0.03, 0.15) * 0.5;
+            }
+        }), { volume: 0.6, spatial: false, poolSize: 3 });
+        this.registerSound('bolt_clack', synth(0.12, (d, rate, len) => {
+            for (let i = 0; i < len; i++) {
+                const t = i / rate;
+                d[i] = (Math.sign(Math.sin(2 * Math.PI * 2150 * t)) * 0.3 + noise() * 0.35) *
+                       Math.exp(-t * 45) * 0.7;
+            }
+        }), { volume: 0.7, poolSize: 3 });
+
+        // Distant gunfire - muffled crack for far-away Zone firefights
+        this.registerSound('gunshot_distant', synth(0.35, (d, rate, len) => {
+            let lp = 0;
+            for (let i = 0; i < len; i++) {
+                const t = i / rate;
+                const crack = noise() * Math.exp(-t * 30);
+                lp += 0.08 * (crack - lp);
+                const thump = Math.sin(2 * Math.PI * 90 * t) * Math.exp(-t * 18) * 0.8;
+                d[i] = (lp * 1.2 + thump) * 0.6;
+            }
+        }), { volume: 0.55, poolSize: 4 });
+
+        // Near gunshot - sharp crack with body
+        this.registerSound('gunshot', synth(0.28, (d, rate, len) => {
+            let lp = 0;
+            for (let i = 0; i < len; i++) {
+                const t = i / rate;
+                const crack = noise() * Math.exp(-t * 55);
+                lp += 0.25 * (crack - lp);
+                const body = Math.sin(2 * Math.PI * 140 * t) * Math.exp(-t * 25) * 0.7;
+                d[i] = (crack * 0.7 + lp * 0.8 + body) * 0.75;
+            }
+        }), { volume: 0.8, poolSize: 6 });
+
+        // Mutant growl - FM synthesis
+        this.registerSound('mutant_growl', synth(1.2, (d, rate, len) => {
+            let phase = 0;
+            for (let i = 0; i < len; i++) {
+                const t = i / rate;
+                const idx = 8 * env(t, 0.15, 1.05);
+                phase += 2 * Math.PI * (68 + idx * 34 * Math.sin(2 * Math.PI * 31 * t)) / rate;
+                d[i] = Math.sin(phase) * env(t, 0.15, 1.05) * 0.75;
+            }
+        }), { volume: 0.85, poolSize: 3 });
     }
 
     /**
@@ -432,4 +610,4 @@ export class AudioManager {
             if (audio.isPlaying) audio.stop();
         });
     }
-}
+}

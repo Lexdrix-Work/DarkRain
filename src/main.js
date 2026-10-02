@@ -20,6 +20,11 @@ import { QuestSystem, SampleQuests } from './systems/QuestSystem.js';
 import { DialogueSystem, SampleDialogues } from './systems/DialogueSystem.js';
 import { EffectsSystem } from './systems/EffectsSystem.js';
 import { SaveSystem } from './systems/SaveSystem.js';
+import { ArtifactSystem } from './systems/ArtifactSystem.js';
+import { EmissionSystem } from './systems/EmissionSystem.js';
+import { ALifeSystem } from './systems/ALifeSystem.js';
+import { PsySystem } from './systems/PsySystem.js';
+import { BoltSystem } from './systems/BoltSystem.js';
 
 // UI
 import { Minimap } from './ui/Minimap.js';
@@ -141,6 +146,19 @@ class StalkerGame extends Game {
         
         // Save system
         this.saveSystem = new SaveSystem(this);
+
+        // Zone life systems (S.T.A.L.K.E.R.-inspired)
+        this.artifactSystem = new ArtifactSystem(this);
+        this.artifactSystem.init(this.scene);
+        // Game.loadLevel() ran during super.init() before this system existed -
+        // seed the initial level's artifacts now that anomalies are present.
+        this.artifactSystem.seedArtifacts();
+        this.emissionSystem = new EmissionSystem(this);
+        this.alifeSystem = new ALifeSystem(this);
+        this.psySystem = new PsySystem(this);
+        this.psySystem.init(this.scene);
+        this.boltSystem = new BoltSystem(this);
+        this.boltSystem.init(this.scene);
         
         // UI components
         this.minimap = new Minimap(this);
@@ -152,6 +170,21 @@ class StalkerGame extends Game {
             console.log('Debug console enabled (press ` to open)');
         }
         
+        // Zone starting kit + briefing (once per game start)
+        globalEventBus.on(GameEvents.GAME_START, () => {
+            if (this.inventorySystem && !this.inventorySystem.hasItem('detector')) {
+                this.inventorySystem.addItem('detector', 1);
+            }
+            globalEventBus.emit(GameEvents.NOTIFICATION, {
+                message: 'Detector issued. Press N to toggle, G to throw a bolt at anomalies.',
+                type: 'info', duration: 7000
+            });
+            globalEventBus.emit('zone:pda_feed', {
+                text: 'Welcome to the Zone, stalker. The emission front is quiet... for now.',
+                kind: 'info'
+            });
+        });
+
         // Play time tracking
         this.playTime = 0;
         
@@ -228,7 +261,8 @@ class StalkerGame extends Game {
      * @param {boolean} fromSave - Load the autosave instead of a fresh start
      */
     beginSession(fromSave) {
-        if (fromSave && this.saveSystem?.hasSave('autosave')) {
+        const freshStart = !(fromSave && this.saveSystem?.hasSave('autosave'));
+        if (!freshStart) {
             this.saveSystem.loadGame('autosave');
         } else if (this._sessionStarted) {
             // New game after quitting to menu: reset the player, keep the world
@@ -242,6 +276,9 @@ class StalkerGame extends Game {
         setTimeout(() => {
             this.uiManager?.showNotification('Welcome to the Zone, Stalker. Good hunting.', 'info', 5000);
         }, 800);
+        if (freshStart) {
+            globalEventBus.emit(GameEvents.GAME_START, {});
+        }
     }
 
     /**
@@ -284,6 +321,11 @@ class StalkerGame extends Game {
         this.effectsSystem?.update(deltaTime);
         this.questSystem?.update(deltaTime);
         this.minimap?.update();
+        this.artifactSystem?.update(deltaTime);
+        this.emissionSystem?.update(deltaTime);
+        this.alifeSystem?.update(deltaTime);
+        this.psySystem?.update(deltaTime);
+        this.boltSystem?.update(deltaTime);
         
         // Track play time
         this.playTime += deltaTime;

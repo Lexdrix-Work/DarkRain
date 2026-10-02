@@ -337,6 +337,80 @@ export const Items = {
         stackable: true,
         maxStack: 10,
         icon: 'documents'
+    },
+
+    // Zone detector - reveals anomalies, second tone marks artifacts
+    detector: {
+        id: 'detector',
+        name: 'Anomaly Detector',
+        type: 'tool',
+        description: 'A battered military detector. Press N to toggle. Beeps faster near anomalies; a second tone marks artifacts.',
+        weight: 0.5,
+        stackable: false,
+        detectorRange: 18,
+        icon: 'detector'
+    },
+
+    // Zone artifacts - equip into artifact slots for boons with a price
+    artifact_soul: {
+        id: 'artifact_soul',
+        name: 'Soul',
+        type: 'artifact',
+        artifactId: 'soul',
+        description: 'A warm, pulsing stone. Knits flesh (+0.9 HP/s) while irradiating you (+0.28 rad/s).',
+        weight: 0.4,
+        stackable: false,
+        icon: 'artifact_soul'
+    },
+    artifact_sparkler: {
+        id: 'artifact_sparkler',
+        name: 'Sparkler',
+        type: 'artifact',
+        artifactId: 'sparkler',
+        description: 'Bottled lightning. Restores stamina (+7/s) at the cost of radiation (+0.32 rad/s).',
+        weight: 0.4,
+        stackable: false,
+        icon: 'artifact_sparkler'
+    },
+    artifact_stoneblood: {
+        id: 'artifact_stoneblood',
+        name: 'Stone Blood',
+        type: 'artifact',
+        artifactId: 'stoneblood',
+        description: 'A clot of the Zone, still warm. Heals fast (+1.8 HP/s). Burns slow (+0.62 rad/s).',
+        weight: 0.4,
+        stackable: false,
+        icon: 'artifact_stoneblood'
+    },
+    artifact_gravi: {
+        id: 'artifact_gravi',
+        name: 'Gravi',
+        type: 'artifact',
+        artifactId: 'gravi',
+        description: 'Impossibly dense. +12 kg carry weight. Your teeth ache (+0.5 rad/s).',
+        weight: 0.4,
+        stackable: false,
+        icon: 'artifact_gravi'
+    },
+    artifact_kolobok: {
+        id: 'artifact_kolobok',
+        name: 'Kolobok',
+        type: 'artifact',
+        artifactId: 'kolobok',
+        description: 'Round, golden, faintly breathing. +2.6 HP/s and purges radiation (-0.45 rad/s) while feeding more (+0.95 rad/s).',
+        weight: 0.4,
+        stackable: false,
+        icon: 'artifact_kolobok'
+    },
+    artifact_nightstar: {
+        id: 'artifact_nightstar',
+        name: 'Night Star',
+        type: 'artifact',
+        artifactId: 'nightstar',
+        description: 'Cold as deep space. +20 kg carry, shields the mind (45% psy resist). Deeply radioactive (+1.25 rad/s).',
+        weight: 0.4,
+        stackable: false,
+        icon: 'artifact_nightstar'
     }
 };
 

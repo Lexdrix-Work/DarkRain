@@ -789,6 +789,10 @@ export class Game {
                     );
                 }
             }
+
+            // Artifacts crystallize at the edges of anomaly fields
+            this.uiManager?.updateLoadingProgress(80, 'Seeding artifacts...');
+            this.artifactSystem?.seedArtifacts();
             
             this.uiManager?.updateLoadingProgress(85, 'Setting up environment...');
 
@@ -860,8 +864,17 @@ export class Game {
         
         // Clear anomalies from previous level
         if (this.anomalySystem) {
-            this.anomalySystem.clearAll();
+            for (const id of [...this.anomalySystem.anomalies.keys()]) {
+                this.anomalySystem.removeAnomaly(id);
+            }
         }
+
+        // Clear Zone systems from previous level
+        this.artifactSystem?.clear();
+        this.alifeSystem?.dispose();
+        this.boltSystem?.clear();
+        this.psySystem?.clear();
+        this.emissionSystem?.reset();
         
         // Load new level
         await this.loadLevel(levelName);
@@ -925,6 +938,20 @@ export class Game {
         // Flashlight toggle
         globalEventBus.on('input:flashlight', () => {
             this.flashlightSystem?.toggle();
+        });
+
+        // Anomaly detector toggle (requires detector item)
+        globalEventBus.on('input:toggle_detector', () => {
+            if (this.isPaused || this.gameState === 'menu') return;
+            const inv = this.inventorySystem;
+            if (!inv || !inv.hasItem('detector')) {
+                globalEventBus.emit(GameEvents.NOTIFICATION, {
+                    message: 'You need an anomaly detector (search the Zone).',
+                    type: 'warning', duration: 3000
+                });
+                return;
+            }
+            inv.toggleDetector(inv.slots?.find?.(s => s?.id === 'detector'));
         });
     }
 
@@ -1466,6 +1493,11 @@ export class Game {
         this.dayNightCycle?.dispose();
         this.audioManager?.dispose();
         this.anomalySystem?.dispose();
+        this.artifactSystem?.dispose();
+        this.emissionSystem?.dispose();
+        this.alifeSystem?.dispose();
+        this.psySystem?.dispose();
+        this.boltSystem?.dispose();
         this.assetManager?.dispose();
         this.uiManager?.dispose();
         this.flashlightSystem?.dispose();

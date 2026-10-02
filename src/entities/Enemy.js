@@ -592,6 +592,7 @@ export class Enemy extends Entity {
         this.aiState = AIState.DEAD;
         this.isActive = false;
         this.isCollidable = false;
+        this.alive = false;
         
         // Death animation (placeholder - rotate mesh)
         if (this.mesh) {
@@ -738,4 +739,240 @@ export class HumanEnemy extends Enemy {
             direction: new THREE.Vector3().subVectors(this.target.position, this.position).normalize()
         });
     }
-}
+}
+
+/**
+ * PackHound - Fast pack predator. Circles prey at range, darts in to bite.
+ * Always spawns in packs of 3-5; the pack shares a target.
+ */
+export class PackHound extends Enemy {
+    constructor(options = {}) {
+        super({
+            name: options.name || 'Pack Hound',
+            health: 45,
+            damage: 9,
+            armor: 0,
+            moveSpeed: 5,
+            runSpeed: 11,
+            sightRange: 35,
+            attackRange: 2.2,
+            attackRate: 1.4,
+            ...options
+        });
+
+        this.tags.add('mutant');
+        this.mutantType = 'packhound';
+        this.packId = options.packId || null;
+        this.strafeDir = Math.random() < 0.5 ? 1 : -1;
+        this.circleRadius = 6 + Math.random() * 3;
+    }
+
+    createMesh() {
+        const group = new THREE.Group();
+        const mat = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9 });
+        const flesh = mat(0x5a4a3a);
+        const dark = mat(0x3a2f24);
+
+        // Low-slung body
+        const body = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.45, 0.5), flesh);
+        body.position.y = 0.55;
+        body.castShadow = true;
+        group.add(body);
+
+        // Four legs
+        this.legPivots = [];
+        for (const [lx, lz] of [[-0.4, 0.18], [0.4, 0.18], [-0.4, -0.18], [0.4, -0.18]]) {
+            const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.55, 0.12), dark);
+            leg.position.set(lx, 0.28, lz);
+            leg.castShadow = true;
+            group.add(leg);
+            this.legPivots.push(leg);
+        }
+
+        // Head with jaw
+        const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.34, 0.34), flesh);
+        head.position.set(0.72, 0.72, 0);
+        head.castShadow = true;
+        group.add(head);
+        const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.1, 0.28), dark);
+        jaw.position.set(0.78, 0.55, 0);
+        group.add(jaw);
+
+        // Glowing eyes
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
+        for (const ez of [0.1, -0.1]) {
+            const eye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), eyeMat);
+            eye.position.set(0.93, 0.78, ez);
+            group.add(eye);
+        }
+
+        // Spiked back ridges
+        for (let i = 0; i < 4; i++) {
+            const spike = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.22, 5), dark);
+            spike.position.set(-0.35 + i * 0.24, 0.85, 0);
+            group.add(spike);
+        }
+
+        // Tail
+        const tail = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.08, 0.08), dark);
+        tail.position.set(-0.75, 0.68, 0);
+        tail.rotation.z = 0.5;
+        group.add(tail);
+
+        group.rotation.y = -Math.PI / 2; // face +Z like humanoids
+        this.walkPhase = 0;
+        this.setMesh(group);
+    }
+
+    handleChaseState(deltaTime) {
+        if (!this.target) {
+            this.changeState(AIState.ALERT);
+            return;
+        }
+        this.animationState = 'run';
+        const distanceToTarget = this.distanceTo(this.target);
+
+        if (distanceToTarget <= this.attackRange) {
+            this.changeState(AIState.ATTACK);
+            return;
+        }
+
+        if (distanceToTarget > this.circleRadius + 3) {
+            // Close the distance fast
+            this.moveTowards(this.target.position, this.runSpeed, deltaTime);
+        } else {
+            // Circle the prey, darting in and out
+            const toTarget = new THREE.Vector3()
+                .subVectors(this.target.position, this.position).normalize();
+            const perp = new THREE.Vector3(-toTarget.z, 0, toTarget.x)
+                .multiplyScalar(this.strafeDir);
+            const radial = distanceToTarget > this.circleRadius ? 0.7 : -0.4;
+            const move = perp.multiplyScalar(1.4).addScaledVector(toTarget, radial).normalize();
+            const dest = this.position.clone().addScaledVector(move, 3);
+            this.moveTowards(dest, this.runSpeed * 0.85, deltaTime);
+            if (Math.random() < deltaTime * 0.4) this.strafeDir *= -1;
+        }
+        this.lastKnownTargetPosition.copy(this.target.position);
+
+        // Leg gallop animation
+        this.walkPhase = (this.walkPhase || 0) + deltaTime * 14;
+        if (this.legPivots) {
+            this.legPivots.forEach((leg, i) => {
+                leg.position.y = 0.28 + Math.abs(Math.sin(this.walkPhase + i * Math.PI)) * 0.12;
+            });
+        }
+    }
+
+    performAttack() {
+        if (!this.target || !this.canAttack) return;
+        this.canAttack = false;
+        this.attackCooldown = 1 / this.attackRate;
+        // Lunge bite
+        const dir = new THREE.Vector3()
+            .subVectors(this.target.position, this.position).normalize();
+        if (this.velocity) this.velocity.addScaledVector(dir, 6);
+        if (this.target.takeDamage) {
+            this.target.takeDamage(this.damage, this);
+        }
+        globalEventBus.emit('audio:play', { sound: 'mutant_growl', volume: 0.5 });
+    }
+}
+
+/**
+ * Lurker - Ambush predator that shimmers out of sight.
+ * Cycles: visible -> fading -> near-invisible -> ambush burst.
+ */
+export class Lurker extends Enemy {
+    constructor(options = {}) {
+        super({
+            name: options.name || 'Lurker',
+            health: 90,
+            damage: 18,
+            armor: 2,
+            moveSpeed: 3.2,
+            runSpeed: 7.5,
+            sightRange: 30,
+            attackRange: 2.4,
+            attackRate: 0.9,
+            ...options
+        });
+
+        this.tags.add('mutant');
+        this.mutantType = 'lurker';
+        this.shimmerPhase = 'visible';
+        this.shimmerTimer = 4 + Math.random() * 3;
+        this.ambushBonus = false;
+    }
+
+    createMesh() {
+        // Gaunt, pale, long-limbed ambusher with black eye sockets
+        const { group, limbs } = buildHumanoid({
+            skin: 0x9a9a92, top: 0x4a4a48, bottom: 0x33332f,
+            hunch: 0.55, armLen: 1.15, eyeColor: 0x000000
+        });
+        group.scale.set(1, 1.18, 1);
+        this.limbs = limbs;
+        this.walkPhase = 0;
+        this.setMesh(group);
+        // Enable opacity control for shimmer
+        group.traverse(o => {
+            if (o.isMesh) {
+                o.material = o.material.clone();
+                o.material.transparent = true;
+            }
+        });
+    }
+
+    setOpacity(v) {
+        if (!this.mesh) return;
+        this.mesh.traverse(o => {
+            if (o.isMesh && o.material.transparent) o.material.opacity = v;
+        });
+    }
+
+    update(deltaTime) {
+        super.update(deltaTime);
+        if (!this.alive) return;
+
+        // Shimmer cycle
+        this.shimmerTimer -= deltaTime;
+        if (this.shimmerTimer <= 0) {
+            if (this.shimmerPhase === 'visible') {
+                this.shimmerPhase = 'fading';
+                this.shimmerTimer = 1.2;
+            } else if (this.shimmerPhase === 'fading') {
+                this.shimmerPhase = 'hidden';
+                this.shimmerTimer = 3.5 + Math.random() * 2;
+            } else {
+                this.shimmerPhase = 'visible';
+                this.shimmerTimer = 5 + Math.random() * 3;
+                // Ambush burst if prey is close when we reappear
+                if (this.target && this.distanceTo(this.target) < 8) {
+                    this.ambushBonus = true;
+                    this.runSpeed = 11;
+                    globalEventBus.emit('audio:play', { sound: 'mutant_growl', volume: 0.8 });
+                }
+            }
+        }
+
+        const targetOpacity = this.shimmerPhase === 'hidden' ? 0.13 :
+            this.shimmerPhase === 'fading' ? 0.45 : 1.0;
+        this.setOpacity(targetOpacity);
+    }
+
+    performAttack() {
+        if (!this.target || !this.canAttack) return;
+        this.canAttack = false;
+        this.attackCooldown = 1 / this.attackRate;
+        let dmg = this.damage;
+        if (this.ambushBonus) {
+            dmg *= 2.2;
+            this.ambushBonus = false;
+            this.runSpeed = 7.5;
+        }
+        if (this.target.takeDamage) {
+            this.target.takeDamage(dmg, this);
+        }
+        globalEventBus.emit('audio:play', { sound: 'anomaly_zap', volume: 0.4 });
+    }
+}

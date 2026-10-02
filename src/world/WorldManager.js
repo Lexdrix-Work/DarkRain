@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { globalEventBus, GameEvents } from '../core/EventBus.js';
-import { Enemy, Mutant, HumanEnemy } from '../entities/Enemy.js';
+import { Enemy, Mutant, HumanEnemy, PackHound, Lurker } from '../entities/Enemy.js';
 import { getProceduralSet } from './ProceduralTextures.js';
 import { ItemMeshFactory } from '../systems/LootSystem.js';
 
@@ -1989,6 +1989,12 @@ export class WorldManager {
                     break;
                 case 'human':
                     enemy = new HumanEnemy(data);
+                    break;
+                case 'packhound':
+                    enemy = new PackHound(data);
+                    break;
+                case 'lurker':
+                    enemy = new Lurker(data);
                     break;
                 default:
                     enemy = new Enemy(data);

@@ -8,6 +8,7 @@ export class Entity {
     constructor(options = {}) {
         this.id = Entity.generateId();
         this.name = options.name || 'Entity';
+        this.alive = true;
         this.tags = new Set(options.tags || []);
         
         // Transform
@@ -240,4 +241,4 @@ export class Entity {
         this.scale.fromArray(data.scale);
         this.isActive = data.isActive;
     }
-}
+}

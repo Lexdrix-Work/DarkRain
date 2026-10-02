@@ -412,14 +412,32 @@ export class InventorySystem {
     }
 
     /**
-     * Activate detector
+     * Toggle the anomaly detector. Single canonical path for the N key
+     * and inventory use - keeps HUD state in sync via zone:detector_state.
+     * @param {Object} item - Detector item (optional)
+     */
+    toggleDetector(item) {
+        const anomalySystem = this.game.anomalySystem;
+        if (!anomalySystem) return false;
+        const next = !anomalySystem.detectorActive;
+        anomalySystem.setDetectorActive(next);
+        if (next && item?.detectorRange) {
+            anomalySystem.detectorRange = item.detectorRange;
+        }
+        globalEventBus.emit('zone:detector_state', { active: next });
+        globalEventBus.emit(GameEvents.NOTIFICATION, {
+            message: next ? 'Detector on - listen for the second tone.' : 'Detector off.',
+            type: 'info', duration: 2500
+        });
+        return next;
+    }
+
+    /**
+     * Activate detector (legacy alias - toggles)
      * @param {Object} item - Detector item
      */
     activateDetector(item) {
-        if (this.game.anomalySystem) {
-            this.game.anomalySystem.setDetectorActive(true);
-            this.game.anomalySystem.detectorRange = item.detectorRange || 10;
-        }
+        return this.toggleDetector(item);
     }
 
     /**

@@ -66,6 +66,7 @@ export class UIManager {
         this.setupPauseMenu();
         this.setupMainMenu();
         this.createFlashlightUI();
+        this.createZoneUI();
         this.hideAllMenus();
     }
 
@@ -358,6 +359,138 @@ export class UIManager {
     /**
      * Create flashlight UI elements
      */
+    /**
+     * Zone UI - PDA feed, emission banner, detector HUD, psy + emission overlays.
+     * Styling lives in the stylesheet; this builds the elements and wires events.
+     */
+    createZoneUI() {
+        // PDA feed - bottom-left event ticker
+        this.pdaFeed = document.createElement('div');
+        this.pdaFeed.id = 'pda-feed';
+        document.body.appendChild(this.pdaFeed);
+        this.pdaEntries = [];
+
+        // Emission banner - top-center warning
+        this.emissionBanner = document.createElement('div');
+        this.emissionBanner.id = 'emission-banner';
+        this.emissionBanner.style.display = 'none';
+        document.body.appendChild(this.emissionBanner);
+
+        // Detector HUD - top-left status
+        this.detectorHud = document.createElement('div');
+        this.detectorHud.id = 'detector-hud';
+        this.detectorHud.style.display = 'none';
+        this.detectorHud.innerHTML = '<span class="det-label">DETECTOR</span><span class="det-ping"></span>';
+        document.body.appendChild(this.detectorHud);
+        this.detectorPingTimer = 0;
+
+        // Psy overlay - fullscreen surreal distortion
+        this.psyOverlay = document.createElement('div');
+        this.psyOverlay.id = 'psy-overlay';
+        document.body.appendChild(this.psyOverlay);
+
+        // Emission sky overlay - red psy tint
+        this.emissionOverlay = document.createElement('div');
+        this.emissionOverlay.id = 'emission-overlay';
+        document.body.appendChild(this.emissionOverlay);
+
+        // Zone event subscriptions
+        this.eventBus.on('zone:pda_feed', (data) => this.addPdaEntry(data));
+        this.eventBus.on('zone:emission_phase', (data) => this.onEmissionPhase(data));
+        this.eventBus.on('zone:emission_tick', (data) => this.onEmissionTick(data));
+        this.eventBus.on('zone:detector_state', (data) => this.onDetectorState(data));
+        this.eventBus.on('zone:detector_ping', (data) => this.onDetectorPing(data));
+        this.eventBus.on('zone:psy_tier', (data) => this.onPsyTier(data));
+        this.eventBus.on('zone:reality_flicker', () => this.onRealityFlicker());
+        this.eventBus.on('zone:emission_sky', (data) => {
+            if (this.emissionOverlay) {
+                this.emissionOverlay.style.opacity = (data.intensity * 0.32).toFixed(2);
+            }
+        });
+    }
+
+    addPdaEntry(data) {
+        if (!this.pdaFeed) return;
+        const entry = document.createElement('div');
+        entry.className = `pda-entry pda-${data.kind || 'info'}`;
+        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        entry.innerHTML = `<span class="pda-time">${time}</span><span class="pda-text"></span>`;
+        entry.querySelector('.pda-text').textContent = data.text;
+        this.pdaFeed.appendChild(entry);
+        this.pdaEntries.push(entry);
+        while (this.pdaEntries.length > 4) {
+            const old = this.pdaEntries.shift();
+            old.remove();
+        }
+        setTimeout(() => {
+            entry.classList.add('out');
+            setTimeout(() => {
+                entry.remove();
+                const i = this.pdaEntries.indexOf(entry);
+                if (i >= 0) this.pdaEntries.splice(i, 1);
+            }, 600);
+        }, 14000);
+    }
+
+    onEmissionPhase(data) {
+        if (!this.emissionBanner) return;
+        if (data.phase === 'warning' || data.phase === 'emission') {
+            this.emissionBanner.style.display = '';
+            this.emissionBanner.className = data.phase === 'emission' ? 'critical' : '';
+            this.onEmissionTick({ phase: data.phase, timeLeft: data.phase === 'warning' ? 60 : 45 });
+        } else {
+            this.emissionBanner.style.display = 'none';
+        }
+    }
+
+    onEmissionTick(data) {
+        if (!this.emissionBanner || this.emissionBanner.style.display === 'none') return;
+        const mm = Math.floor(data.timeLeft / 60);
+        const ss = String(data.timeLeft % 60).padStart(2, '0');
+        if (data.phase === 'warning') {
+            this.emissionBanner.innerHTML =
+                `<span class="em-icon">⚠</span> EMISSION INCOMING — TAKE COVER <span class="em-timer">${mm}:${ss}</span>`;
+        } else if (data.phase === 'emission') {
+            this.emissionBanner.innerHTML =
+                `<span class="em-icon">☢</span> EMISSION — STAY UNDER COVER <span class="em-timer">${mm}:${ss}</span>`;
+        }
+    }
+
+    onDetectorState(data) {
+        if (!this.detectorHud) return;
+        this.detectorHud.style.display = data.active ? '' : 'none';
+        this.detectorHud.classList.toggle('active', !!data.active);
+        if (data.active) this.onDetectorPing({ distance: null, kind: null });
+    }
+
+    onDetectorPing(data) {
+        if (!this.detectorHud || this.detectorHud.style.display === 'none') return;
+        const ping = this.detectorHud.querySelector('.det-ping');
+        if (!ping) return;
+        if (data.distance == null) {
+            ping.textContent = 'scanning…';
+            ping.className = 'det-ping idle';
+        } else {
+            const what = data.kind === 'artifact' ? '◉ artifact' : '◎ anomaly';
+            ping.textContent = `${what} — ${Math.round(data.distance)}m`;
+            ping.className = 'det-ping hot';
+        }
+        this.detectorPingTimer = 4;
+    }
+
+    onPsyTier(data) {
+        if (!this.psyOverlay) return;
+        const opacity = [0, 0.14, 0.3, 0.48][data.tier] || 0;
+        this.psyOverlay.style.opacity = opacity.toFixed(2);
+        this.psyOverlay.classList.toggle('peak', data.tier >= 3);
+    }
+
+    onRealityFlicker() {
+        if (!this.psyOverlay) return;
+        this.psyOverlay.classList.add('flicker');
+        setTimeout(() => this.psyOverlay.classList.remove('flicker'), 450);
+    }
+
     createFlashlightUI() {
         // Battery indicator — visual styling lives in the stylesheet
         // (.flashlight-indicator, .battery-bar, .battery-fill, .battery-text)
@@ -1411,6 +1544,12 @@ export class UIManager {
             );
         }
         
+        // Decay detector ping readout
+        if (this.detectorPingTimer > 0) {
+            this.detectorPingTimer -= deltaTime;
+            if (this.detectorPingTimer <= 0) this.onDetectorPing({ distance: null });
+        }
+
         // Update interaction prompt
         if (this.game.player.lookingAt) {
             const prompt = this.game.player.lookingAt.userData.promptText;
@@ -1428,6 +1567,11 @@ export class UIManager {
         // Clean up flashlight UI
         if (this.elements.flashlightUI) {
             this.elements.flashlightUI.remove();
+        }
+        
+        // Clean up Zone UI
+        for (const el of [this.pdaFeed, this.emissionBanner, this.detectorHud, this.psyOverlay, this.emissionOverlay]) {
+            if (el) el.remove();
         }
     }
 }

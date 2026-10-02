@@ -119,6 +119,21 @@ export class InputManager {
                     this.eventBus.emit('input:flashlight');
                 }
             }
+            // Throw bolt (Zone anomaly probe)
+            if (event.code === 'KeyG') {
+                this.emit('input:throw_bolt');
+                if (this.eventBus && this.eventBus.emit) {
+                    this.eventBus.emit('input:throw_bolt');
+                }
+            }
+
+            // Toggle anomaly detector
+            if (event.code === 'KeyN') {
+                this.emit('input:toggle_detector');
+                if (this.eventBus && this.eventBus.emit) {
+                    this.eventBus.emit('input:toggle_detector');
+                }
+            }
         }
         this.keys.set(event.code, true);
     }

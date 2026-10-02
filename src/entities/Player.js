@@ -381,6 +381,9 @@ export class Player extends Entity {
         );
         
         const ray = new THREE.Raycaster(rayOrigin, new THREE.Vector3(0, -1, 0));
+        // Sprites (artifact glows, apparitions) live in the scene - their
+        // raycast needs a camera or it throws on matrixWorld.
+        if (this.game?.camera) ray.camera = this.game.camera;
         ray.far = this.groundCheckDistance + 0.1;
 
         // Skip the high-poly terrain mesh in this per-frame raycast (45k
