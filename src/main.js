@@ -511,6 +511,27 @@ function getRandomTip() {
 }
 
 /**
+ * Persistent error overlay - errors stay visible instead of flashing
+ */
+function showPersistentError(msg) {
+    var el = document.getElementById('dr-error-overlay');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'dr-error-overlay';
+        el.style.cssText = 'position:fixed;top:10px;left:10px;max-width:600px;background:#1a0000;border:2px solid #ff0000;color:#ffaaaa;padding:12px;font-family:monospace;font-size:12px;z-index:99999;white-space:pre-wrap;word-break:break-word;';
+        document.body.appendChild(el);
+    }
+    el.textContent += msg + '\n';
+}
+
+window.addEventListener('error', function(e) {
+    showPersistentError('ERROR: ' + (e.message || 'unknown'));
+});
+window.addEventListener('unhandledrejection', function(e) {
+    showPersistentError('PROMISE: ' + ((e.reason && e.reason.message) || e.reason || 'unknown'));
+});
+
+/**
  * Main entry point
  */
 async function main() {

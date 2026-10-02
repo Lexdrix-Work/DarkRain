@@ -1229,12 +1229,22 @@ export class Game {
         }
         
         // Render with post-processing or standard
-        if (this.composer && this.settings.postProcessing) {
-            if (this.grainPass?.uniforms?.time) {
-                this.grainPass.uniforms.time.value = performance.now() * 0.001;
+        // If composer fails, fall back to direct rendering (never black screen)
+        try {
+            if (this.composer && this.settings.postProcessing) {
+                if (this.grainPass?.uniforms?.time) {
+                    this.grainPass.uniforms.time.value = performance.now() * 0.001;
+                }
+                this.composer.render();
+            } else {
+                this.renderer.render(this.scene, this.camera);
             }
-            this.composer.render();
-        } else {
+        } catch (renderErr) {
+            if (!this._renderFallbackWarned) {
+                this._renderFallbackWarned = true;
+                console.error('[Render] Composer failed, falling back to direct:', renderErr);
+                this.composer = null; // permanent fallback
+            }
             this.renderer.render(this.scene, this.camera);
         }
 
