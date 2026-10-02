@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { globalEventBus, GameEvents } from '../core/EventBus.js';
 
+// Scratch vector for the ADS pose math in Weapon.updateVisuals
+// (avoids per-frame allocation).
+const _aimPos = new THREE.Vector3();
+
 /**
  * Weapon definitions
  */
@@ -134,80 +138,208 @@ export class Weapon {
     }
 
     createMesh() {
-        // Low-poly FPS viewmodel, built per weapon type. -Z is forward.
+        // First-person viewmodel, built per weapon type. -Z is forward.
+        // The group is parented to the ViewmodelSystem overlay rig (its own
+        // scene rendered after the main pass), so it can never clip walls.
         const group = new THREE.Group();
-        // Note: no environment map in the scene, so keep metalness low -
+        // Note: no environment map in the overlay scene, so keep metalness low -
         // high metalness renders near-black without env reflections.
         const metal = new THREE.MeshStandardMaterial({ color: 0x3d3d44, metalness: 0.3, roughness: 0.5 });
         const darkMetal = new THREE.MeshStandardMaterial({ color: 0x26262b, metalness: 0.25, roughness: 0.6 });
+        const gunmetal = new THREE.MeshStandardMaterial({ color: 0x33333a, metalness: 0.35, roughness: 0.45 });
         const wood = new THREE.MeshStandardMaterial({ color: 0x6e4a2c, metalness: 0.05, roughness: 0.8 });
+        const woodDark = new THREE.MeshStandardMaterial({ color: 0x54371f, metalness: 0.05, roughness: 0.85 });
         const polymer = new THREE.MeshStandardMaterial({ color: 0x303036, metalness: 0.1, roughness: 0.85 });
+        const rubber = new THREE.MeshStandardMaterial({ color: 0x1e1e22, metalness: 0.0, roughness: 0.95 });
+        const bladeSteel = new THREE.MeshStandardMaterial({ color: 0x8f979e, metalness: 0.55, roughness: 0.35 });
+        const glassMat = new THREE.MeshStandardMaterial({ color: 0x1c2f3a, metalness: 0.8, roughness: 0.15, emissive: 0x0a1a24, emissiveIntensity: 0.6 });
 
-        const box = (w, h, d, mat, x, y, z, rx = 0) => {
+        const box = (w, h, d, mat, x, y, z, rx = 0, ry = 0, rz = 0) => {
             const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
             m.position.set(x, y, z);
-            m.rotation.x = rx;
+            m.rotation.set(rx, ry, rz);
             group.add(m);
             return m;
         };
-        const tube = (r1, r2, len, mat, x, y, z) => {
-            const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, len, 10), mat);
+        const tube = (r1, r2, len, mat, x, y, z, seg = 12) => {
+            const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, len, seg), mat);
             m.rotation.x = Math.PI / 2;
             m.position.set(x, y, z);
             group.add(m);
             return m;
         };
+        const pin = (r, len, mat, x, y, z, axis = 'x') => {
+            // Small cylinder along an arbitrary axis: rivets, pins, turrets.
+            const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 10), mat);
+            if (axis === 'x') m.rotation.z = Math.PI / 2;
+            else if (axis === 'z') m.rotation.x = Math.PI / 2;
+            m.position.set(x, y, z);
+            group.add(m);
+            return m;
+        };
+
+        // Per-weapon aim data: sightLineY is the local-space height of the
+        // aligned front/rear sight tops; aimDepth is the camera-space Z of
+        // the group origin while aiming. The ADS pose puts the sight line
+        // exactly on the camera forward axis (the crosshair).
+        let sightLineY = 0.06;
+        let aimDepth = -0.32;
+        let tipZ = -0.32;
+        let flashY = 0.02;
 
         const type = this.data.type;
         if (type === 'pistol') {
-            box(0.055, 0.07, 0.24, metal, 0, 0.02, -0.05);          // slide
-            box(0.05, 0.05, 0.05, darkMetal, 0, 0.065, -0.15);       // front sight block
-            box(0.012, 0.025, 0.012, darkMetal, 0, 0.095, -0.155);   // front sight post
-            box(0.05, 0.13, 0.055, polymer, 0, -0.07, 0.045, -0.25); // grip
-            box(0.045, 0.02, 0.1, darkMetal, 0, -0.025, -0.02);      // trigger guard
+            // PM-style pistol: frame, slide with rear serrations, notched
+            // rear sight, front post, hammer, trigger group, grip with
+            // panels and magazine baseplate.
+            box(0.046, 0.05, 0.22, darkMetal, 0, -0.008, -0.02);      // frame
+            box(0.05, 0.056, 0.24, metal, 0, 0.028, -0.03);           // slide
+            for (let i = 0; i < 5; i++)                               // slide serrations
+                box(0.054, 0.028, 0.007, darkMetal, 0, 0.028, 0.045 + i * 0.013);
+            tube(0.011, 0.011, 0.025, darkMetal, 0, 0.028, -0.158);   // muzzle
+            box(0.013, 0.02, 0.022, darkMetal, -0.013, 0.066, 0.078); // rear sight L
+            box(0.013, 0.02, 0.022, darkMetal, 0.013, 0.066, 0.078);  // rear sight R (notch between)
+            box(0.01, 0.022, 0.012, darkMetal, 0, 0.066, -0.14);      // front sight post
+            box(0.012, 0.032, 0.018, darkMetal, 0, 0.018, 0.098, -0.45); // hammer
+            box(0.042, 0.016, 0.095, darkMetal, 0, -0.042, -0.035);   // trigger guard
+            box(0.01, 0.032, 0.014, darkMetal, 0, -0.038, -0.04, 0.35); // trigger
+            box(0.047, 0.125, 0.056, polymer, 0, -0.098, 0.052, -0.22); // grip
+            box(0.051, 0.09, 0.045, woodDark, 0, -0.095, 0.05, -0.22); // grip panels
+            pin(0.004, 0.056, metal, 0, -0.075, 0.045, 'x');          // grip screw
+            box(0.05, 0.016, 0.06, darkMetal, 0, -0.163, 0.066, -0.22); // mag baseplate
+            sightLineY = 0.076; aimDepth = -0.32; tipZ = -0.17; flashY = 0.028;
         } else if (type === 'rifle') {
-            box(0.06, 0.09, 0.5, metal, 0, 0, -0.1);                 // receiver
-            box(0.055, 0.07, 0.28, wood, 0, -0.01, -0.42);           // handguard
-            tube(0.016, 0.016, 0.22, darkMetal, 0, 0.01, -0.62);     // barrel
-            box(0.012, 0.05, 0.012, darkMetal, 0, 0.06, -0.68);      // front sight
-            box(0.05, 0.14, 0.06, metal, 0, -0.1, -0.12, 0.5);       // curved magazine
-            box(0.055, 0.11, 0.22, wood, 0, -0.03, 0.22, 0.15);      // stock
-            box(0.045, 0.02, 0.09, darkMetal, 0, -0.055, 0.02);       // trigger guard
-            box(0.04, 0.03, 0.06, wood, 0, -0.02, -0.02, -0.3);      // pistol grip
+            // AK-74: receiver with top cover, tangent rear sight, protected
+            // front post, gas system, muzzle brake, wooden furniture, curved
+            // ribbed magazine, selector and charging handle.
+            box(0.06, 0.075, 0.46, metal, 0, 0.005, -0.06);           // receiver
+            box(0.058, 0.014, 0.30, darkMetal, 0, 0.048, -0.12);      // top cover
+            box(0.032, 0.028, 0.05, darkMetal, 0, 0.058, -0.255);     // rear sight base
+            box(0.026, 0.014, 0.075, darkMetal, 0, 0.085, -0.235, 0.12); // rear sight leaf
+            box(0.032, 0.05, 0.045, darkMetal, 0, 0.045, -0.60);      // front sight block
+            box(0.008, 0.035, 0.03, darkMetal, -0.015, 0.075, -0.60); // front sight ear L
+            box(0.008, 0.035, 0.03, darkMetal, 0.015, 0.075, -0.60);  // front sight ear R
+            box(0.008, 0.032, 0.008, darkMetal, 0, 0.076, -0.60);     // front sight post
+            tube(0.014, 0.014, 0.30, darkMetal, 0, 0.015, -0.50);     // barrel
+            tube(0.021, 0.021, 0.075, darkMetal, 0, 0.015, -0.685);   // muzzle brake
+            for (let i = 0; i < 3; i++)                              // brake slots
+                box(0.046, 0.01, 0.014, rubber, 0, 0.015, -0.665 - i * 0.018);
+            box(0.03, 0.055, 0.045, darkMetal, 0, 0.045, -0.55);     // gas block
+            tube(0.013, 0.013, 0.22, darkMetal, 0, 0.062, -0.40);     // gas tube
+            box(0.045, 0.03, 0.20, wood, 0, 0.062, -0.40);            // upper handguard
+            box(0.056, 0.06, 0.24, wood, 0, -0.008, -0.40);           // lower handguard
+            for (let i = 0; i < 3; i++)                              // handguard grooves
+                box(0.06, 0.012, 0.01, woodDark, 0, -0.008, -0.34 - i * 0.05);
+            tube(0.004, 0.004, 0.38, darkMetal, 0, -0.022, -0.42);    // cleaning rod
+            box(0.055, 0.05, 0.07, darkMetal, 0, -0.045, -0.15);      // mag well
+            box(0.05, 0.08, 0.06, gunmetal, 0, -0.075, -0.145, 0.30); // magazine (curved)
+            box(0.05, 0.08, 0.06, gunmetal, 0, -0.125, -0.12, 0.55);
+            box(0.054, 0.014, 0.064, gunmetal, 0, -0.10, -0.135, 0.42); // mag rib
+            box(0.054, 0.02, 0.065, darkMetal, 0, -0.165, -0.105, 0.55); // mag baseplate
+            box(0.044, 0.016, 0.09, darkMetal, 0, -0.048, -0.01);     // trigger guard
+            box(0.01, 0.03, 0.014, darkMetal, 0, -0.042, -0.015, 0.3); // trigger
+            box(0.044, 0.105, 0.052, wood, 0, -0.075, 0.03, -0.38);   // pistol grip
+            box(0.056, 0.105, 0.26, wood, 0, -0.012, 0.30, 0.05);     // stock
+            box(0.06, 0.125, 0.035, rubber, 0, -0.018, 0.435, 0.05);  // buttpad
+            box(0.008, 0.02, 0.09, darkMetal, 0.034, 0.03, -0.05, 0, 0, -0.5); // selector
+            box(0.03, 0.018, 0.03, darkMetal, 0.042, 0.035, -0.18);   // charging handle
+            pin(0.008, 0.07, darkMetal, 0, 0.01, 0.15, 'x');          // rear trunnion pin
+            sightLineY = 0.092; aimDepth = -0.28; tipZ = -0.725; flashY = 0.015;
         } else if (type === 'shotgun') {
-            tube(0.02, 0.02, 0.62, metal, 0, 0.015, -0.3);           // barrel
-            tube(0.024, 0.024, 0.3, wood, 0, -0.035, -0.32);         // pump
-            box(0.06, 0.08, 0.3, metal, 0, 0, 0.08);                // receiver
-            box(0.055, 0.12, 0.2, wood, 0, -0.04, 0.3, 0.12);        // stock
-            box(0.012, 0.04, 0.012, darkMetal, 0, 0.05, -0.58);      // bead sight
+            // TOZ-34 over-under: stacked barrels, ventilated top rib, front
+            // and mid beads, receiver with top lever and safety, wooden
+            // forend and stock, double triggers.
+            tube(0.017, 0.017, 0.60, metal, 0, 0.038, -0.28);         // top barrel
+            tube(0.017, 0.017, 0.60, metal, 0, 0.002, -0.28);        // bottom barrel
+            tube(0.02, 0.02, 0.03, darkMetal, 0, 0.038, -0.575);      // top muzzle ring
+            tube(0.02, 0.02, 0.03, darkMetal, 0, 0.002, -0.575);      // bottom muzzle ring
+            box(0.014, 0.01, 0.56, darkMetal, 0, 0.06, -0.29);        // top rib
+            box(0.008, 0.014, 0.008, darkMetal, 0, 0.07, -0.555);     // front bead
+            box(0.006, 0.008, 0.006, darkMetal, 0, 0.068, -0.35);     // mid bead
+            box(0.056, 0.095, 0.27, metal, 0, -0.008, 0.085);         // receiver
+            box(0.014, 0.012, 0.05, darkMetal, 0.02, 0.045, 0.16);    // top lever
+            box(0.012, 0.008, 0.03, darkMetal, 0, 0.042, 0.10);       // safety
+            pin(0.01, 0.066, darkMetal, 0, 0.0, 0.02, 'x');           // hinge pin
+            box(0.052, 0.06, 0.24, wood, 0, -0.018, -0.28);           // forend
+            box(0.04, 0.02, 0.05, darkMetal, 0, -0.03, -0.17);        // forend iron
+            box(0.054, 0.105, 0.28, wood, 0, -0.025, 0.35, 0.09);    // stock
+            box(0.058, 0.12, 0.035, rubber, 0, -0.035, 0.50, 0.09);   // buttpad
+            box(0.042, 0.015, 0.085, darkMetal, 0, -0.06, 0.075);     // trigger guard
+            box(0.009, 0.028, 0.012, darkMetal, -0.008, -0.055, 0.075, 0.25); // trigger 1
+            box(0.009, 0.028, 0.012, darkMetal, 0.008, -0.055, 0.075, 0.25);  // trigger 2
+            sightLineY = 0.077; aimDepth = -0.34; tipZ = -0.59; flashY = 0.038;
         } else if (type === 'sniper') {
-            tube(0.014, 0.014, 0.7, darkMetal, 0, 0.01, -0.35);      // long barrel
-            box(0.06, 0.09, 0.42, metal, 0, 0, 0.02);               // receiver
-            tube(0.028, 0.028, 0.22, darkMetal, 0, 0.085, -0.05);    // scope
-            box(0.02, 0.05, 0.02, darkMetal, 0, 0.045, -0.05);       // scope mount
-            box(0.055, 0.11, 0.26, wood, 0, -0.04, 0.32, 0.1);       // stock
-            box(0.05, 0.12, 0.055, metal, 0, -0.09, 0.0, 0.35);      // magazine
-            box(0.05, 0.16, 0.04, darkMetal, 0, -0.1, 0.18);         // bipod legs (folded look)
+            // SVD Dragunov: long barrel with slotted flash hider, backup
+            // iron sights, PSO-style scope with turrets and glass, thumbhole
+            // stock with cheek rest, ribbed magazine, folded bipod.
+            tube(0.013, 0.013, 0.55, darkMetal, 0, 0.015, -0.42);     // barrel
+            tube(0.02, 0.02, 0.10, darkMetal, 0, 0.015, -0.72);       // flash hider
+            for (let i = 0; i < 3; i++)                              // hider slots
+                box(0.044, 0.009, 0.016, rubber, 0, 0.015, -0.70 - i * 0.022);
+            box(0.03, 0.04, 0.03, darkMetal, 0, 0.04, -0.60);         // front sight base
+            box(0.007, 0.025, 0.007, darkMetal, 0, 0.065, -0.60);    // front sight post
+            box(0.058, 0.08, 0.46, metal, 0, 0, -0.02);              // receiver
+            box(0.056, 0.012, 0.36, darkMetal, 0, 0.045, -0.05);     // top cover
+            box(0.03, 0.025, 0.045, darkMetal, 0, 0.055, -0.20);     // rear sight base
+            box(0.02, 0.045, 0.03, darkMetal, 0, 0.065, -0.10);      // scope mount F
+            box(0.02, 0.045, 0.03, darkMetal, 0, 0.065, 0.04);       // scope mount R
+            tube(0.026, 0.026, 0.26, darkMetal, 0, 0.098, -0.03);    // scope tube
+            tube(0.033, 0.026, 0.07, darkMetal, 0, 0.098, -0.185);   // objective bell
+            const lens = new THREE.Mesh(new THREE.CircleGeometry(0.028, 20), glassMat);
+            lens.position.set(0, 0.098, -0.221);                    // front lens
+            lens.rotation.y = Math.PI;
+            group.add(lens);
+            tube(0.024, 0.03, 0.06, rubber, 0, 0.098, 0.125);        // eyepiece
+            pin(0.012, 0.03, darkMetal, 0, 0.132, -0.03, 'y');       // elevation turret
+            pin(0.012, 0.03, darkMetal, 0.038, 0.098, -0.03, 'x');   // windage turret
+            box(0.056, 0.058, 0.28, wood, 0, -0.002, -0.33);         // handguard
+            for (let i = 0; i < 4; i++)                             // handguard vents
+                box(0.06, 0.01, 0.014, woodDark, 0, 0.012, -0.24 - i * 0.05);
+            tube(0.012, 0.012, 0.22, darkMetal, 0, 0.048, -0.33);    // gas tube
+            box(0.048, 0.115, 0.062, gunmetal, 0, -0.088, -0.03, 0.22); // magazine
+            box(0.052, 0.018, 0.066, darkMetal, 0, -0.148, -0.017, 0.22); // mag baseplate
+            box(0.044, 0.015, 0.085, darkMetal, 0, -0.055, 0.05);    // trigger guard
+            box(0.01, 0.03, 0.013, darkMetal, 0, -0.05, 0.05, 0.3);   // trigger
+            box(0.056, 0.055, 0.32, wood, 0, 0.008, 0.36);           // thumbhole stock top
+            box(0.05, 0.045, 0.30, wood, 0, -0.095, 0.37, 0.04);     // thumbhole stock bottom
+            box(0.062, 0.035, 0.17, woodDark, 0, 0.048, 0.38);       // cheek rest
+            box(0.06, 0.13, 0.035, rubber, 0, -0.03, 0.525, 0.04);    // buttpad
+            tube(0.006, 0.006, 0.30, darkMetal, -0.035, -0.045, -0.30); // bipod leg L (folded)
+            tube(0.006, 0.006, 0.30, darkMetal, 0.035, -0.045, -0.30); // bipod leg R (folded)
+            sightLineY = 0.098; aimDepth = -0.29; tipZ = -0.775; flashY = 0.015;
         } else { // melee - knife
-            const blade = box(0.012, 0.045, 0.3, new THREE.MeshStandardMaterial({ color: 0x9aa0a8, metalness: 0.9, roughness: 0.25 }), 0, 0.01, -0.18);
-            blade.rotation.x = -0.12;
-            box(0.03, 0.05, 0.14, polymer, 0, -0.03, 0.05, -0.35);   // handle
-            box(0.05, 0.015, 0.02, darkMetal, 0, -0.01, -0.02);      // guard
+            // Combat knife: fullered blade with clipped point, guard,
+            // scaled handle with rivets, pommel.
+            box(0.014, 0.05, 0.26, bladeSteel, 0, 0.012, -0.21);      // blade
+            box(0.014, 0.032, 0.09, bladeSteel, 0, 0.0, -0.365, -0.55); // clipped point
+            box(0.016, 0.012, 0.18, darkMetal, 0, 0.02, -0.19);       // fuller
+            box(0.055, 0.018, 0.025, darkMetal, 0, -0.008, -0.065);   // guard
+            box(0.032, 0.052, 0.13, polymer, 0, -0.03, 0.02, -0.3);   // handle core
+            box(0.038, 0.046, 0.11, woodDark, 0, -0.03, 0.02, -0.3);  // handle scales
+            pin(0.005, 0.044, metal, 0, -0.022, -0.005, 'x');        // rivet 1
+            pin(0.005, 0.044, metal, 0, -0.035, 0.045, 'x');         // rivet 2
+            box(0.04, 0.05, 0.02, darkMetal, 0, -0.048, 0.082, -0.3); // pommel
+            sightLineY = 0.0; aimDepth = -0.30; tipZ = -0.40; flashY = 0.015;
         }
 
-        // Muzzle flash sprite (positioned at barrel tip per type)
+        // Muzzle flash sprite at the barrel tip
         const flashGeom = new THREE.SphereGeometry(0.06, 8, 8);
         const flashMat = new THREE.MeshBasicMaterial({ color: 0xffcc33, transparent: true, opacity: 0, depthWrite: false });
         this.muzzleFlash = new THREE.Mesh(flashGeom, flashMat);
-        const tipZ = type === 'pistol' ? -0.2 : type === 'rifle' ? -0.74 : type === 'shotgun' ? -0.62 : type === 'sniper' ? -0.72 : -0.32;
-        this.muzzleFlash.position.set(0, 0.02, tipZ);
+        this.muzzleFlash.position.set(0, flashY, tipZ);
         this.muzzlePosition.copy(this.muzzleFlash.position);
         group.add(this.muzzleFlash);
 
-        // FPS placement: lower-right, angled inward so the profile reads
-        group.position.set(0.3, -0.27, -0.55);
+        // FPS placement: lower-right, angled inward so the profile reads.
+        // Stored as the hip pose; updateVisuals lerps toward the ADS pose.
+        this.hipPos = new THREE.Vector3(0.3, -0.27, -0.55);
+        this.hipRotY = 0.32;
+        this.hipRotX = 0;
+        this.sightLineY = sightLineY;
+        this.aimDepth = aimDepth;
+        group.position.copy(this.hipPos);
         group.scale.setScalar(0.8);
-        group.rotation.y = 0.32;
+        group.rotation.y = this.hipRotY;
 
         this.mesh = group;
     }
@@ -272,11 +404,11 @@ export class Weapon {
 
         // Grip points per weapon type (weapon-local space, -Z forward)
         const grips = {
-            pistol:  { r: [0, -0.09, 0.05],  l: [0.03, -0.14, 0.02], twoHand: true },
-            rifle:   { r: [0, -0.08, -0.02], l: [0.01, -0.06, -0.42] },
-            shotgun: { r: [0, -0.07, 0.08],  l: [0.01, -0.07, -0.32] },
-            sniper:  { r: [0, -0.08, 0.02],  l: [0.01, -0.06, -0.30] },
-            melee:   { r: [0, -0.06, 0.05],  l: null },
+            pistol:  { r: [0, -0.10, 0.05],  l: [0.025, -0.13, 0.03], twoHand: true },
+            rifle:   { r: [0, -0.085, 0.02], l: [0.01, -0.03, -0.40] },
+            shotgun: { r: [0, -0.06, 0.10],  l: [0.01, -0.045, -0.28] },
+            sniper:  { r: [0, -0.075, 0.20], l: [0.01, -0.03, -0.33] },
+            melee:   { r: [0, -0.05, 0.03],  l: null },
         };
         const gp = grips[this.data.type] || grips.rifle;
         const rElbow = new THREE.Vector3(0.30, -0.42, 0.30);
@@ -544,29 +676,35 @@ export class Weapon {
      */
     updateVisuals(deltaTime) {
         if (!this.mesh) return;
-        
+
         // Recover from recoil
         this.recoilOffset.lerp(new THREE.Vector3(), 10 * deltaTime);
-        
+
         // Aim transition
         const targetAimProgress = this.isAiming ? 1 : 0;
         this.aimProgress = THREE.MathUtils.lerp(this.aimProgress, targetAimProgress, 10 * deltaTime);
-        
-        // Calculate position
-        const hipPos = new THREE.Vector3(0.2, -0.15, -0.3);
-        const aimPos = new THREE.Vector3(0, -0.1, -0.25);
-        
-        this.mesh.position.lerpVectors(hipPos, aimPos, this.aimProgress);
-        
+        const a = this.aimProgress;
+
+        // ADS pose: shift the group so the weapon's sight line lands exactly
+        // on the camera's forward axis (the crosshair) and straighten the hip
+        // yaw - otherwise the bore points off-axis and the sights sit away
+        // from the crosshair. Hip pose keeps the angled-inward profile read.
+        const s = this.mesh.scale.y || 1;
+        _aimPos.set(0, -(this.sightLineY || 0) * s, this.aimDepth ?? -0.3);
+
+        this.mesh.position.lerpVectors(this.hipPos, _aimPos, a);
+        this.mesh.rotation.y = THREE.MathUtils.lerp(this.hipRotY, 0, a);
+        this.mesh.rotation.x = THREE.MathUtils.lerp(this.hipRotX || 0, 0, a);
+
         // Apply recoil offset
         this.mesh.position.add(this.recoilOffset);
-        
+
         // Weapon sway (reduced when aiming)
-        const swayAmount = (1 - this.aimProgress * 0.8) * 0.002;
+        const swayAmount = (1 - a * 0.8) * 0.002;
         const time = performance.now() * 0.001;
         this.swayOffset.x = Math.sin(time * 1.5) * swayAmount;
         this.swayOffset.y = Math.cos(time * 2) * swayAmount;
-        
+
         this.mesh.position.add(this.swayOffset);
     }
 

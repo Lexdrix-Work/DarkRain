@@ -60,9 +60,16 @@
                 <h2>INVENTORY</h2>
             </div>
             <div id="inventory-container" class="menu-content">
-                <div id="inventory-grid"></div>
-                <div id="inventory-info">
-                    <span id="weight-display">Weight: 0/50 kg</span>
+                <div id="inventory-character-panel">
+                    <canvas id="inventory-character-canvas" width="220" height="330"></canvas>
+                    <div id="inventory-character-name">Stalker</div>
+                    <div id="inventory-character-weapon">Equipped: Unarmed</div>
+                </div>
+                <div id="inventory-main">
+                    <div id="inventory-grid"></div>
+                    <div id="inventory-info">
+                        <span id="weight-display">Weight: 0/50 kg</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -74,7 +81,7 @@
             </div>
             <div class="menu-content creator-layout">
                 <div class="creator-preview">
-                    <canvas id="creator-canvas" width="260" height="260"></canvas>
+                    <canvas id="creator-canvas" width="240" height="320"></canvas>
                     <input id="creator-name" type="text" maxlength="24" placeholder="Callsign..." />
                 </div>
                 <div class="creator-options">
@@ -91,8 +98,28 @@
                         <div id="creator-skins" class="creator-swatches"></div>
                     </div>
                     <div class="creator-group">
+                        <div class="creator-label">Face</div>
+                        <div id="creator-beards" class="creator-swatches"></div>
+                    </div>
+                    <div class="creator-group">
                         <div class="creator-label">Jacket</div>
+                        <div id="creator-jackets" class="creator-swatches"></div>
+                    </div>
+                    <div class="creator-group">
+                        <div class="creator-label">Sleeves</div>
                         <div id="creator-sleeves" class="creator-swatches"></div>
+                    </div>
+                    <div class="creator-group">
+                        <div class="creator-label">Pants</div>
+                        <div id="creator-pants" class="creator-swatches"></div>
+                    </div>
+                    <div class="creator-group">
+                        <div class="creator-label">Backpack</div>
+                        <div id="creator-backpacks" class="creator-swatches"></div>
+                    </div>
+                    <div class="creator-group">
+                        <div class="creator-label">Shoulder Patch</div>
+                        <div id="creator-patches" class="creator-swatches"></div>
                     </div>
                 </div>
             </div>
@@ -155,6 +182,7 @@
                 <button id="save-btn" class="menu-button">Save Game</button>
                 <button id="load-btn" class="menu-button">Load Game</button>
                 <button id="settings-btn" class="menu-button">Settings</button>
+                <button id="controls-btn" class="menu-button">Controls</button>
                 <button id="quit-btn" class="menu-button danger">Quit to Menu</button>
                 <div class="pause-hint">Press Esc to resume</div>
             </div>
@@ -296,6 +324,19 @@
             </div>
         </div>
 
+        <!-- Controls Menu -->
+        <div id="controls-menu" class="menu hidden">
+            <div class="menu-header">
+                <h2>Controls</h2>
+            </div>
+            <div class="menu-content">
+                <div id="controls-list"></div>
+            </div>
+            <div class="menu-actions">
+                <button id="controls-back" class="menu-button primary">Back</button>
+            </div>
+        </div>
+
         <!-- Confirm dialog -->
         <div id="confirm-dialog" class="menu hidden">
             <div class="menu-header"><h2 id="confirm-title">Confirm</h2></div>
@@ -331,6 +372,7 @@
                     <button id="continue-btn" class="menu-button">Continue</button>
                     <button id="load-game-btn" class="menu-button">Load Game</button>
                     <button id="options-btn" class="menu-button">Options</button>
+                    <button id="controls-main-btn" class="menu-button">Controls</button>
                 </div>
             </div>
         </div>

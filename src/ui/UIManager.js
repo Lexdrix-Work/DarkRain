@@ -1,8 +1,93 @@
 import { globalEventBus, GameEvents } from '../core/EventBus.js';
 import { getItem } from '../data/items.js';
 import { CharacterCreator } from './CharacterCreator.js';
+import { CharacterPreview } from './CharacterPreview.js';
 import { ItemIcons } from './ItemIcons.js';
 import * as THREE from 'three';
+
+/**
+ * Control listings for the Controls page. Each entry is
+ * [actionName, displayLabel, fallbackKeys]. Key bindings are read live
+ * from the game's InputManager; fallbackKeys cover actions whose keys are
+ * hardcoded in InputManager rather than stored in its bindings map.
+ */
+const CONTROL_SECTIONS = [
+    {
+        title: 'Movement',
+        actions: [
+            ['moveForward', 'Move Forward'],
+            ['moveBackward', 'Move Backward'],
+            ['moveLeft', 'Strafe Left'],
+            ['moveRight', 'Strafe Right'],
+            ['sprint', 'Sprint'],
+            ['jump', 'Jump'],
+            ['crouch', 'Crouch / Sneak'],
+        ]
+    },
+    {
+        title: 'Combat',
+        actions: [
+            ['fire', 'Fire Weapon'],
+            ['aim', 'Aim Down Sights'],
+            ['reload', 'Reload'],
+            ['melee', 'Melee Attack'],
+            ['slot1', 'Weapon Slot 1'],
+            ['slot2', 'Weapon Slot 2'],
+            ['slot3', 'Weapon Slot 3'],
+            ['slot4', 'Weapon Slot 4'],
+        ]
+    },
+    {
+        title: 'Interaction',
+        actions: [
+            ['interact', 'Interact / Loot'],
+            ['flashlight', 'Toggle Flashlight'],
+            ['favorites', 'Favorites'],
+            ['throw_bolt', 'Throw Bolt (anomaly probe)', ['KeyG']],
+            ['toggle_detector', 'Toggle Anomaly Detector', ['KeyN']],
+        ]
+    },
+    {
+        title: 'System',
+        actions: [
+            ['inventory', 'Inventory'],
+            ['map', 'Map'],
+            ['quicksave', 'Quick Save'],
+            ['quickload', 'Quick Load'],
+            ['pause', 'Pause Menu'],
+        ]
+    },
+];
+
+/**
+ * Default bindings mirror InputManager.setupDefaultBindings() so the
+ * Controls page can render before the game instance exists.
+ */
+const DEFAULT_BINDINGS = {
+    moveForward: ['KeyW', 'ArrowUp'],
+    moveBackward: ['KeyS', 'ArrowDown'],
+    moveLeft: ['KeyA', 'ArrowLeft'],
+    moveRight: ['KeyD', 'ArrowRight'],
+    jump: ['Space'],
+    crouch: ['KeyC', 'ControlLeft'],
+    sprint: ['ShiftLeft'],
+    interact: ['KeyE'],
+    reload: ['KeyR'],
+    inventory: ['Tab', 'KeyI'],
+    flashlight: ['KeyF'],
+    map: ['KeyM'],
+    favorites: ['KeyQ'],
+    quicksave: ['F5'],
+    quickload: ['F9'],
+    fire: ['Mouse0'],
+    aim: ['Mouse2'],
+    melee: ['KeyV'],
+    slot1: ['Digit1'],
+    slot2: ['Digit2'],
+    slot3: ['Digit3'],
+    slot4: ['Digit4'],
+    pause: ['Escape'],
+};
 
 /**
  * UIManager - Handles all UI elements, menus, and interactions
@@ -48,7 +133,8 @@ export class UIManager {
             inventory: false,
             map: false,
             pause: false,
-            settings: false
+            settings: false,
+            controls: false
         };
         
         // Current active menu (only one at a time)
@@ -66,6 +152,7 @@ export class UIManager {
         this.setupEventListeners();
         this.setupPauseMenu();
         this.setupMainMenu();
+        this.setupControlsMenu();
         this.createFlashlightUI();
         this.createZoneUI();
         this.hideAllMenus();
@@ -161,6 +248,7 @@ export class UIManager {
         on('save-btn', () => this.saveFromPause());
         on('load-btn', () => this.loadFromPause());
         on('settings-btn', () => this.showSettings());
+        on('controls-btn', () => this.showControls());
         on('quit-btn', () => this.confirmQuit());
         // In-game confirm dialog buttons
         on('confirm-cancel', () => this.hideConfirm());
@@ -225,6 +313,7 @@ export class UIManager {
         on('continue-btn', () => this.continueGame());
         on('load-game-btn', () => this.continueGame());
         on('options-btn', () => this.showSettings());
+        on('controls-main-btn', () => this.showControls());
         on('main-menu-btn', () => this.quitToMenu());
         on('reload-btn', () => this.respawnFromSave());
         this.eventBus.on(GameEvents.PLAYER_DEATH, () => this.showDeathScreen());
@@ -795,6 +884,13 @@ export class UIManager {
             }
             return this.elements.settingsMenu;
         }
+        // Controls menu (static element id is controls-menu)
+        if (menuName === 'controls') {
+            if (!this.elements.controlsMenu) {
+                this.elements.controlsMenu = document.getElementById('controls-menu');
+            }
+            return this.elements.controlsMenu;
+        }
         // Loot container menu
         if (menuName === 'loot') {
             if (!this.elements.lootMenu) {
@@ -976,6 +1072,11 @@ export class UIManager {
      * Update inventory display
      */
     updateInventoryDisplay() {
+        // 3D character panel: create once, it subscribes to inventory open/close events
+        if (!this.characterPreview && this.game) {
+            this.characterPreview = new CharacterPreview(this.game);
+        }
+        this.characterPreview?.refresh();
         // Re-query: the grid is cached at construction, possibly before DOM ready
         if (!this.elements.inventoryGrid) {
             this.elements.inventoryGrid = document.getElementById('inventory-grid');
@@ -1181,6 +1282,101 @@ export class UIManager {
             this.openMenu('pause');
         }
         this._settingsReturn = null;
+    }
+
+    /**
+     * Wire the controls menu back button
+     */
+    setupControlsMenu() {
+        const back = document.getElementById('controls-back');
+        if (back) back.addEventListener('click', () => this.closeControls());
+    }
+
+    /**
+     * Show the controls page (static DOM, populated from InputManager bindings).
+     * Remembers whether it was opened over the pause menu so Back
+     * returns there instead of resuming the game.
+     */
+    showControls() {
+        this._controlsReturn = this.activeMenu === 'pause' ? 'pause' : null;
+        this.populateControlsList();
+        this.openMenu('controls');
+    }
+
+    /**
+     * Close the controls page, returning to the pause menu when it was opened from there
+     */
+    closeControls() {
+        this.closeMenu('controls', false);
+        if (this._controlsReturn === 'pause' && this.game?.isPaused) {
+            this.openMenu('pause');
+        }
+        this._controlsReturn = null;
+    }
+
+    /**
+     * Build the controls list from the game's InputManager bindings
+     * (falling back to DEFAULT_BINDINGS before the game exists)
+     */
+    populateControlsList() {
+        const list = document.getElementById('controls-list');
+        if (!list) return;
+        const bindings = this.game?.inputManager?.bindings || null;
+        const getKeys = (action, fallback) => {
+            const bound = bindings ? bindings.get(action) : null;
+            if (bound && bound.length) return bound;
+            if (fallback && fallback.length) return fallback;
+            return DEFAULT_BINDINGS[action] || [];
+        };
+        list.innerHTML = '';
+        for (const section of CONTROL_SECTIONS) {
+            const sec = document.createElement('div');
+            sec.className = 'controls-section';
+            const heading = document.createElement('h3');
+            heading.textContent = section.title;
+            sec.appendChild(heading);
+            for (const [action, label, fallback] of section.actions) {
+                const keys = getKeys(action, fallback);
+                const row = document.createElement('div');
+                row.className = 'control-row';
+                const name = document.createElement('span');
+                name.className = 'control-name';
+                name.textContent = label;
+                const keysEl = document.createElement('span');
+                keysEl.className = 'control-keys';
+                for (const key of keys) {
+                    const badge = document.createElement('kbd');
+                    badge.className = 'key-badge';
+                    badge.textContent = this.formatKeyCode(key);
+                    keysEl.appendChild(badge);
+                }
+                row.appendChild(name);
+                row.appendChild(keysEl);
+                sec.appendChild(row);
+            }
+            list.appendChild(sec);
+        }
+    }
+
+    /**
+     * Render a key code as a friendly label (KeyW -> W, Mouse0 -> Left Click, ...)
+     * @param {string} code - Keyboard/mouse code
+     * @returns {string}
+     */
+    formatKeyCode(code) {
+        const names = {
+            'Space': 'Space', 'Tab': 'Tab', 'Escape': 'Esc',
+            'Mouse0': 'Left Click', 'Mouse1': 'Middle Click', 'Mouse2': 'Right Click',
+            'ShiftLeft': 'Shift', 'ShiftRight': 'Shift',
+            'ControlLeft': 'Ctrl', 'ControlRight': 'Ctrl',
+            'AltLeft': 'Alt', 'AltRight': 'Alt',
+            'ArrowUp': '\u2191', 'ArrowDown': '\u2193',
+            'ArrowLeft': '\u2190', 'ArrowRight': '\u2192',
+        };
+        if (names[code]) return names[code];
+        if (code.startsWith('Key')) return code.slice(3);
+        if (code.startsWith('Digit')) return code.slice(5);
+        return code;
     }
 
     getStoredSettings() {

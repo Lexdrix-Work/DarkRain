@@ -25,6 +25,7 @@ import { EmissionSystem } from './systems/EmissionSystem.js';
 import { ALifeSystem } from './systems/ALifeSystem.js';
 import { PsySystem } from './systems/PsySystem.js';
 import { BoltSystem } from './systems/BoltSystem.js';
+import { normalizeCharacter } from './entities/CharacterModel.js';
 
 // UI
 import { Minimap } from './ui/Minimap.js';
@@ -129,7 +130,7 @@ class StalkerGame extends Game {
 
         // Player character customization (hat, skin, sleeves) - the character
         // creator overwrites this on New Game; default keeps old saves working
-        this.character = SaveSystem.loadCharacter?.() || ViewmodelSystem.defaultCharacter();
+        this.character = normalizeCharacter(SaveSystem.loadCharacter?.() || ViewmodelSystem.defaultCharacter());
         this.viewmodelSystem.setCharacter(this.character);
         
         // Survival system
@@ -244,11 +245,11 @@ class StalkerGame extends Game {
     /**
      * Apply character-creator choices: persist them and rebuild the
      * first-person arms + hat brim to match.
-     * @param {Object} character - { name, hat, hatColor, skinTone, sleeveColor }
+     * @param {Object} character - full character object (normalized before save)
      */
     applyCharacter(character) {
-        this.character = character;
-        SaveSystem.saveCharacter(character);
+        this.character = normalizeCharacter(character);
+        SaveSystem.saveCharacter(this.character);
         this.viewmodelSystem?.setCharacter(character);
         // Weapons rebuild their arms to match the new look
         for (const weapon of this.weaponManager?.weapons.values() || []) {
@@ -344,6 +345,12 @@ class StalkerGame extends Game {
 
     handleWeaponInput() {
         if (!this.weaponManager?.equippedWeapon) return;
+        
+        // Never fire while interacting with UI: a menu open (inventory,
+        // pause, loot, etc.) or pointer unlocked means clicks belong to the UI.
+        const ui = this.uiManager;
+        const menuOpen = ui && (ui.activeMenu || (ui.isAnyMenuOpen && ui.isAnyMenuOpen()));
+        if (menuOpen || !this.inputManager?.mouse?.locked) return;
         
         const weapon = this.weaponManager.equippedWeapon;
         
