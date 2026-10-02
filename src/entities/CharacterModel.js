@@ -239,7 +239,7 @@ export function buildCharacterModel(character, opts = {}) {
     /* ---- arms (sleeves) angled slightly forward, hands skin ---- */
     for (const sx of [-1, 1]) {
         const arm = new THREE.Group();
-        arm.position.set(sx * 0.26, 1.38, 0);
+        arm.position.set(sx * 0.26, 1.42, 0);
         const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.058 * bm.limbW, 0.052 * bm.limbW, 0.34, 10), sleeveMat);
         upper.position.y = -0.17;
         arm.add(upper);
@@ -248,7 +248,7 @@ export function buildCharacterModel(character, opts = {}) {
         fore.rotation.x = -0.35;
         arm.add(fore);
         const hand = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), skinMat);
-        hand.position.set(0, -0.58, 0.14);
+        hand.position.set(0, -0.58, 0.08);
         arm.add(hand);
         arm.rotation.z = sx * -0.1;
         arm.rotation.x = -0.25;

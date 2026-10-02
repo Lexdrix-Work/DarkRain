@@ -21,6 +21,8 @@ import { PowerupSystem } from '../systems/PowerupSystem.js';
 import { EquipmentSystem } from '../systems/EquipmentSystem.js';
 import { PerfOverlay } from '../systems/PerfOverlay.js';
 import { DynamicResolution } from '../systems/DynamicResolution.js';
+import { FactionSystem } from '../systems/FactionSystem.js';
+import { PerkSystem } from '../systems/PerkSystem.js';
 
 /**
  * Level Configurations
@@ -397,6 +399,8 @@ export class Game {
             this.equipmentSystem = new EquipmentSystem(this);
             this.perfOverlay = new PerfOverlay(this);
             this.dynamicResolution = new DynamicResolution(this);
+            this.factionSystem = new FactionSystem(this);
+            this.perkSystem = new PerkSystem(this);
             
             // Attach audio listener to camera
             if (this.audioManager.listener) {
@@ -1164,6 +1168,7 @@ export class Game {
         this.uiManager?.update(deltaTime);
         this.perfOverlay?.endFrame();
         this.dynamicResolution?.update(deltaTime);
+        this.factionSystem?.update(deltaTime);
 
         // First-person overlay (weapon viewmodel, arms, hat brim)
         this.viewmodelSystem?.update(deltaTime);

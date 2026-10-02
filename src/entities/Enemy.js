@@ -111,6 +111,11 @@ export // Reusable temp vectors (avoid per-frame GC pressure)
 const _tmpV1 = new THREE.Vector3();
 const _tmpV2 = new THREE.Vector3();
 
+// Smooth easing functions for animations
+const easeInOut = (t) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+const smoothstep = (t) => t * t * (3 - 2 * t);
+
 const AIState = {
     IDLE: 'idle',
     PATROL: 'patrol',
@@ -494,7 +499,9 @@ export class Enemy extends Entity {
         if (this._attackAnim !== undefined && this._attackAnim < 1) {
             this._attackAnim = Math.min(1, this._attackAnim + deltaTime * 3);
             const t = this._attackAnim;
-            const raise = Math.sin(t * Math.PI);
+            // Ease-out for snappy attack, smooth return
+            const eased = t < 0.4 ? easeOut(t / 0.4) : 1 - easeInOut((t - 0.4) / 0.6);
+            const raise = Math.sin(eased * Math.PI);
             this.limbs.armL.rotation.x = -1.8 * raise;
             this.limbs.armR.rotation.x = -1.8 * raise;
             this.limbs.armL.rotation.z = 0.4 * raise;
@@ -513,7 +520,10 @@ export class Enemy extends Entity {
         
         const moving = speed > 0.3;
         const targetAmp = moving ? 0.55 : 0;
-        this._limbAmp = (this._limbAmp ?? 0) + (targetAmp - (this._limbAmp ?? 0)) * Math.min(1, deltaTime * 8);
+        const ampDelta = targetAmp - (this._limbAmp ?? 0);
+        // Smoothstep easing for buttery transitions
+        const easeT = smoothstep(Math.min(1, deltaTime * 6));
+        this._limbAmp = (this._limbAmp ?? 0) + ampDelta * easeT;
         if (moving) this.walkPhase = (this.walkPhase || 0) + deltaTime * (4 + speed * 0.8);
         const p = this.walkPhase || 0, a = this._limbAmp || 0;
         this.limbs.legL.rotation.x = Math.sin(p) * a;
