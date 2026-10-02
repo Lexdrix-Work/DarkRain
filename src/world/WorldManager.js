@@ -4,6 +4,7 @@ import { Enemy, Mutant, HumanEnemy, PackHound, Lurker } from '../entities/Enemy.
 import { getProceduralSet } from './ProceduralTextures.js';
 import { ItemMeshFactory } from '../systems/LootSystem.js';
 import { StaticBatcher } from './StaticBatcher.js';
+import { DebrisInstancer } from './DebrisInstancer.js';
 
 // Scratch vector reused for per-bullet raycast directions (avoids per-frame allocation)
 const _bulletDir = new THREE.Vector3();
@@ -25,6 +26,8 @@ export class WorldManager {
         
         // Spatial partitioning for optimization
         this.spatialGrid = new Map();
+        // Debris instancing (replaces thousands of meshes with 2 draw calls)
+        this.debrisInstancer = null;
         this.gridCellSize = 20;
         
         // Level data
@@ -366,6 +369,11 @@ export class WorldManager {
 
         // Add environmental details
         this.addEnvironmentalDetails(cfg, totalWidth, totalDepth);
+
+        // Build debris InstancedMesh (3,000+ pieces -> 2 draw calls)
+        if (this.debrisInstancer) {
+            this.debrisInstancer.build();
+        }
 
         // Merge the ~19k static meshes into a handful of draw calls.
         // Colliders are rebuilt from the same pass (kept functional).
@@ -1639,54 +1647,41 @@ export class WorldManager {
      * Create a debris pile
      */
     createDebrisPile(x, z) {
-        const group = new THREE.Group();
-        group.position.set(x, this.getTerrainHeight(x, z) - 0.15, z); // sink slightly: never floats on slopes
+        // Use instancer if available (performance), else fall back to meshes
+        if (!this.debrisInstancer) {
+            this.debrisInstancer = new DebrisInstancer(this.scene, this.materials.debris);
+        }
 
+        const baseY = this.getTerrainHeight(x, z) - 0.15;
         const ruin = (this.city && this.city.ruinLevel) || 0;
         const pieceCount = 10 + Math.floor(Math.random() * 15) + Math.floor(ruin * 12);
-        
+
         for (let i = 0; i < pieceCount; i++) {
             const size = 0.3 + Math.random() * 1;
-            const geom = Math.random() > 0.5 
-                ? new THREE.BoxGeometry(size, size * 0.4, size * 0.8)
-                : new THREE.CylinderGeometry(size * 0.3, size * 0.4, size, 6);
-            
-            const piece = new THREE.Mesh(geom, this.materials.debris);
-            piece.position.set(
-                (Math.random() - 0.5) * 3,
-                size * 0.2,
-                (Math.random() - 0.5) * 3
-            );
-            piece.rotation.set(
+            const isBox = Math.random() > 0.5;
+            const px = x + (Math.random() - 0.5) * 3;
+            const pz = z + (Math.random() - 0.5) * 3;
+            const py = baseY + size * 0.2;
+
+            this.debrisInstancer.addPiece(
+                px, py, pz,
                 Math.random() * Math.PI * 0.3,
                 Math.random() * Math.PI,
-                Math.random() * Math.PI * 0.3
+                Math.random() * Math.PI * 0.3,
+                size,
+                isBox
             );
-            piece.castShadow = true;
-            piece.receiveShadow = true;
-            piece.userData = { isCollidable: true };
-            group.add(piece);
-        }
-        
-        // Collapsed slabs in heavily ruined zones
-        const ruinLvl = (this.city && this.city.ruinLevel) || 0;
-        if (Math.random() < ruinLvl) {
-            const slabCount = 1 + Math.floor(Math.random() * 2);
-            for (let s = 0; s < slabCount; s++) {
-                this.createCollapsedSlab(
-                    group,
-                    (Math.random() - 0.5) * 4,
-                    0.1,
-                    (Math.random() - 0.5) * 4,
-                    0.8 + Math.random() * 0.7
-                );
-            }
         }
 
-        group.userData = { type: 'debris', isCollidable: true };
-        this.scene.add(group);
-        this._cityObjects.push(group);
-        this.colliders.push(group);
+        // Colliders: single box per pile (not per piece)
+        const collider = new THREE.Mesh(
+            new THREE.BoxGeometry(4, 1, 4),
+            new THREE.MeshBasicMaterial({ visible: false })
+        );
+        collider.position.set(x, baseY + 0.5, z);
+        collider.userData = { isCollidable: true, type: 'debris' };
+        this.scene.add(collider);
+        this.colliders.push(collider);
     }
 
     /**
