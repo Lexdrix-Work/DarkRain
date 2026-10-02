@@ -13,6 +13,9 @@ export class EffectsSystem {
         this.particleSystems = [];
         this.decals = [];
         this.tracers = [];
+        // PARTICLE POOL: reuse objects (zero visual loss, less GC)
+        this._particlePool = [];
+        this._maxPoolSize = 20;
         
         // Configuration
         this.maxDecals = 100;

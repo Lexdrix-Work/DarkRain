@@ -208,11 +208,17 @@ export class Enemy extends Entity {
             return;
         }
         if (!this.isActive) return;
-        
-        this.updatePerception(deltaTime);
-        this.updateAI(deltaTime);
+
+        // AI THROTTLE: perception and decisions at 10Hz (cheap trick, no visual loss)
+        // Movement and animation stay at full framerate for smoothness
+        this._aiTimer = (this._aiTimer || 0) + deltaTime;
+        if (this._aiTimer >= 0.1) {
+            this.updatePerception(this._aiTimer);
+            this.updateAI(this._aiTimer);
+            this.updateCombat(this._aiTimer);
+            this._aiTimer = 0;
+        }
         this.updateMovement(deltaTime);
-        this.updateCombat(deltaTime);
         this.updateWalkAnimation(deltaTime);
         this.updateDeathAnimation(deltaTime);
         

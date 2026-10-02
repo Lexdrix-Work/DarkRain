@@ -442,7 +442,9 @@ export class Game {
         });
         
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+        // Cap at 1.5: on high-DPI screens the difference vs 2.0 is imperceptible
+        // but it cuts fragment shader cost by ~44%
         this.renderer.shadowMap.enabled = this.settings.shadows;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         // Static scene: don't re-render shadow maps every frame
