@@ -11,7 +11,6 @@ import { globalEventBus, GameEvents } from '../core/EventBus.js';
  *   pad        - slow minor-key chord progression (Am - F - C - G), seamless glides
  *   wind       - looped noise through a wandering bandpass, louder in bad weather
  *   pulse      - low heartbeat throb that fades in when danger is near
- *   shimmer    - eerie high sine with tremolo, only at high tension
  *   motif      - sparse generative melancholic melody (lookahead scheduler + echo)
  *
  * A single "mood" value (0 = calm day, 1 = night combat / emission) is derived
@@ -217,28 +216,7 @@ export class AmbientMusicSystem {
         N.pulseDepth.connect(N.pulseGain.gain);
         pulseLfo.start();
 
-        // --- Shimmer: eerie high sine, tremolo, only when tense ---
-        N.shimmerGain = ctx.createGain();
-        N.shimmerGain.gain.value = 0.0;
-        for (const f of [1318.5, 1321.7]) {
-            const o = ctx.createOscillator();
-            o.type = 'sine';
-            o.frequency.value = f;
-            const g = ctx.createGain();
-            g.gain.value = 0.5;
-            o.connect(g);
-            g.connect(N.shimmerGain);
-            o.start();
-        }
-        N.shimmerGain.connect(N.master);
-        const shimmerLfo = ctx.createOscillator();
-        shimmerLfo.type = 'sine';
-        shimmerLfo.frequency.value = 0.23;
-        const shimmerDepth = ctx.createGain();
-        shimmerDepth.gain.value = 1.0;
-        shimmerLfo.connect(shimmerDepth);
-        shimmerDepth.connect(N.shimmerGain.gain);
-        shimmerLfo.start();
+        // Shimmer removed: high-pitched ringing was unpleasant
 
         // Motif scheduler: lookahead scheduling, 220ms ticks
         this.schedulerTimer = setInterval(() => this.schedulerTick(), 220);
@@ -396,7 +374,6 @@ export class AmbientMusicSystem {
         ease(N.padGain.gain, 0.26 * (1 - 0.55 * m));
         ease(N.windGain.gain, 0.16 + this.weatherWind() + (night ? 0.08 : 0) + m * 0.10);
         ease(N.pulseGain.gain, Math.max(0, m - 0.50) * 0.55);
-        ease(N.shimmerGain.gain, Math.max(0, m - 0.60) * 0.16);
 
         // Duck when paused
         const duckTarget = (this.game && this.game.isPaused) ? 0.35 : 1.0;

@@ -153,8 +153,8 @@ export class FlashlightSystem {
     turnOn() {
         this.isOn = true;
         this.spotLight.intensity = this.settings.intensity;
-        this._removed_outerSpotLight.intensity = this.settings.outerIntensity;
-        this._removed_pointLight.intensity = this.settings.fillIntensity;
+        // this._removed_outerSpotLight.intensity = this.settings.outerIntensity; // REMOVED LIGHT
+        // this._removed_pointLight.intensity = this.settings.fillIntensity; // REMOVED LIGHT
     }
 
     /**
@@ -163,8 +163,8 @@ export class FlashlightSystem {
     turnOff() {
         this.isOn = false;
         this.spotLight.intensity = 0;
-        this._removed_outerSpotLight.intensity = 0;
-        this._removed_pointLight.intensity = 0;
+        // this._removed_outerSpotLight.intensity = 0; // REMOVED LIGHT
+        // this._removed_pointLight.intensity = 0; // REMOVED LIGHT
         this.isFlickering = false;
     }
 
@@ -217,8 +217,8 @@ export class FlashlightSystem {
         const flashlightPos = camera.position.clone().add(offset);
         
         this.spotLight.position.copy(flashlightPos);
-        this._removed_outerSpotLight.position.copy(flashlightPos);
-        this._removed_pointLight.position.copy(flashlightPos);
+        // this._removed_outerSpotLight.position.copy(flashlightPos); // REMOVED LIGHT
+        // this._removed_pointLight.position.copy(flashlightPos); // REMOVED LIGHT
         
         // Point spotlight in camera direction
         const targetPos = camera.position.clone();
@@ -227,7 +227,7 @@ export class FlashlightSystem {
         targetPos.add(direction.multiplyScalar(15));
         
         this.spotLight.target.position.copy(targetPos);
-        this._removed_outerSpotLight.target.position.copy(targetPos);
+        // this._removed_outerSpotLight.target.position.copy(targetPos); // REMOVED LIGHT
         
         // Update debug helper if exists
         if (this.lightHelper) {
@@ -281,15 +281,15 @@ export class FlashlightSystem {
             const flickerIntensity = this.settings.intensity * (0.3 + Math.random() * 0.5);
             const outerFlickerIntensity = this.settings.outerIntensity * (0.3 + Math.random() * 0.5);
             this.spotLight.intensity = flickerIntensity;
-            this._removed_outerSpotLight.intensity = outerFlickerIntensity;
-            this._removed_pointLight.intensity = this.settings.fillIntensity * 0.3;
+            // this._removed_outerSpotLight.intensity = outerFlickerIntensity; // REMOVED LIGHT
+            // this._removed_pointLight.intensity = this.settings.fillIntensity * 0.3; // REMOVED LIGHT
             
             // Recover after short time
             setTimeout(() => {
                 if (this.isOn && this.battery > 0) {
                     this.spotLight.intensity = this.settings.intensity;
-                    this._removed_outerSpotLight.intensity = this.settings.outerIntensity;
-                    this._removed_pointLight.intensity = this.settings.fillIntensity;
+                    // this._removed_outerSpotLight.intensity = this.settings.outerIntensity; // REMOVED LIGHT
+                    // this._removed_pointLight.intensity = this.settings.fillIntensity; // REMOVED LIGHT
                 }
                 this.isFlickering = false;
             }, 50 + Math.random() * 100);
@@ -302,8 +302,8 @@ export class FlashlightSystem {
     setColor(color) {
         this.settings.color = color;
         this.spotLight.color.setHex(color);
-        this._removed_outerSpotLight.color.setHex(color);
-        this._removed_pointLight.color.setHex(color);
+        // this._removed_outerSpotLight.color.setHex(color); // REMOVED LIGHT
+        // this._removed_pointLight.color.setHex(color); // REMOVED LIGHT
     }
 
     /**
@@ -314,7 +314,7 @@ export class FlashlightSystem {
         this.settings.outerIntensity = intensity * 0.375; // Maintain ratio
         if (this.isOn) {
             this.spotLight.intensity = intensity;
-            this._removed_outerSpotLight.intensity = this.settings.outerIntensity;
+            // this._removed_outerSpotLight.intensity = this.settings.outerIntensity; // REMOVED LIGHT
         }
     }
 
@@ -326,7 +326,7 @@ export class FlashlightSystem {
         this.settings.outerDistance = distance * 0.6; // Outer is shorter range
         this.spotLight.distance = distance;
         this.spotLight.shadow.camera.far = distance;
-        this._removed_outerSpotLight.distance = this.settings.outerDistance;
+        // this._removed_outerSpotLight.distance = this.settings.outerDistance; // REMOVED LIGHT
     }
 
     /**
@@ -375,16 +375,7 @@ export class FlashlightSystem {
             this.spotLight.dispose();
         }
         
-        if (this._removed_outerSpotLight) {
-            this.scene.remove(this._removed_outerSpotLight);
-            this.scene.remove(this._removed_outerSpotLight.target);
-            this._removed_outerSpotLight.dispose();
-        }
-        
-        if (this._removed_pointLight) {
-            this.scene.remove(this._removed_pointLight);
-            this._removed_pointLight.dispose();
-        }
+        // Removed lights (outerSpot, point) - nothing to dispose
         
         if (this.lightHelper) {
             this.scene.remove(this.lightHelper);
