@@ -107,7 +107,11 @@ function buildHumanoid(opts = {}) {
 /**
  * AI States for enemy behavior
  */
-export const AIState = {
+export // Reusable temp vectors (avoid per-frame GC pressure)
+const _tmpV1 = new THREE.Vector3();
+const _tmpV2 = new THREE.Vector3();
+
+const AIState = {
     IDLE: 'idle',
     PATROL: 'patrol',
     ALERT: 'alert',
@@ -216,11 +220,11 @@ export class Enemy extends Entity {
         if (!player) return;
         
         const distanceToPlayer = this.distanceTo(player);
-        const directionToPlayer = new THREE.Vector3()
+        const directionToPlayer = _tmpV1
             .subVectors(player.position, this.position)
             .normalize();
-        
-        const forward = new THREE.Vector3(0, 0, -1)
+
+        const forward = _tmpV2.set(0, 0, -1)
             .applyEuler(this.rotation);
         
         const angle = forward.angleTo(directionToPlayer);

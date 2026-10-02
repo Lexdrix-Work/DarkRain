@@ -17,6 +17,9 @@ import { AudioManager } from '../systems/AudioManager.js';
 import { AnomalySystem } from '../world/AnomalySystem.js';
 import { UIManager } from '../ui/UIManager.js';
 import { FlashlightSystem } from '../systems/FlashlightSystem.js';
+import { PowerupSystem } from '../systems/PowerupSystem.js';
+import { EquipmentSystem } from '../systems/EquipmentSystem.js';
+import { PerfOverlay } from '../systems/PerfOverlay.js';
 
 /**
  * Level Configurations
@@ -389,6 +392,9 @@ export class Game {
             this.dayNightCycle = new DayNightCycle(this);
             this.audioManager = new AudioManager(this);
             this.anomalySystem = new AnomalySystem(this);
+            this.powerupSystem = new PowerupSystem(this);
+            this.equipmentSystem = new EquipmentSystem(this);
+            this.perfOverlay = new PerfOverlay(this);
             
             // Attach audio listener to camera
             if (this.audioManager.listener) {
@@ -433,6 +439,9 @@ export class Game {
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.shadowMap.enabled = this.settings.shadows;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        // Static scene: don't re-render shadow maps every frame
+        // (flashlight shadow updates on movement via needsUpdate)
+        this.renderer.shadowMap.autoUpdate = false;
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 1.0;
@@ -1124,6 +1133,7 @@ export class Game {
      */
     update(deltaTime) {
         // Update player
+        this.perfOverlay?.beginFrame();
         this.player?.update(deltaTime);
         
         // Update world
@@ -1133,11 +1143,24 @@ export class Game {
         this.weatherSystem?.update(deltaTime);
         this.dayNightCycle?.update(deltaTime);
         this.anomalySystem?.update(deltaTime);
+        this.powerupSystem?.update(deltaTime);
         this.audioManager?.update(deltaTime);
         this.flashlightSystem?.update(deltaTime);
+        // Update shadow maps only when player moves (static scene optimization)
+        if (this.player && this.renderer.shadowMap.enabled) {
+            const pos = this.player.position;
+            if (!this._lastShadowPos) {
+                this._lastShadowPos = pos.clone();
+                this.renderer.shadowMap.needsUpdate = true;
+            } else if (pos.distanceToSquared(this._lastShadowPos) > 1.0) {
+                this._lastShadowPos.copy(pos);
+                this.renderer.shadowMap.needsUpdate = true;
+            }
+        }
         
         // Update UI
         this.uiManager?.update(deltaTime);
+        this.perfOverlay?.endFrame();
 
         // First-person overlay (weapon viewmodel, arms, hat brim)
         this.viewmodelSystem?.update(deltaTime);

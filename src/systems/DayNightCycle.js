@@ -363,7 +363,7 @@ export class DayNightCycle {
         
         // Update hemisphere light (fill so shadow faces never go pitch black)
         if (this.hemiLight) {
-            this.hemiLight.intensity = ambientIntensity * 1.4 * ambientWeatherFactor;
+            this.hemiLight.intensity = ambientIntensity * 2.0 * ambientWeatherFactor;
             this.hemiLight.color.copy(skyColor);
         }
     }

@@ -243,6 +243,27 @@ export class InventorySystem {
                 // Activate detector
                 this.activateDetector(item);
                 break;
+                
+            case 'buff':
+                // Use temporary buff (PowerupSystem handles no-stack refresh)
+                if (this.game?.powerupSystem?.useBuff(item.buffId)) {
+                    consumed = true;
+                }
+                break;
+                
+            case 'upgrade':
+                // Apply permanent upgrade (PowerupSystem handles caps)
+                if (this.game?.powerupSystem?.applyPermanentUpgrade(item.upgradeId)) {
+                    consumed = true;
+                }
+                break;
+                
+            case 'powerup_artifact':
+                // Equip powerup artifact (has continuous cost)
+                if (this.game?.powerupSystem?.equipArtifact(item.artifactId)) {
+                    consumed = true;
+                }
+                break;
         }
         
         if (consumed) {

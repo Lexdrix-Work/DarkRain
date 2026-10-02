@@ -27,8 +27,8 @@ export class ALifeSystem {
     constructor(game) {
         this.game = game;
         this.parties = new Map();
-        this.maxParties = 5;
-        this.spawnTimer = 25; // first parties appear ~25s in
+        this.maxParties = 12;
+        this.spawnTimer = 8; // first parties appear ~8s in
         this.syncTimer = 0;
         this.battleSoundTimer = 0;
         this.partyCounter = 0;

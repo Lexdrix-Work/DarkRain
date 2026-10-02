@@ -549,7 +549,12 @@ export class Weapon {
                 // Calculate damage with distance falloff
                 const distance = hit.distance;
                 const falloff = Math.max(0.5, 1 - (distance / this.data.range) * 0.5);
-                const finalDamage = damage * falloff;
+                let finalDamage = damage * falloff;
+                // Apply powerup damage bonus (capped at +100%)
+                if (this.game?.powerupSystem) {
+                    const bonus = this.game.powerupSystem.getStat('damage');
+                    finalDamage = finalDamage * (1 + Math.min(bonus, 1.0));
+                }
                 
                 hitEntity.takeDamage(finalDamage, this.game.player);
             }

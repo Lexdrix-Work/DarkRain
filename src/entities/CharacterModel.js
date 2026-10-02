@@ -220,7 +220,7 @@ export function buildCharacterModel(character, opts = {}) {
     g.add(belt);
     const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.05, 0.02),
         new THREE.MeshStandardMaterial({ color: 0x8a8a8a, roughness: 0.4, metalness: 0.7 }));
-    buckle.position.set(0, 0.83, -0.185);
+    buckle.position.set(0, 0.83, 0.185);
     g.add(buckle);
 
     /* ---- shoulder patch decal (left shoulder, facing forward) ---- */
@@ -230,7 +230,7 @@ export function buildCharacterModel(character, opts = {}) {
             new THREE.PlaneGeometry(0.085, 0.085),
             new THREE.MeshStandardMaterial({ map: patchTex, roughness: 0.85, transparent: true })
         );
-        patch.position.set(-0.19, 1.32, -0.115);
+        patch.position.set(-0.19, 1.32, 0.115);
         patch.rotation.y = Math.PI; // face -Z (forward)
         patch.rotation.z = 0.15;
         g.add(patch);
@@ -248,7 +248,7 @@ export function buildCharacterModel(character, opts = {}) {
         fore.rotation.x = -0.35;
         arm.add(fore);
         const hand = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), skinMat);
-        hand.position.set(0, -0.58, -0.14);
+        hand.position.set(0, -0.58, 0.14);
         arm.add(hand);
         arm.rotation.z = sx * -0.1;
         arm.rotation.x = -0.25;
@@ -271,11 +271,11 @@ export function buildCharacterModel(character, opts = {}) {
     // square jaw: add angular jaw box
     if (ch.faceShape === 'square') {
         const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.08, 0.14), skinMat);
-        jaw.position.set(0, headY - 0.08, -0.02);
+        jaw.position.set(0, headY - 0.08, 0.02);
         g.add(jaw);
     }
     const nose = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 8), skinMat);
-    nose.position.set(0, headY - 0.01, -0.12 * fm.sz);
+    nose.position.set(0, headY - 0.01, 0.12 * fm.sz);
     g.add(nose);
 
     /* ---- eyes (style + color) ---- */
@@ -291,18 +291,18 @@ export function buildCharacterModel(character, opts = {}) {
     for (const sx of [-1, 1]) {
         const eyeWhite = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), eyeWhiteMat);
         eyeWhite.scale.set(es.w, es.h, 0.012);
-        eyeWhite.position.set(sx * es.gap, headY + es.y, -0.108 * fm.sz);
+        eyeWhite.position.set(sx * es.gap, headY + es.y, 0.108 * fm.sz);
         g.add(eyeWhite);
         const iris = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), irisMat);
         iris.scale.set(es.w * 0.45, es.h * 0.7, 0.008);
-        iris.position.set(sx * es.gap, headY + es.y, -0.116 * fm.sz);
+        iris.position.set(sx * es.gap, headY + es.y, 0.116 * fm.sz);
         g.add(iris);
         // tired: dark bags under eyes
         if (ch.eyes === 'tired') {
             const bag = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6),
                 new THREE.MeshStandardMaterial({ color: 0x6a5a4a, roughness: 1 }));
             bag.scale.set(es.w * 1.1, 0.008, 0.01);
-            bag.position.set(sx * es.gap, headY + es.y - 0.022, -0.105 * fm.sz);
+            bag.position.set(sx * es.gap, headY + es.y - 0.022, 0.105 * fm.sz);
             g.add(bag);
         }
     }
@@ -312,26 +312,26 @@ export function buildCharacterModel(character, opts = {}) {
     const mouthY = headY - 0.062;
     if (ch.mouth === 'neutral') {
         const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.008, 0.01), mouthMat);
-        mouth.position.set(0, mouthY, -0.112 * fm.sz);
+        mouth.position.set(0, mouthY, 0.112 * fm.sz);
         g.add(mouth);
     } else if (ch.mouth === 'stern') {
         const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.01, 0.01), mouthMat);
-        mouth.position.set(0, mouthY - 0.005, -0.112 * fm.sz);
+        mouth.position.set(0, mouthY - 0.005, 0.112 * fm.sz);
         mouth.rotation.z = -0.12;
         g.add(mouth);
     } else if (ch.mouth === 'grimace') {
         const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.014, 0.012), mouthMat);
-        mouth.position.set(0, mouthY, -0.11 * fm.sz);
+        mouth.position.set(0, mouthY, 0.11 * fm.sz);
         g.add(mouth);
         for (const sx of [-1, 1]) {
             const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.01, 0.008),
                 new THREE.MeshStandardMaterial({ color: 0xd8d4c8, roughness: 0.6 }));
-            tooth.position.set(sx * 0.02, mouthY + 0.002, -0.116 * fm.sz);
+            tooth.position.set(sx * 0.02, mouthY + 0.002, 0.116 * fm.sz);
             g.add(tooth);
         }
     } else if (ch.mouth === 'smile') {
         const mouth = new THREE.Mesh(new THREE.TorusGeometry(0.025, 0.006, 6, 12, Math.PI), mouthMat);
-        mouth.position.set(0, mouthY + 0.008, -0.112 * fm.sz);
+        mouth.position.set(0, mouthY + 0.008, 0.112 * fm.sz);
         mouth.rotation.z = Math.PI;
         g.add(mouth);
     }
@@ -346,20 +346,20 @@ export function buildCharacterModel(character, opts = {}) {
             for (const [px, py, w] of [[-0.05, 0.02, 0.04], [0.05, 0.01, 0.035], [0, -0.03, 0.05]]) {
                 const splotch = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6), paintMat);
                 splotch.scale.set(w, w * 0.7, 0.008);
-                splotch.position.set(px, headY + py, -0.115 * fm.sz);
+                splotch.position.set(px, headY + py, 0.115 * fm.sz);
                 g.add(splotch);
             }
         } else if (ch.facePaint === 'war') {
             for (const sx of [-1, 1]) {
                 const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.08, 0.008), paintMat);
-                stripe.position.set(sx * 0.055, headY + 0.01, -0.11 * fm.sz);
+                stripe.position.set(sx * 0.055, headY + 0.01, 0.11 * fm.sz);
                 stripe.rotation.z = sx * 0.15;
                 g.add(stripe);
             }
         } else if (ch.facePaint === 'dirt') {
             const smudge = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6), paintMat);
             smudge.scale.set(0.07, 0.04, 0.008);
-            smudge.position.set(0.02, headY - 0.04, -0.112 * fm.sz);
+            smudge.position.set(0.02, headY - 0.04, 0.112 * fm.sz);
             g.add(smudge);
         }
     }
@@ -377,24 +377,24 @@ export function buildCharacterModel(character, opts = {}) {
         const beard = new THREE.Group();
         if (ch.beard === 'stubble') {
             const s = new THREE.Mesh(new THREE.SphereGeometry(0.115, 16, 12), beardMat);
-            s.position.set(0, headY - 0.055, -0.035);
+            s.position.set(0, headY - 0.055, 0.035);
             s.scale.set(0.88, 0.72, 0.9);
             beard.add(s);
         } else {
             // chin + jaw coverage
             const chin = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 12), beardMat);
-            chin.position.set(0, headY - 0.085, -0.055);
+            chin.position.set(0, headY - 0.085, 0.055);
             chin.scale.set(0.9, ch.beard === 'full' ? 0.95 : 0.7, 0.85);
             beard.add(chin);
             if (ch.beard === 'full') {
                 for (const sx of [-1, 1]) {
                     const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), beardMat);
-                    cheek.position.set(sx * 0.075, headY - 0.03, -0.075);
+                    cheek.position.set(sx * 0.075, headY - 0.03, 0.075);
                     cheek.scale.set(0.7, 1.1, 0.8);
                     beard.add(cheek);
                 }
                 const mustache = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.02, 0.03), beardMat);
-                mustache.position.set(0, headY - 0.045, -0.115);
+                mustache.position.set(0, headY - 0.045, 0.115);
                 beard.add(mustache);
             } else { // short: chin strap only
                 const strap = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.022, 8, 20, Math.PI * 1.2), beardMat);
@@ -434,7 +434,7 @@ export function buildCharacterModel(character, opts = {}) {
         // straps over shoulders
         for (const sx of [-1, 1]) {
             const strap = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.34, 0.02), darkMat);
-            strap.position.set(sx * 0.12, 1.3, -0.16);
+            strap.position.set(sx * 0.12, 1.3, 0.16);
             strap.rotation.x = 0.25;
             pack.add(strap);
         }

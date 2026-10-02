@@ -5,6 +5,14 @@ import { globalEventBus, GameEvents } from '../core/EventBus.js';
 /**
  * Player - First person player controller with survival mechanics
  */
+// Reusable temp vectors (avoid per-frame GC)
+const _pTmpV1 = new THREE.Vector3();
+const _pTmpV2 = new THREE.Vector3();
+const _pTmpV3 = new THREE.Vector3();
+const _pTmpV4 = new THREE.Vector3();
+const _pTmpV5 = new THREE.Vector3();
+const _pTmpUp = new THREE.Vector3(0, 1, 0);
+
 export class Player extends Entity {
     constructor(options = {}) {
         super({ name: 'Player', tags: ['player'], ...options });
@@ -196,14 +204,19 @@ export class Player extends Entity {
         const movementInput = this.input ? this.input.getMovementInput() : { x: 0, z: 0 };
         
         // Calculate movement direction relative to camera
-        const forward = new THREE.Vector3(0, 0, -1);
-        const right = new THREE.Vector3(1, 0, 0);
+        const forward = _pTmpV1.set(0, 0, -1);
+        const right = _pTmpV2.set(1, 0, 0);
         
-        forward.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.cameraYaw);
-        right.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.cameraYaw);
+        forward.applyAxisAngle(_pTmpUp, this.cameraYaw);
+        right.applyAxisAngle(_pTmpUp, this.cameraYaw);
         
         // Calculate target speed
         let speed = this.moveSpeed;
+        // Apply powerup move speed bonus (capped at +50%)
+        if (this.game?.powerupSystem) {
+            const bonus = this.game.powerupSystem.getStat('moveSpeed');
+            speed *= (1 + Math.min(bonus, 0.5));
+        }
         if (this.isSprinting) speed *= this.sprintMultiplier;
         if (this.isCrouching) speed *= this.crouchMultiplier;
         // Encumbrance: a heavy pack slows you down (Elder Scrolls-style)
@@ -212,7 +225,7 @@ export class Player extends Entity {
         if (enc > 0.95) speed *= 0.8;
         
         // Calculate desired horizontal velocity
-        const targetVelocity = new THREE.Vector3();
+        const targetVelocity = _pTmpV3.set(0, 0, 0);
         targetVelocity.addScaledVector(forward, -movementInput.z * speed);
         targetVelocity.addScaledVector(right, movementInput.x * speed);
         
@@ -233,7 +246,7 @@ export class Player extends Entity {
         
         // Apply wall collision if enabled
         if (this.collisionEnabled && this.world) {
-            const horizontalVelocity = new THREE.Vector3(this.velocity.x, 0, this.velocity.z);
+            const horizontalVelocity = _pTmpV4.set(this.velocity.x, 0, this.velocity.z);
             const adjustedVelocity = this.checkWallCollisions(horizontalVelocity, deltaTime);
             this.velocity.x = adjustedVelocity.x;
             this.velocity.z = adjustedVelocity.z;
@@ -293,7 +306,7 @@ export class Player extends Entity {
         
         let blocked = false;
         let minAllowedFraction = 1.0;
-        let collisionNormal = new THREE.Vector3();
+        let collisionNormal = _pTmpV5.set(0, 0, 0);
         
         for (const height of checkHeights) {
             const rayOrigin = new THREE.Vector3(
@@ -562,6 +575,11 @@ export class Player extends Entity {
     }
 
     takeDamage(amount, source) {
+        // Apply powerup damage resistance (capped at 75%)
+        if (this.game?.powerupSystem) {
+            const resist = this.game.powerupSystem.getStat('damageResist');
+            amount = amount * (1 - Math.min(resist, 0.75));
+        }
         this.stats.health = Math.max(0, this.stats.health - amount);
         
         // Screen shake effect
@@ -641,4 +659,4 @@ export class Player extends Entity {
         this.cameraYaw = data.cameraYaw;
         this.cameraPitch = data.cameraPitch;
     }
-}
+}

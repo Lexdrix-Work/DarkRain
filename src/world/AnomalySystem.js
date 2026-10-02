@@ -827,10 +827,14 @@ export class AnomalySystem {
 
         let nearestDistance = Infinity;
 
+        const detectorRangeSq = this.detectorRange * this.detectorRange;
+
         for (const anomaly of this.anomalies.values()) {
             anomaly.update(deltaTime);
 
-            const distance = player.position.distanceTo(anomaly.position);
+            // Squared distance avoids sqrt per anomaly per frame
+            const distanceSq = player.position.distanceToSquared(anomaly.position);
+            const distance = Math.sqrt(distanceSq);
 
             // Track nearest for detector
             if (distance < nearestDistance) {
@@ -838,7 +842,7 @@ export class AnomalySystem {
             }
 
             // Detector reveals nearby anomalies
-            if (this.detectorActive && distance <= this.detectorRange) {
+            if (this.detectorActive && distanceSq <= detectorRangeSq) {
                 anomaly.reveal();
             }
 
@@ -920,4 +924,4 @@ export class AnomalySystem {
         }
         this.anomalies.clear();
     }
-}
+}

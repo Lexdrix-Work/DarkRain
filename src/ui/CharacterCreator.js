@@ -51,6 +51,9 @@ export class CharacterCreator {
         // Start from the saved character if there is one
         const saved = SaveSystem.loadCharacter();
         this.selection = normalizeCharacter(saved || {});
+        // Equipment must be found in the world, not chosen at start
+        this.selection.hat = 'none';
+        this.selection.backpack = 'none';
         // Keep the creator's default sleeve palette for legacy saves
         if (saved && saved.sleeveColor === undefined) {
             this.selection.sleeveColor = SLEEVE_COLORS[0];
@@ -89,22 +92,6 @@ export class CharacterCreator {
     /* ------------------------------ swatches ------------------------------ */
 
     _buildSwatches() {
-        // Hats (buttons with names)
-        const hatsEl = document.getElementById('creator-hats');
-        hatsEl.innerHTML = '';
-        for (const h of HATS) {
-            const btn = document.createElement('button');
-            btn.className = 'creator-hat-btn' + (this.selection.hat === h.id ? ' selected' : '');
-            btn.textContent = h.name;
-            btn.onclick = () => {
-                this.selection.hat = h.id;
-                hatsEl.querySelectorAll('.creator-hat-btn').forEach(b => b.classList.remove('selected'));
-                btn.classList.add('selected');
-                this._refreshPreview();
-            };
-            hatsEl.appendChild(btn);
-        }
-
         const swatchRow = (elId, colors, get, set, cssColor) => {
             const el = document.getElementById(elId);
             el.innerHTML = '';
@@ -156,8 +143,6 @@ export class CharacterCreator {
             () => this.selection.pantsColor, (c) => { this.selection.pantsColor = c; }, hex);
         optionRow('creator-beards', BEARD_STYLES,
             () => this.selection.beard, (id) => { this.selection.beard = id; });
-        optionRow('creator-backpacks', BACKPACK_STYLES,
-            () => this.selection.backpack, (id) => { this.selection.backpack = id; });
         optionRow('creator-patches', PATCH_STYLES,
             () => this.selection.patch, (id) => { this.selection.patch = id; });
         optionRow('creator-eyes', EYE_STYLES,
