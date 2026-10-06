@@ -170,9 +170,11 @@ class StalkerGame extends Game {
         if (this.debug) {
             this.debugConsole = new DebugConsole(this);
             console.log('Debug console enabled (press ` to open)');
-            this.devMenu = new DevMenu(this);
-            console.log('Dev menu enabled (press F1 to open)');
         }
+        
+        // Dev menu (always available, toggle with F1)
+        this.devMenu = new DevMenu(this);
+        console.log('Dev menu enabled (press F1 to open)');
         
         // Zone starting kit + briefing (once per game start)
         globalEventBus.on(GameEvents.GAME_START, () => {
