@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { globalEventBus } from '../core/EventBus.js';
+import { globalEventBus, GameEvents } from '../core/EventBus.js';
 import { AmbientMusicSystem } from './AmbientMusicSystem.js';
 
 /**

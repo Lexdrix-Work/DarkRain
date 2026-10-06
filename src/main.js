@@ -31,6 +31,7 @@ import { normalizeCharacter } from './entities/CharacterModel.js';
 import { Minimap } from './ui/Minimap.js';
 import { DialogueUI } from './ui/DialogueUI.js';
 import { DebugConsole } from './ui/DebugConsole.js';
+import { DevMenu } from './ui/DevMenu.js';
 
 // Make THREE available globally for debugging
 window.THREE = THREE;
@@ -169,6 +170,8 @@ class StalkerGame extends Game {
         if (this.debug) {
             this.debugConsole = new DebugConsole(this);
             console.log('Debug console enabled (press ` to open)');
+            this.devMenu = new DevMenu(this);
+            console.log('Dev menu enabled (press F1 to open)');
         }
         
         // Zone starting kit + briefing (once per game start)
@@ -412,6 +415,7 @@ class StalkerGame extends Game {
         this.saveSystem?.dispose();
         this.minimap?.dispose();
         this.debugConsole?.dispose();
+        this.devMenu?.dispose();
         this.dialogueUI = null;
         
         // Call parent dispose

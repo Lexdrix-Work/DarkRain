@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { normalizeCharacter } from '../entities/CharacterModel.js';
 
 /**
  * ViewmodelSystem - First-person overlay renderer.
@@ -74,7 +75,7 @@ export class ViewmodelSystem {
     }
 
     static defaultCharacter() {
-        return { hat: 'cap', skinTone: 0xc9a186, sleeveColor: 0x4a5240, name: 'Stalker' };
+        return normalizeCharacter({ hat: 'cap', skinTone: 0xc9a186, sleeveColor: 0x4a5240, name: 'Stalker' });
     }
 
     _buildHatBrim() {

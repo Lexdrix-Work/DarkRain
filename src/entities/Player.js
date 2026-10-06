@@ -40,6 +40,10 @@ export class Player extends Entity {
         this.airFriction = 2;      // Lower = less control in air
         this.stopFriction = 15;    // How fast player stops when no input
         
+        // Dev flags (toggled via dev menu / debug console)
+        this.godMode = false;
+        this.noclip = false;
+        
         // Physics
         this.height = 1.8;
         this.crouchHeight = 1.0;
@@ -200,7 +204,24 @@ export class Player extends Entity {
         }
     }
 
+    updateNoclipMovement(deltaTime) {
+        // Fly mode: no gravity, no collisions. Space = up, C/Ctrl = down.
+        const movementInput = this.input ? this.input.getMovementInput() : { x: 0, z: 0 };
+        const forward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.cameraYaw);
+        const right = new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.cameraYaw);
+        const speed = this.moveSpeed * 2;
+        const vel = new THREE.Vector3();
+        vel.addScaledVector(forward, -movementInput.z * speed);
+        vel.addScaledVector(right, movementInput.x * speed);
+        if (this.input?.isActionActive('jump')) vel.y += speed;
+        if (this.input?.isActionActive('crouch')) vel.y -= speed;
+        this.position.addScaledVector(vel, deltaTime);
+        this.velocity.set(0, 0, 0);
+        this.isGrounded = false;
+    }
+
     updateMovement(deltaTime) {
+        if (this.noclip) { this.updateNoclipMovement(deltaTime); return; }
         const movementInput = this.input ? this.input.getMovementInput() : { x: 0, z: 0 };
         
         // Calculate movement direction relative to camera
@@ -575,6 +596,7 @@ export class Player extends Entity {
     }
 
     takeDamage(amount, source) {
+        if (this.godMode) return; // dev god mode
         // Apply powerup damage resistance (capped at 75%)
         if (this.game?.powerupSystem) {
             const resist = this.game.powerupSystem.getStat('damageResist');
