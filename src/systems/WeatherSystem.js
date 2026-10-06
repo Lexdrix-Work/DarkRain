@@ -144,6 +144,7 @@ export class WeatherSystem {
         // Scheduled weather changes
         this.weatherSchedule = [];
         this.timeSinceLastChange = 0;
+        this.weatherLocked = false; // dev menu can lock weather against random changes
         this.minTimeBetweenChanges = 120; // 2 minutes minimum
         
         this.init();
@@ -346,6 +347,10 @@ export class WeatherSystem {
         this.targetWeather = weatherType;
         this.transitionDuration = duration;
         this.transitionProgress = 0;
+        // Capture start params for correct lerp (was lerping from mid-transition value)
+        this.startParams = { ...this.params };
+        // Manual weather set pauses random changes for 5 minutes
+        this.timeSinceLastChange = -300;
         
         const preset = this.presets[weatherType] || this.presets[WeatherType.OVERCAST];
         this.targetParams = {
@@ -431,15 +436,18 @@ export class WeatherSystem {
             if (!isFinite(this.transitionProgress)) this.transitionProgress = 1;
             this.transitionProgress = Math.min(1, this.transitionProgress);
             
-            // Lerp parameters
+            // Lerp parameters from START to TARGET (not from current mid-transition value)
             const t = this.easeInOutCubic(this.transitionProgress);
+            const start = this.startParams || this.params;
             
             for (const key in this.params) {
-                this.params[key] = THREE.MathUtils.lerp(
-                    this.params[key],
-                    this.targetParams[key],
-                    t
-                );
+                if (start[key] !== undefined && this.targetParams[key] !== undefined) {
+                    this.params[key] = THREE.MathUtils.lerp(
+                        start[key],
+                        this.targetParams[key],
+                        t
+                    );
+                }
             }
             
             // Update fog color
@@ -567,6 +575,7 @@ export class WeatherSystem {
     }
 
     updateRandomWeatherChanges(deltaTime) {
+        if (this.weatherLocked) return;
         this.timeSinceLastChange += deltaTime;
         
         // Random weather changes

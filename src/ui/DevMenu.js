@@ -75,6 +75,9 @@ export class DevMenu {
                     <div class="dev-btn-grid" id="dev-weather-grid">
                         ${weatherTypes.map(([v, l]) => `<button data-weather="${v}">${l}</button>`).join('')}
                     </div>
+                    <div class="dev-row">
+                        <button id="dev-weather-lock" style="flex:1">Lock Weather: OFF</button>
+                    </div>
                 </div>
                 <div class="dev-section">
                     <div class="dev-section-title">Spawn Enemy</div>
@@ -205,7 +208,7 @@ export class DevMenu {
         ['dev-time-slider', 'dev-time-label', 'dev-timescale-slider', 'dev-timescale-label',
          'dev-spawn-dist', 'dev-spawn-dist-label', 'dev-item-select', 'dev-item-amount',
          'dev-item-give', 'dev-god', 'dev-noclip', 'dev-heal', 'dev-speed-slider',
-         'dev-speed-label', 'dev-pos-label', 'dev-enemy-count', 'dev-killall',
+         'dev-speed-label', 'dev-pos-label', 'dev-enemy-count', 'dev-killall', 'dev-weather-lock',
         ].forEach(id => { this._els[id.replace('dev-', '').replace(/-/g, '_')] = $(id); });
 
         this.wireEvents();
@@ -245,6 +248,14 @@ export class DevMenu {
                 game().weatherSystem?.setWeather(btn.dataset.weather, 30);
                 this.syncFromGame();
             });
+        });
+
+        // Weather lock
+        el.weather_lock.addEventListener('click', () => {
+            const ws = game().weatherSystem;
+            if (!ws) return;
+            ws.weatherLocked = !ws.weatherLocked;
+            this.syncFromGame();
         });
 
         // Spawn distance
@@ -359,6 +370,9 @@ export class DevMenu {
         const cur = g.weatherSystem?.currentWeather;
         this.container.querySelectorAll('[data-weather]').forEach(b =>
             b.classList.toggle('active', b.dataset.weather === cur));
+        const locked = !!g.weatherSystem?.weatherLocked;
+        this._els.weather_lock.textContent = `Lock Weather: ${locked ? 'ON' : 'OFF'}`;
+        this._els.weather_lock.classList.toggle('active', locked);
     }
 
     setupEventListeners() {

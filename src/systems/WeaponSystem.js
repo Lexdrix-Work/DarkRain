@@ -326,6 +326,7 @@ export class Weapon {
         const flashGeom = new THREE.SphereGeometry(0.06, 8, 8);
         const flashMat = new THREE.MeshBasicMaterial({ color: 0xffcc33, transparent: true, opacity: 0, depthWrite: false });
         this.muzzleFlash = new THREE.Mesh(flashGeom, flashMat);
+        this.muzzleFlash.visible = false; // hidden until fired - opacity alone can fail on some GPUs
         this.muzzleFlash.position.set(0, flashY, tipZ);
         this.muzzlePosition.copy(this.muzzleFlash.position);
         group.add(this.muzzleFlash);
@@ -589,14 +590,15 @@ export class Weapon {
      */
     showMuzzleFlash() {
         if (this.muzzleFlash) {
+            this.muzzleFlash.visible = true;
             this.muzzleFlash.material.opacity = 1;
             this.muzzleFlash.scale.setScalar(1 + Math.random() * 0.5);
             
             // Hide after short delay
+            const flash = this.muzzleFlash;
             setTimeout(() => {
-                if (this.muzzleFlash) {
-                    this.muzzleFlash.material.opacity = 0;
-                }
+                flash.visible = false;
+                flash.material.opacity = 0;
             }, 50);
         }
     }

@@ -32,6 +32,7 @@ import { Minimap } from './ui/Minimap.js';
 import { DialogueUI } from './ui/DialogueUI.js';
 import { DebugConsole } from './ui/DebugConsole.js';
 import { DevMenu } from './ui/DevMenu.js';
+import { RagdollSystem } from './systems/RagdollSystem.js';
 
 // Make THREE available globally for debugging
 window.THREE = THREE;
@@ -161,6 +162,7 @@ class StalkerGame extends Game {
         this.psySystem.init(this.scene);
         this.boltSystem = new BoltSystem(this);
         this.boltSystem.init(this.scene);
+        this.ragdollSystem = new RagdollSystem(this);
         
         // UI components
         this.minimap = new Minimap(this);
@@ -332,6 +334,7 @@ class StalkerGame extends Game {
         this.alifeSystem?.update(deltaTime);
         this.psySystem?.update(deltaTime);
         this.boltSystem?.update(deltaTime);
+        this.ragdollSystem?.update(deltaTime);
         
         // Track play time
         this.playTime += deltaTime;
@@ -418,6 +421,7 @@ class StalkerGame extends Game {
         this.minimap?.dispose();
         this.debugConsole?.dispose();
         this.devMenu?.dispose();
+        this.ragdollSystem?.dispose();
         this.dialogueUI = null;
         
         // Call parent dispose

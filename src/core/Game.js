@@ -310,7 +310,7 @@ export class Game {
             chroma: false,         // chromatic aberration
             fov: 75,
             renderDistance: 500,
-            autoQuality: false
+            autoQuality: true   // enabled by default - governor reduces render scale if FPS drops
         };
         // Auto-quality governor state
         this._autoQuality = {
@@ -528,7 +528,7 @@ export class Game {
         const wantBloom = s.bloom && tier.bloom;
         if (wantBloom) {
             const bloomPass = new UnrealBloomPass(
-                new THREE.Vector2(window.innerWidth, window.innerHeight),
+                new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2),
                 s.quality === 'ultra' ? 0.38 : 0.3,  // strength
                 0.5,   // radius
                 0.82   // threshold

@@ -237,19 +237,29 @@ export function buildCharacterModel(character, opts = {}) {
     }
 
     /* ---- arms (sleeves) angled slightly forward, hands skin ---- */
+    /* Hierarchical pivots: shoulder -> elbow -> wrist, so segments stay
+       connected no matter the pose. */
     for (const sx of [-1, 1]) {
         const arm = new THREE.Group();
         arm.position.set(sx * 0.26, 1.42, 0);
         const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.058 * bm.limbW, 0.052 * bm.limbW, 0.34, 10), sleeveMat);
         upper.position.y = -0.17;
         arm.add(upper);
+        // Elbow pivot at the bottom of the upper arm
+        const elbow = new THREE.Group();
+        elbow.position.set(0, -0.34, 0);
+        elbow.rotation.x = -0.35;
+        arm.add(elbow);
         const fore = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * bm.limbW, 0.045 * bm.limbW, 0.3, 10), sleeveMat);
-        fore.position.set(0, -0.42, -0.06);
-        fore.rotation.x = -0.35;
-        arm.add(fore);
+        fore.position.y = -0.15;
+        elbow.add(fore);
+        // Wrist pivot at the bottom of the forearm
+        const wrist = new THREE.Group();
+        wrist.position.set(0, -0.3, 0);
+        elbow.add(wrist);
         const hand = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), skinMat);
-        hand.position.set(0, -0.58, 0.08);
-        arm.add(hand);
+        hand.position.y = -0.03;
+        wrist.add(hand);
         arm.rotation.z = sx * -0.1;
         arm.rotation.x = -0.25;
         g.add(arm);

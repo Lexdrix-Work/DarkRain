@@ -659,8 +659,19 @@ export class Enemy extends Entity {
         this.isCollidable = false;
         this.alive = false;
         
-        // Death animation: smooth fall + sink (updated in updateDeathAnimation)
-        this._deathAnim = 0;
+        // Ragdoll: switch from animated to physics-driven fall
+        const ragdollSys = this.game?.ragdollSystem;
+        if (ragdollSys && this.mesh) {
+            const impulse = new THREE.Vector3(
+                (Math.random() - 0.5) * 1.5, 2.5, (Math.random() - 0.5) * 1.5);
+            ragdollSys.createRagdoll(this.mesh, this.position.clone(), impulse);
+            this.mesh.visible = false;
+            this._ragdolled = true;
+            this.isActive = false; // ragdoll system handles the visual now
+        } else {
+            // Fallback: simple fall + sink animation
+            this._deathAnim = 0;
+        }
         
         globalEventBus.emit(GameEvents.ENEMY_DEATH, { enemy: this });
         

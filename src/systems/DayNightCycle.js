@@ -411,6 +411,23 @@ export class DayNightCycle {
             u.nightFactor.value += (nf - u.nightFactor.value) * 0.05;
         }
         if (u.sunColor && this.sunLight) u.sunColor.value.copy(this.sunLight.color);
+
+        // Fog must follow time of day too - otherwise bright daytime fog
+        // washes out the night sky and makes night look like day.
+        this.updateFogForTime(period);
+    }
+
+    updateFogForTime(period) {
+        const scene = this.game?.scene;
+        const ws = this.game?.weatherSystem;
+        if (!scene?.fog || !ws) return;
+        const preset = ws.presets?.[ws.currentWeather];
+        if (!preset?.fogColor) return;
+        // Brightness: 1.0 at day, ~0.07 at deep night, smooth through dawn/dusk
+        const target = period === 'night' ? 0.07 : (period === 'day' ? 1.0 : 0.45);
+        if (this._fogBrightness === undefined) this._fogBrightness = target;
+        this._fogBrightness += (target - this._fogBrightness) * 0.05;
+        scene.fog.color.copy(preset.fogColor).multiplyScalar(this._fogBrightness);
     }
 
     /**

@@ -106,60 +106,87 @@ export class ViewmodelSystem {
         if (!this.rig) return;
         const player = this.game.player;
         const t = (this._vmT = (this._vmT || 0) + deltaTime);
+        const dt = Math.min(deltaTime, 0.05);
 
-        // --- Walk bob: figure-eight based on player speed ---
+        // --- Spring helper: critically-damped-ish spring for weighty feel ---
+        const spring = (cur, target, vel, stiffness, damping) => {
+            const f = (target - cur) * stiffness;
+            vel += f * dt;
+            vel *= Math.exp(-damping * dt);
+            cur += vel * dt;
+            return [cur, vel];
+        };
+        if (!this._swayVel) this._swayVel = { x: 0, y: 0, rx: 0, ry: 0 };
+
+        // --- Walk bob: figure-eight with rotation ---
         let speed = 0;
         if (player && player.velocity) {
             speed = Math.hypot(player.velocity.x, player.velocity.z);
-        } else if (player && player.position && this._lastPPos) {
-            speed = Math.hypot(
-                player.position.x - this._lastPPos.x,
-                player.position.z - this._lastPPos.z) / Math.max(deltaTime, 0.001);
-        }
-        if (player && player.position) {
-            this._lastPPos = this._lastPPos || player.position.clone();
-            this._lastPPos.copy(player.position);
         }
         const moving = Math.min(1, speed / 3);
-        this._bobPhase = (this._bobPhase || 0) + deltaTime * (5 + speed * 1.2) * moving;
+        this._bobPhase = (this._bobPhase || 0) + dt * (5 + speed * 1.2) * moving;
         const bp = this._bobPhase || 0;
-        const bobX = Math.cos(bp) * 0.012 * moving;
-        const bobY = Math.abs(Math.sin(bp)) * 0.014 * moving;
+        const bobX = Math.cos(bp) * 0.018 * moving;
+        const bobY = Math.abs(Math.sin(bp)) * 0.020 * moving;
+        const bobRoll = Math.sin(bp) * 0.03 * moving;   // gun rolls with steps
+        const bobYaw = Math.cos(bp * 0.5) * 0.02 * moving;
 
-        // --- Mouse sway: rig lags behind look delta ---
+        // --- Breathing: subtle idle sway (BODYCAM-style) ---
+        const breathX = Math.sin(t * 1.4) * 0.0035;
+        const breathY = Math.cos(t * 1.1) * 0.003;
+        const breathR = Math.sin(t * 0.9) * 0.008;
+
+        // --- Mouse sway: heavy spring lag (weapon has inertia) ---
         const yaw = player?.cameraYaw || 0, pitch = player?.cameraPitch || 0;
         const dyaw = yaw - (this._lastYaw ?? yaw);
         const dpitch = pitch - (this._lastPitch ?? pitch);
         this._lastYaw = yaw; this._lastPitch = pitch;
-        this._swayX = (this._swayX || 0) + ((-dyaw * 2.2) - (this._swayX || 0)) * Math.min(1, deltaTime * 9);
-        this._swayY = (this._swayY || 0) + ((dpitch * 2.2) - (this._swayY || 0)) * Math.min(1, deltaTime * 9);
-        // Clamp sway so fast flicks don't throw the gun off-screen
-        this._swayX = Math.max(-0.06, Math.min(0.06, this._swayX));
-        this._swayY = Math.max(-0.06, Math.min(0.06, this._swayY));
+        // Target is proportional to angular velocity; spring gives overshoot
+        const swayTX = THREE.MathUtils.clamp(-dyaw * 3.0, -0.09, 0.09);
+        const swayTY = THREE.MathUtils.clamp(dpitch * 3.0, -0.09, 0.09);
+        [this._swayX, this._swayVel.x] = spring(this._swayX || 0, swayTX, this._swayVel.x, 90, 9);
+        [this._swayY, this._swayVel.y] = spring(this._swayY || 0, swayTY, this._swayVel.y, 90, 9);
+        // Rotational sway (gun tilts against the look direction)
+        const rswayTX = THREE.MathUtils.clamp(-dyaw * 1.2, -0.12, 0.12);
+        const rswayTY = THREE.MathUtils.clamp(dpitch * 1.0, -0.10, 0.10);
+        [this._swayRX, this._swayVel.rx] = spring(this._swayRX || 0, rswayTX, this._swayVel.rx, 70, 8);
+        [this._swayRY, this._swayVel.ry] = spring(this._swayRY || 0, rswayTY, this._swayVel.ry, 70, 8);
+
+        // --- Strafe lean: roll into sideways movement ---
+        let strafe = 0;
+        if (player && player.velocity && player.cameraYaw !== undefined) {
+            const fwd = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), player.cameraYaw);
+            const right = new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), player.cameraYaw);
+            strafe = player.velocity.dot(right) / 5;
+        }
+        const leanTarget = THREE.MathUtils.clamp(-strafe * 0.06, -0.08, 0.08);
+        this._lean = (this._lean || 0) + (leanTarget - (this._lean || 0)) * Math.min(1, dt * 6);
 
         // --- Fire recoil: kick back + up, spring back ---
-        this._recoil = Math.max(0, (this._recoil || 0) - deltaTime * 6);
+        this._recoil = Math.max(0, (this._recoil || 0) - dt * 5);
         const rk = this._recoil;
 
-        // --- Reload dip: gun tilts down while reloading ---
+        // --- Reload dip ---
         const w = this.game.weaponManager?.equippedWeapon;
         const reloading = w?.isReloading;
         this._reloadDip = ((this._reloadDip || 0) +
-            ((reloading ? 1 : 0) - (this._reloadDip || 0)) * Math.min(1, deltaTime * 7));
+            ((reloading ? 1 : 0) - (this._reloadDip || 0)) * Math.min(1, dt * 7));
 
-        // Compose final rig transform (base offsets are baked into children)
+        // --- ADS dampening: aiming steadies the weapon ---
+        const ads = w?.isAiming ? 0.45 : 1.0;
+
+        // Compose final rig transform
         this.rig.position.set(
-            bobX + (this._swayX || 0),
-            bobY + (this._swayY || 0) - this._reloadDip * 0.09,
+            (bobX + breathX + (this._swayX || 0)) * ads,
+            (bobY + breathY + (this._swayY || 0) - this._reloadDip * 0.09) * ads,
             rk * 0.09
         );
         this.rig.rotation.set(
-            rk * 0.35 + this._reloadDip * 0.55 + (this._swayY || 0) * 1.4,
-            (this._swayX || 0) * 1.6,
-            this._reloadDip * 0.25
+            (rk * 0.35 + this._reloadDip * 0.55 + (this._swayRY || 0) * 1.4 + breathR * 0.5) * ads,
+            ((this._swayRX || 0) * 1.6 + bobYaw) * ads,
+            (this._reloadDip * 0.25 + bobRoll + (this._lean || 0) + breathR) * ads
         );
     }
-
     /** Call on weapon fire to kick the viewmodel. */
     kick(recoilAmount = 1) {
         this._recoil = Math.min(1.2, (this._recoil || 0) + 0.55 * recoilAmount);
