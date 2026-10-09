@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
+export function makeBatchedDetailMaterial(material) {
+    const result=material.clone();result.color.setHex(0xffffff);result.vertexColors=true;return result;
+}
+
 /**
  * StaticBatcher - merges static city geometry into a handful of draw calls.
  *
@@ -56,9 +60,11 @@ export class StaticBatcher {
 
         let b = this.buckets.get(bucket);
         if (!b) {
-            b = { geoms: [] };
+            b = { geoms: [],decorations:[],vertexCount:0 };
             this.buckets.set(bucket, b);
         }
+        if(opts.decorationOwner)b.decorations.push({owner:opts.decorationOwner,start:b.vertexCount,count:g.attributes.position.count});
+        b.vertexCount+=g.attributes.position.count;
         b.geoms.push(g);
     }
 
@@ -96,7 +102,7 @@ export class StaticBatcher {
             return null;
         }
         merged.computeBoundingSphere();
-        return new THREE.Mesh(merged, material);
+        const mesh=new THREE.Mesh(merged,material);mesh.userData.decorationRanges=b.decorations;return mesh;
     }
 
     /**

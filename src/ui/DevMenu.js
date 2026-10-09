@@ -123,6 +123,16 @@ export class DevMenu {
                         <span class="dev-label" id="dev-enemy-count">Enemies: --</span>
                     </div>
                 </div>
+                <div class="dev-section">
+                    <div class="dev-section-title">Destruction building</div>
+                    <div class="dev-btn-grid">
+                        <button data-fixture="visit">Visit / create</button>
+                        <button data-fixture="reset">Reset building</button>
+                        <button data-fixture="weak">Charge weak column</button>
+                        <button data-fixture="collapse">Charge all supports</button>
+                    </div>
+                    <div id="dev-fixture-stats">Create the test building to inspect its joints.</div>
+                </div>
             </div>
         `;
 
@@ -217,6 +227,17 @@ export class DevMenu {
     wireEvents() {
         const el = this._els;
         const game = () => this.game;
+        this.container.querySelectorAll('[data-fixture]').forEach(button=>button.addEventListener('click',()=>{
+            const physics=this.game.physicsSystem;if(!physics||this.game.gameState!=='playing')return;
+            const action=button.dataset.fixture;
+            if(action==='visit'||action==='reset') {
+                const fixture=action==='reset'||!physics.fixture?physics.spawnFixture(physics.fixture?.origin):physics.fixture;
+                const player=this.game.player;player.position.copy(fixture.origin).add(new THREE.Vector3(-3.6,.15,12));player.velocity.set(0,0,0);
+                const direction=fixture.origin.clone().add(new THREE.Vector3(-3.6,1.5,4.5)).sub(player.position.clone().add(new THREE.Vector3(0,1.65,0))).normalize();
+                player.cameraYaw=Math.atan2(-direction.x,-direction.z);player.cameraPitch=Math.asin(direction.y);player.updateCamera(0);
+            }else if(physics.fixture){if(action==='weak')physics.fixture.demolishColumn(0);else physics.fixture.demolishAllSupports();}
+            this.syncFromGame();
+        }));
 
         // Time slider (live)
         el.time_slider.addEventListener('input', () => {
@@ -366,6 +387,8 @@ export class DevMenu {
         }
         const n = g.worldManager?.enemies?.size ?? 0;
         this._els.enemy_count.textContent = `Enemies: ${n}`;
+        const fixture=this.game.physicsSystem?.fixture;
+        if(fixture){const s=fixture.stats();this.container.querySelector('#dev-fixture-stats').textContent=`Pieces ${s.pieces} · moving ${s.awake} · joints ${s.joints} · failed ${s.failed}`;}
         // Highlight active weather
         const cur = g.weatherSystem?.currentWeather;
         this.container.querySelectorAll('[data-weather]').forEach(b =>
@@ -377,7 +400,7 @@ export class DevMenu {
 
     setupEventListeners() {
         document.addEventListener('keydown', (e) => {
-            if (e.code === 'F1') {
+            if (e.code === 'F1' && !this.game.inputManager?.claimsCode(e)) {
                 e.preventDefault();
                 this.toggle();
             }

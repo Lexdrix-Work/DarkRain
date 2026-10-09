@@ -1,3 +1,6 @@
+import {paintAnomaly} from './AnomalyAccessibility.js';
+import { createAnomalyCompute } from '../render/AnomalyCompute.ts';
+import { createNodeAnomalyMaterial } from '../render/ModernRenderer.ts';
 import * as THREE from 'three';
 import { globalEventBus, GameEvents } from '../core/EventBus.js';
 
@@ -43,7 +46,7 @@ export class Anomaly {
 
     init(scene) {
         this.scene = scene;
-        this.createVisuals();
+        this.createVisuals();paintAnomaly(this,this.system?.game?.settings?.anomalyPalette);
     }
 
     createVisuals() {
@@ -127,6 +130,7 @@ export class Anomaly {
      */
     reveal() {
         this.isVisible = true;
+        if(this.accessibilityMarker)this.accessibilityMarker.visible=true;
         if (this.mesh) {
             this.mesh.visible = true;
         }
@@ -137,6 +141,7 @@ export class Anomaly {
      */
     hide() {
         this.isVisible = false;
+        if(this.accessibilityMarker)this.accessibilityMarker.visible=false;
         if (this.mesh) {
             this.mesh.visible = false;
         }
@@ -164,6 +169,8 @@ export class Anomaly {
     }
 
     dispose() {
+        if(this.accessibilityMarker){this.accessibilityMarker.removeFromParent();this.accessibilityMarker.geometry.dispose();this.accessibilityMarker.material.dispose();}
+        if(this.computeField){this.computeField.dispose();this.computeField=null;this.particles=null;}
         if (this.mesh) {
             this.scene?.remove(this.mesh);
             this.mesh.geometry.dispose();
@@ -191,40 +198,7 @@ export class GravitationalAnomaly extends Anomaly {
     createVisuals() {
         // Distortion sphere
         const geometry = new THREE.SphereGeometry(this.radius, 32, 32);
-        const material = new THREE.ShaderMaterial({
-            uniforms: {
-                time: { value: 0 },
-                color: { value: new THREE.Color(0x4444ff) }
-            },
-            vertexShader: `
-                varying vec2 vUv;
-                varying vec3 vNormal;
-                uniform float time;
-                
-                void main() {
-                    vUv = uv;
-                    vNormal = normal;
-                    vec3 pos = position;
-                    pos += normal * sin(time * 3.0 + position.y * 5.0) * 0.1;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-                }
-            `,
-            fragmentShader: `
-                varying vec2 vUv;
-                varying vec3 vNormal;
-                uniform vec3 color;
-                uniform float time;
-                
-                void main() {
-                    float intensity = pow(0.7 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.0);
-                    float pulse = sin(time * 2.0) * 0.3 + 0.7;
-                    gl_FragColor = vec4(color * intensity * pulse, intensity * 0.5);
-                }
-            `,
-            transparent: true,
-            side: THREE.DoubleSide,
-            blending: THREE.AdditiveBlending
-        });
+        const material = createNodeAnomalyMaterial(false);
 
         this.mesh = new THREE.Mesh(geometry, material);
         this.mesh.position.copy(this.position);
@@ -239,6 +213,11 @@ export class GravitationalAnomaly extends Anomaly {
     }
 
     createParticles() {
+        const renderer=this.system?.game?.renderer;
+        if(renderer?.isWebGPURenderer){
+            this.computeField=createAnomalyCompute(renderer,this.position,this.radius,this.system.game.settings.quality);
+            if(this.computeField){this.particles=this.computeField.mesh;this.particles.visible=this.isVisible;this.scene.add(this.particles);return;}
+        }
         const particleCount = 100;
         const geometry = new THREE.BufferGeometry();
         const positions = new Float32Array(particleCount * 3);
@@ -313,6 +292,7 @@ export class GravitationalAnomaly extends Anomaly {
             this.mesh.material.uniforms.time.value += deltaTime;
         }
 
+        if(this.computeField){this.particles.visible=this.isVisible;if(this.isVisible)this.computeField.update(deltaTime);return;}
         // Animate particles
         if (this.particles && this.isVisible) {
             const positions = this.particles.geometry.attributes.position.array;
@@ -585,37 +565,7 @@ export class ThermalAnomaly extends Anomaly {
     createVisuals() {
         // Heat shimmer effect (simplified)
         const geometry = new THREE.CylinderGeometry(this.radius, this.radius * 1.2, 3, 16, 1, true);
-        const material = new THREE.ShaderMaterial({
-            uniforms: {
-                time: { value: 0 }
-            },
-            vertexShader: `
-                varying vec2 vUv;
-                uniform float time;
-                
-                void main() {
-                    vUv = uv;
-                    vec3 pos = position;
-                    pos.x += sin(time * 5.0 + position.y * 3.0) * 0.1;
-                    pos.z += cos(time * 5.0 + position.y * 3.0) * 0.1;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-                }
-            `,
-            fragmentShader: `
-                varying vec2 vUv;
-                uniform float time;
-                
-                void main() {
-                    float intensity = 1.0 - vUv.y;
-                    vec3 color = mix(vec3(1.0, 0.3, 0.0), vec3(1.0, 0.8, 0.0), vUv.y);
-                    float flicker = sin(time * 10.0) * 0.1 + 0.9;
-                    gl_FragColor = vec4(color * intensity * flicker, intensity * 0.5);
-                }
-            `,
-            transparent: true,
-            side: THREE.DoubleSide,
-            blending: THREE.AdditiveBlending
-        });
+        const material = createNodeAnomalyMaterial(true);
 
         this.mesh = new THREE.Mesh(geometry, material);
         this.mesh.position.copy(this.position);
@@ -758,8 +708,8 @@ export class AnomalySystem {
                 anomaly = new Anomaly(options);
         }
 
-        anomaly.init(this.scene);
         anomaly.system = this;
+        anomaly.init(this.scene);
         this.anomalies.set(anomaly.id, anomaly);
 
         return anomaly;
@@ -806,6 +756,8 @@ export class AnomalySystem {
      * Toggle anomaly detector
      * @param {boolean} active - Detector state
      */
+    applyAccessibility(mode){for(const anomaly of this.anomalies.values())paintAnomaly(anomaly,mode);}
+
     setDetectorActive(active) {
         this.detectorActive = active;
         
@@ -825,7 +777,7 @@ export class AnomalySystem {
         const player = this.game.player;
         if (!player) return;
 
-        let nearestDistance = Infinity;
+        let nearestDistance = Infinity,nearestAnomaly=null;
 
         const detectorRangeSq = this.detectorRange * this.detectorRange;
 
@@ -838,7 +790,7 @@ export class AnomalySystem {
 
             // Track nearest for detector
             if (distance < nearestDistance) {
-                nearestDistance = distance;
+                nearestDistance = distance;nearestAnomaly=anomaly;
             }
 
             // Detector reveals nearby anomalies
@@ -875,7 +827,7 @@ export class AnomalySystem {
 
         // Detector beeping
         if (this.detectorActive && nearestDistance < this.detectorRange) {
-            this.updateDetectorBeep(nearestDistance, deltaTime);
+            this.updateDetectorBeep(nearestDistance, deltaTime,nearestAnomaly);
         }
     }
 
@@ -884,16 +836,16 @@ export class AnomalySystem {
      * @param {number} distance - Distance to nearest anomaly
      * @param {number} deltaTime - Frame delta
      */
-    updateDetectorBeep(distance, deltaTime) {
-        // Beep frequency increases as distance decreases
+    updateDetectorBeep(distance, deltaTime,anomaly) {
+        // Nearer hazards produce faster pulses; the same cadence drives the visual detector.
         const normalizedDist = distance / this.detectorRange;
-        const beepRate = 0.1 + (1 - normalizedDist) * 0.9; // 0.1 to 1.0 seconds
+        const beepRate = 0.1 + normalizedDist * 0.9; // 0.1 to 1.0 seconds
 
         this.detectorBeepInterval += deltaTime;
 
         if (this.detectorBeepInterval >= beepRate) {
             this.detectorBeepInterval = 0;
-            
+            globalEventBus.emit('zone:detector_ping',{distance,kind:'anomaly',type:anomaly?.isVortex?'vortex':anomaly?.type});
             globalEventBus.emit('audio:play', {
                 sound: 'detector_beep',
                 volume: 0.5 + (1 - normalizedDist) * 0.5

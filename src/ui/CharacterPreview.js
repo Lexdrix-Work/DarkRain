@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { buildCharacterModel, normalizeCharacter } from '../entities/CharacterModel.js';
+import { buildCharacterModel, normalizeCharacter, disposeCharacterModel } from '../entities/CharacterModel.js';
 
 /**
  * CharacterPreview - 3D character panel inside the inventory menu.
@@ -33,7 +33,7 @@ export class CharacterPreview {
     refresh() {
         const p = this.preview;
         if (!p) return;
-        while (p.group.children.length) p.group.remove(p.group.children[0]);
+        while (p.group.children.length) {disposeCharacterModel(p.group.children[0]);p.group.remove(p.group.children[0]);}
         const character = normalizeCharacter(this.game?.character || {});
         p.group.add(buildCharacterModel(character, { weapon: true }));
 
@@ -83,6 +83,7 @@ export class CharacterPreview {
     stop() {
         if (this.preview) {
             cancelAnimationFrame(this.preview.raf);
+            for(const child of this.preview.group.children)disposeCharacterModel(child);
             this.preview.renderer.dispose();
             this.preview = null;
         }

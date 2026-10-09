@@ -1,0 +1,19 @@
+import {globalEventBus} from '../core/EventBus.js';
+import {comfortSettings,cueDirection} from '../core/settings/Accessibility.js';
+
+/** Bounded captions and sound equivalents, outside the optional passive HUD. */
+export class AccessibilityUI {
+ constructor(ui){this.ui=ui;this.game=ui.game;this.cues=[];this.caption=document.createElement('p');this.caption.id='audio-subtitle';this.caption.setAttribute('role','status');this.caption.hidden=true;document.body.append(this.caption);
+  this.indicator=document.createElement('div');this.indicator.id='critical-sound-cues';this.indicator.setAttribute('role','status');this.indicator.hidden=true;document.body.append(this.indicator);
+  this.offCaption=globalEventBus.on('audio:caption',d=>this.showCaption(d));this.offCue=globalEventBus.on('accessibility:sound',d=>this.showCue(d));
+ }
+ apply(s){this.settings=s;document.documentElement.classList.toggle('high-contrast',s.highContrast);document.documentElement.style.setProperty('--subtitle-size',s.subtitleSize+'px');document.documentElement.style.setProperty('--subtitle-background',s.subtitleBackground/100);if(!s.subtitles)this.caption.hidden=true;if(!s.visualAudioCues){this.cues=[];this.indicator.hidden=true;}this.offerFirstLaunch(s);}
+ showCaption(d){if(!this.settings?.subtitles)return;const now=performance.now(),priority=d.priority||1;if(now<(this.captionUntil||0)&&priority<(this.captionPriority||0))return;this.captionPriority=priority;this.captionUntil=now+Math.min(8000,Math.max(1000,d.duration||3000));this.caption.textContent=String(d.text).slice(0,240);this.caption.hidden=false;clearTimeout(this.captionTimer);this.captionTimer=setTimeout(()=>{this.caption.hidden=true;this.captionPriority=0;},this.captionUntil-now);}
+ showCue(d){if(!this.settings?.visualAudioCues||this.game.gameState!=='playing')return;const now=performance.now(),direction=cueDirection(d.position,this.game.player),text=d.text+' · '+direction;this.cues=this.cues.filter(c=>c.until>now&&c.sound!==d.sound);this.cues.push({sound:d.sound,text,priority:d.priority||1,until:now+(d.priority>=3?8000:3500)});this.cues.sort((a,b)=>b.priority-a.priority);this.cues.length=Math.min(3,this.cues.length);this.renderCues();clearTimeout(this.cueTimer);this.cueTimer=setTimeout(()=>this.expireCues(),1000);}
+ expireCues(){this.cues=this.cues.filter(c=>c.until>performance.now());this.renderCues();if(this.cues.length)this.cueTimer=setTimeout(()=>this.expireCues(),1000);}
+ renderCues(){this.indicator.replaceChildren();for(const cue of this.cues){const row=document.createElement('p');row.textContent=cue.text;this.indicator.append(row);}this.indicator.hidden=!this.cues.length;}
+ offerFirstLaunch(s){if(this.card){this.card.hidden=s.accessibilityReviewed;return;}const host=document.querySelector('#main-menu .menu-content')||document.getElementById('main-menu');if(!host)return;const card=document.createElement('div');card.id='accessibility-first-launch';card.className='accessibility-offer';card.innerHTML='<p>Comfort & accessibility</p><small>Camera motion can be fully disabled. Captions, visual sound cues, contrast and mono audio are available in Options.</small>';
+  for(const [label,action]of [['Stable camera',()=>{this.ui.saveStoredSettings(comfortSettings(this.ui.getStoredSettings()));this.ui.applyStoredSettings();}],['Accessibility options',()=>{this.ui.showSettings();this.ui.settingsPanel.show('Accessibility');}],['Keep current settings',()=>{this.ui.saveStoredSettings({...this.ui.getStoredSettings(),accessibilityReviewed:true});this.ui.applyStoredSettings();}]]){const b=document.createElement('button');b.className='menu-button';b.textContent=label;b.onclick=action;card.append(b);}card.hidden=s.accessibilityReviewed;host.append(card);this.card=card;
+ }
+ dispose(){this.offCaption();this.offCue();clearTimeout(this.captionTimer);clearTimeout(this.cueTimer);this.caption.remove();this.indicator.remove();this.card?.remove();}
+}

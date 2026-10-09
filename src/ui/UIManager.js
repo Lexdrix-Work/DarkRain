@@ -1,93 +1,17 @@
+import {SaveMenu} from './SaveMenu.js';
+import {AccessibilityUI} from './AccessibilityUI.js';
+import {anomalyStyle} from '../core/settings/Accessibility.js';
+import {SettingsMenu} from './SettingsMenu.js';
+import {normalizeSettings} from '../core/settings/SettingsSchema.js';
+import {PooledParticles} from '../systems/PooledParticles.js';
+import { GearPanel } from './GearPanel.js';
 import { globalEventBus, GameEvents } from '../core/EventBus.js';
 import { getItem } from '../data/items.js';
 import { CharacterCreator } from './CharacterCreator.js';
 import { CharacterPreview } from './CharacterPreview.js';
 import { ItemIcons } from './ItemIcons.js';
 import * as THREE from 'three';
-
-/**
- * Control listings for the Controls page. Each entry is
- * [actionName, displayLabel, fallbackKeys]. Key bindings are read live
- * from the game's InputManager; fallbackKeys cover actions whose keys are
- * hardcoded in InputManager rather than stored in its bindings map.
- */
-const CONTROL_SECTIONS = [
-    {
-        title: 'Movement',
-        actions: [
-            ['moveForward', 'Move Forward'],
-            ['moveBackward', 'Move Backward'],
-            ['moveLeft', 'Strafe Left'],
-            ['moveRight', 'Strafe Right'],
-            ['sprint', 'Sprint'],
-            ['jump', 'Jump'],
-            ['crouch', 'Crouch / Sneak'],
-        ]
-    },
-    {
-        title: 'Combat',
-        actions: [
-            ['fire', 'Fire Weapon'],
-            ['aim', 'Aim Down Sights'],
-            ['reload', 'Reload'],
-            ['melee', 'Melee Attack'],
-            ['slot1', 'Weapon Slot 1'],
-            ['slot2', 'Weapon Slot 2'],
-            ['slot3', 'Weapon Slot 3'],
-            ['slot4', 'Weapon Slot 4'],
-        ]
-    },
-    {
-        title: 'Interaction',
-        actions: [
-            ['interact', 'Interact / Loot'],
-            ['flashlight', 'Toggle Flashlight'],
-            ['favorites', 'Favorites'],
-            ['throw_bolt', 'Throw Bolt (anomaly probe)', ['KeyG']],
-            ['toggle_detector', 'Toggle Anomaly Detector', ['KeyN']],
-        ]
-    },
-    {
-        title: 'System',
-        actions: [
-            ['inventory', 'Inventory'],
-            ['map', 'Map'],
-            ['quicksave', 'Quick Save'],
-            ['quickload', 'Quick Load'],
-            ['pause', 'Pause Menu'],
-        ]
-    },
-];
-
-/**
- * Default bindings mirror InputManager.setupDefaultBindings() so the
- * Controls page can render before the game instance exists.
- */
-const DEFAULT_BINDINGS = {
-    moveForward: ['KeyW', 'ArrowUp'],
-    moveBackward: ['KeyS', 'ArrowDown'],
-    moveLeft: ['KeyA', 'ArrowLeft'],
-    moveRight: ['KeyD', 'ArrowRight'],
-    jump: ['Space'],
-    crouch: ['KeyC', 'ControlLeft'],
-    sprint: ['ShiftLeft'],
-    interact: ['KeyE'],
-    reload: ['KeyR'],
-    inventory: ['Tab', 'KeyI'],
-    flashlight: ['KeyF'],
-    map: ['KeyM'],
-    favorites: ['KeyQ'],
-    quicksave: ['F5'],
-    quickload: ['F9'],
-    fire: ['Mouse0'],
-    aim: ['Mouse2'],
-    melee: ['KeyV'],
-    slot1: ['Digit1'],
-    slot2: ['Digit2'],
-    slot3: ['Digit3'],
-    slot4: ['Digit4'],
-    pause: ['Escape'],
-};
+import { ExperienceHUD } from './ExperienceHUD.js';
 
 /**
  * UIManager - Handles all UI elements, menus, and interactions
@@ -151,11 +75,12 @@ export class UIManager {
     init() {
         this.setupEventListeners();
         this.setupPauseMenu();
-        this.setupMainMenu();
+        this.setupMainMenu();this.saveMenu=new SaveMenu(this);
         this.setupControlsMenu();
         this.createFlashlightUI();
         this.createZoneUI();
         this.hideAllMenus();
+        this.experienceHUD = new ExperienceHUD(this.game, this.elements.hud);
     }
 
     setupEventListeners() {
@@ -180,7 +105,10 @@ export class UIManager {
             this.closeMenu('pause', true);
         });
         
-        this.eventBus.on(GameEvents.PLAYER_DAMAGE, (data) => {
+        this._rawOff=globalEventBus.on('input:raw-unavailable',()=>this.showNotification('Raw input unavailable. Standard pointer movement is active.','info'));
+        this.accessibilityUI=new AccessibilityUI(this);
+        this._damageOff=globalEventBus.on('combat:confirmed-damage',({amount})=>{if(!this.game.settings.damageNumbers)return;let el=document.getElementById('damage-readout');if(!el){el=document.createElement('span');el.id='damage-readout';document.body.append(el);}el.textContent='−'+Math.ceil(amount);el.hidden=false;clearTimeout(this._damageTimer);this._damageTimer=setTimeout(()=>{el.hidden=true;},650);});
+        this.eventBus.on('player:injured', (data) => {
             this.showDamageIndicator(data.direction);
         });
         
@@ -247,6 +175,7 @@ export class UIManager {
         on('resume-btn', () => this.eventBus.emit(GameEvents.GAME_RESUME));
         on('save-btn', () => this.saveFromPause());
         on('load-btn', () => this.loadFromPause());
+        on('photo-btn',()=>this.game.photoMode?.show());on('statistics-btn',()=>this.game.photoMode?.showStatistics());
         on('settings-btn', () => this.showSettings());
         on('controls-btn', () => this.showControls());
         on('quit-btn', () => this.confirmQuit());
@@ -262,25 +191,12 @@ export class UIManager {
     /**
      * Save from the pause menu without leaving it
      */
-    saveFromPause() {
-        if (!this.game) return;
-        this.eventBus.emit(GameEvents.SAVE_GAME);
-        this.showNotification('Game saved', 'success');
-    }
+    saveFromPause() {this.saveMenu.show('save');}
 
     /**
      * Load the autosave from the pause menu (resume into the loaded game)
      */
-    loadFromPause() {
-        if (!this.game?.saveSystem?.hasSave || !this.game.saveSystem.hasSave('autosave')) {
-            this.showNotification('No saved game found', 'warning');
-            return;
-        }
-        this.showConfirm('Load Game', 'Load the last save? Unsaved progress will be lost.', () => {
-            this.eventBus.emit(GameEvents.GAME_RESUME);
-            this.eventBus.emit(GameEvents.LOAD_GAME);
-        });
-    }
+    loadFromPause() {this.saveMenu.show('load');}
 
     /**
      * In-game confirm dialog (replaces the native confirm() popup)
@@ -311,12 +227,12 @@ export class UIManager {
         };
         on('new-game-btn', () => this.startNewGame());
         on('continue-btn', () => this.continueGame());
-        on('load-game-btn', () => this.continueGame());
+        on('load-game-btn', () => this.saveMenu.show('load'));
         on('options-btn', () => this.showSettings());
         on('controls-main-btn', () => this.showControls());
         on('main-menu-btn', () => this.quitToMenu());
         on('reload-btn', () => this.respawnFromSave());
-        this.eventBus.on(GameEvents.PLAYER_DEATH, () => this.showDeathScreen());
+        this.eventBus.on(GameEvents.PLAYER_DEATH,()=>{this.showDeathScreen('Recording expedition outcome…');const reload=document.getElementById('reload-btn');reload.disabled=true;void this.game.saveSystem.handleDeath().then(mode=>{reload.onclick=null;if(this.game.gameState==='dead')this.showDeathScreen(mode==='ended'?'Hardcore expedition ended. Its records are archived.':'Your pack remains where you fell. Respawn at your entry refuge.');}).catch(()=>{this.showNotification('Outcome could not be saved. Retry before leaving.','danger');reload.disabled=false;reload.textContent='Retry recording outcome';reload.onclick=()=>{this.game.saveSystem.deathTask=null;this.eventBus.emit(GameEvents.PLAYER_DEATH);};});});
     }
 
     /**
@@ -331,20 +247,22 @@ export class UIManager {
     }
 
     showMainMenu() {
+        this.hideDeathScreen();
+        this.hideConfirm();
         this.hideAllMenus();
         const menu = document.getElementById('main-menu');
         if (menu) {
             this._showEl(menu);
         }
-        // Disable Continue/Load when no save exists
-        const hasSave = this.game?.saveSystem?.hasSave('autosave');
-        for (const id of ['continue-btn', 'load-game-btn']) {
-            const btn = document.getElementById(id);
-            if (btn) btn.disabled = !hasSave;
-        }
+        this.refreshSaveAvailability();
         if (document.pointerLockElement) document.exitPointerLock();
         this.updatePointerHint(false);
         this.setHudVisible(false);
+    }
+
+    refreshSaveAvailability() {
+        const hasSave=!!this.game?.saveSystem?.newestSlot();
+        for(const id of ['continue-btn','load-game-btn']){const button=document.getElementById(id);if(button)button.disabled=!hasSave;}
     }
 
     hideMainMenu() {
@@ -360,6 +278,7 @@ export class UIManager {
      * character creator first so the player picks their look
      */
     startNewGame() {
+        this.game._tutorialRequested=!!document.getElementById('tutorial-start')?.checked;this.game._newDeathMode=document.getElementById('hardcore-start')?.checked?'permadeath':'drop';
         this.hideMainMenu();
         this.showCharacterCreator();
     }
@@ -378,13 +297,13 @@ export class UIManager {
      * Continue from the autosave
      */
     continueGame() {
-        if (!this.game?.saveSystem?.hasSave('autosave')) {
+        if (!this.game?.saveSystem?.newestSlot()) {
             this.showNotification('No saved game found', 'warning');
             return;
         }
         this.hideMainMenu();
         if (this.game && typeof this.game.beginSession === 'function') {
-            this.game.beginSession(true);
+            this.game.beginSession(true,this.game.saveSystem.newestSlot());
         }
     }
 
@@ -410,7 +329,7 @@ export class UIManager {
         const reasonText = typeof reason === 'string' ? reason : (reason?.message || reason?.cause || '');
         if (r && reasonText) r.textContent = reasonText;
         const rb = document.getElementById('reload-btn');
-        if (rb) rb.disabled = !this.game?.saveSystem?.hasSave('autosave');
+        if(rb){rb.disabled=this.game?.session?.status==='ended'||!this.game?.saveSystem?.deathTask;rb.textContent=this.game?.session?.status==='ended'?'Expedition ended':'Respawn at refuge';}
         this.updatePointerHint(false);
         this.setHudVisible(false);
     }
@@ -423,19 +342,7 @@ export class UIManager {
         }
     }
 
-    respawnFromSave() {
-        if (!this.game?.saveSystem?.hasSave('autosave')) {
-            this.showNotification('No saved game found', 'warning');
-            return;
-        }
-        this.hideDeathScreen();
-        this.game.saveSystem.loadGame('autosave');
-        if (this.game.player) this.game.player.isActive = true;
-        this.game.gameState = 'playing';
-        this.game.isPaused = false;
-        this.setHudVisible(true);
-        this.game.inputManager?.requestPointerLock();
-    }
+    async respawnFromSave(){try{if(!await this.game.saveSystem.respawn())return;this.hideDeathScreen();this.setHudVisible(true);this.game.inputManager.requestPointerLock();}catch{this.showNotification('Respawn unavailable until the checkpoint is saved.','danger');}}
 
     /**
      * Confirm quit dialog
@@ -561,7 +468,7 @@ export class UIManager {
             ping.textContent = 'scanning…';
             ping.className = 'det-ping idle';
         } else {
-            const what = data.kind === 'artifact' ? '◉ artifact' : '◎ anomaly';
+            const style=anomalyStyle(data.kind==='artifact'?'artifact':data.type,this.game.settings.anomalyPalette);const what=style.symbol+' '+style.label;ping.style.color='#FFFFFF';ping.style.borderLeft='3px solid '+style.color;ping.style.paddingLeft='6px';
             ping.textContent = `${what} — ${Math.round(data.distance)}m`;
             ping.className = 'det-ping hot';
         }
@@ -629,8 +536,9 @@ export class UIManager {
      * @param {HTMLElement} el
      */
     _showEl(el) {
+        el._cancelHide?.();
         el.classList.remove('hidden');
-        el.style.display = 'flex';
+        el.style.display = 'flex';el.style.pointerEvents='';
         // Force a reflow so the transition runs from the hidden state
         void el.offsetWidth;
         el.classList.add('visible');
@@ -642,7 +550,8 @@ export class UIManager {
      */
     _hideEl(el) {
         if (el.classList.contains('hidden')) return;
-        el.classList.remove('visible');
+        el._cancelHide?.();
+        el.classList.remove('visible');el.style.pointerEvents='none';
         let done = false;
         const cleanup = () => {
             if (done) return;
@@ -650,7 +559,9 @@ export class UIManager {
             el.classList.add('hidden');
             el.style.display = 'none';
             el.removeEventListener('transitionend', cleanup);
+            el._cancelHide = null;
         };
+        el._cancelHide = () => { done = true; el.removeEventListener('transitionend', cleanup); };
         el.addEventListener('transitionend', cleanup);
         // Fallback in case transitionend never fires
         setTimeout(cleanup, 260);
@@ -661,6 +572,7 @@ export class UIManager {
      * @param {string} menuName - Name of the menu
      */
     toggleMenu(menuName) {
+        if (this.game?.gameState !== 'playing' || this.game?.dialogueSystem?.isActive || ['journal', 'pause', 'settings', 'controls'].includes(this.activeMenu)) return;
         const isCurrentlyOpen = this.menuStates[menuName];
         
         if (isCurrentlyOpen) {
@@ -677,12 +589,19 @@ export class UIManager {
     openMenu(menuName) {
         // Close any currently active menu first
         if (this.activeMenu && this.activeMenu !== menuName) {
-            this.closeMenu(this.activeMenu);
+            this.closeMenu(this.activeMenu, false);
         }
         
         // Update state
         this.menuStates[menuName] = true;
         this.activeMenu = menuName;
+        if (['inventory', 'loot', 'map', 'favorites','saves','photo','statistics'].includes(menuName) && this.game?.gameState === 'playing') {
+            if (this._menuPauseBefore === undefined) this._menuPauseBefore = this.game.isPaused;
+            this.game.isPaused = true;
+        }
+        this.game?.inputManager?.clearHeldInput();
+        this.hideInteractionPrompt();
+        if (this.experienceHUD) this.experienceHUD.root.hidden = true;
         
         // Show the menu (fluid transition)
         const menuElement = this.getMenuElement(menuName);
@@ -776,6 +695,7 @@ export class UIManager {
      * Toggle the favorites quick-access menu (Q)
      */
     toggleFavorites() {
+        if (this.game?.gameState !== 'playing' || this.game?.dialogueSystem?.isActive || ['journal', 'pause', 'settings', 'controls'].includes(this.activeMenu)) return;
         if (this.activeMenu === 'favorites') {
             this.closeMenu('favorites');
         } else {
@@ -844,6 +764,11 @@ export class UIManager {
                 this.activeMenu = null;
             }
             
+            if (['inventory', 'loot', 'map', 'favorites','saves','photo','statistics'].includes(menuName) && this._menuPauseBefore !== undefined) {
+                this.game.isPaused = this._menuPauseBefore;
+                this._menuPauseBefore = undefined;
+            }
+            this.game?.inputManager?.clearHeldInput();
             // Hide the menu (fluid transition out)
             this._hideEl(menuElement);
             
@@ -999,7 +924,7 @@ export class UIManager {
      * Show interaction prompt
      * @param {string} text - Prompt text
      */
-    showInteractionPrompt(text = 'Press [E] to interact') {        if (this.elements.interactionPrompt) {
+    showInteractionPrompt(text = `Press [${this.game.inputManager.actionLabel('interact')}] to interact`) {        if (this.elements.interactionPrompt) {
             this.elements.interactionPrompt.textContent = text;
             this.elements.interactionPrompt.classList.remove('hidden');
         }
@@ -1072,10 +997,13 @@ export class UIManager {
      * Update inventory display
      */
     updateInventoryDisplay() {
+        this.gearPanel ||= new GearPanel(this);
+        this.gearPanel.refresh();
         // 3D character panel: create once, it subscribes to inventory open/close events
         if (!this.characterPreview && this.game) {
             this.characterPreview = new CharacterPreview(this.game);
         }
+        if(this.activeMenu==='inventory'&&!this.characterPreview?.preview)this.characterPreview?.start();
         this.characterPreview?.refresh();
         // Re-query: the grid is cached at construction, possibly before DOM ready
         if (!this.elements.inventoryGrid) {
@@ -1093,8 +1021,11 @@ export class UIManager {
         
         for (let i = 0; i < maxSlots; i++) {
             const slot = document.createElement('div');
-            slot.className = 'inventory-slot';
+            slot.className = 'inventory-slot';slot.tabIndex=0;slot.setAttribute('role','button');
             slot.dataset.index = i;
+            slot.draggable=true;slot.addEventListener('dragstart',e=>e.dataTransfer.setData('text/plain',String(i)));
+            slot.addEventListener('dragover',e=>e.preventDefault());
+            slot.addEventListener('drop',e=>{e.preventDefault();this.game.inventorySystem.moveItem(Number(e.dataTransfer.getData('text/plain')),i);this.updateInventoryDisplay();});
             
             const item = inventory[i];
             if (item) {
@@ -1117,7 +1048,8 @@ export class UIManager {
                 });
                 
                 // Click handlers
-                slot.addEventListener('click', () => this.onInventorySlotClick(i, item));
+                slot.addEventListener('click', () => this.gearPanel.describe(item,i));
+                slot.addEventListener('dblclick',()=>{if(item.type==='equipment')this.game.equipmentSystem.equip(item.id);else invSys.useItem(i);this.updateInventoryDisplay();});
                 slot.addEventListener('contextmenu', (e) => {
                     e.preventDefault();
                     this.showItemContextMenu(e, i, item);
@@ -1193,6 +1125,7 @@ export class UIManager {
             { label: 'Drop', action: () => this.dropItem(index, item) }
         ];
         
+        if(item.type==='equipment')options.unshift({label:'Equip',action:()=>{this.game.equipmentSystem.equip(item.id);this.updateInventoryDisplay();}});
         if (item.type === 'weapon') {
             options.unshift({ label: 'Equip', action: () => this.equipItem(index, item) });
         }
@@ -1277,6 +1210,7 @@ export class UIManager {
      * Close settings, returning to the pause menu when it was opened from there
      */
     closeSettings() {
+        this.settingsPanel?.cancelCapture();
         this.closeMenu('settings', false);
         if (this._settingsReturn === 'pause' && this.game?.isPaused) {
             this.openMenu('pause');
@@ -1307,6 +1241,7 @@ export class UIManager {
      * Close the controls page, returning to the pause menu when it was opened from there
      */
     closeControls() {
+        this.settingsPanel?.cancelCapture();
         this.closeMenu('controls', false);
         if (this._controlsReturn === 'pause' && this.game?.isPaused) {
             this.openMenu('pause');
@@ -1318,45 +1253,7 @@ export class UIManager {
      * Build the controls list from the game's InputManager bindings
      * (falling back to DEFAULT_BINDINGS before the game exists)
      */
-    populateControlsList() {
-        const list = document.getElementById('controls-list');
-        if (!list) return;
-        const bindings = this.game?.inputManager?.bindings || null;
-        const getKeys = (action, fallback) => {
-            const bound = bindings ? bindings.get(action) : null;
-            if (bound && bound.length) return bound;
-            if (fallback && fallback.length) return fallback;
-            return DEFAULT_BINDINGS[action] || [];
-        };
-        list.innerHTML = '';
-        for (const section of CONTROL_SECTIONS) {
-            const sec = document.createElement('div');
-            sec.className = 'controls-section';
-            const heading = document.createElement('h3');
-            heading.textContent = section.title;
-            sec.appendChild(heading);
-            for (const [action, label, fallback] of section.actions) {
-                const keys = getKeys(action, fallback);
-                const row = document.createElement('div');
-                row.className = 'control-row';
-                const name = document.createElement('span');
-                name.className = 'control-name';
-                name.textContent = label;
-                const keysEl = document.createElement('span');
-                keysEl.className = 'control-keys';
-                for (const key of keys) {
-                    const badge = document.createElement('kbd');
-                    badge.className = 'key-badge';
-                    badge.textContent = this.formatKeyCode(key);
-                    keysEl.appendChild(badge);
-                }
-                row.appendChild(name);
-                row.appendChild(keysEl);
-                sec.appendChild(row);
-            }
-            list.appendChild(sec);
-        }
-    }
+    populateControlsList(){this.settingsPanel ||= new SettingsMenu(this);this.settingsPanel.renderBindings(document.getElementById('controls-list'));}
 
     /**
      * Render a key code as a friendly label (KeyW -> W, Mouse0 -> Left Click, ...)
@@ -1364,6 +1261,7 @@ export class UIManager {
      * @returns {string}
      */
     formatKeyCode(code) {
+        if(code.includes('+'))return code.split('+').map(part=>this.formatKeyCode(part)).join(' + ');
         const names = {
             'Space': 'Space', 'Tab': 'Tab', 'Escape': 'Esc',
             'Mouse0': 'Left Click', 'Mouse1': 'Middle Click', 'Mouse2': 'Right Click',
@@ -1379,21 +1277,7 @@ export class UIManager {
         return code;
     }
 
-    getStoredSettings() {
-        const defaults = {
-            fullscreen: false, fov: 75, showFps: false,
-            quality: 'medium', renderScale: 100, renderDistance: 500,
-            shadows: true, autoQuality: false,
-            post: true, bloom: true, aa: true, grain: true, vignette: true, chroma: false,
-            masterVolume: 100, musicVolume: 50, sfxVolume: 80,
-            sensitivity: 50, invertY: false
-        };
-        try {
-            const raw = localStorage.getItem('darkrain_settings');
-            if (raw) return { ...defaults, ...JSON.parse(raw) };
-        } catch (_) { /* corrupted storage - use defaults */ }
-        return defaults;
-    }
+    getStoredSettings() {try{return normalizeSettings(JSON.parse(localStorage.getItem('darkrain_settings')||'{}'));}catch{return normalizeSettings();}}
 
     saveStoredSettings(st) {
         try {
@@ -1401,113 +1285,8 @@ export class UIManager {
         } catch (_) { /* storage unavailable */ }
     }
 
-    populateSettingsPanel() {
-        const st = this.getStoredSettings();
-        const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
-        const setChecked = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
-        const setLabel = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-
-        setChecked('set-fullscreen', st.fullscreen);
-        setVal('set-fov', st.fov); setLabel('set-fov-val', st.fov);
-        setChecked('set-show-fps', st.showFps);
-
-        setVal('set-quality', st.quality);
-        setVal('set-render-scale', st.renderScale); setLabel('set-render-scale-val', st.renderScale + '%');
-        setVal('set-render-distance', st.renderDistance); setLabel('set-render-distance-val', st.renderDistance + 'm');
-        setChecked('set-shadows', st.shadows);
-        setChecked('set-auto-quality', st.autoQuality);
-
-        setChecked('set-post', st.post);
-        setChecked('set-bloom', st.bloom);
-        setChecked('set-aa', st.aa);
-        setChecked('set-grain', st.grain);
-        setChecked('set-vignette', st.vignette);
-        setChecked('set-chroma', st.chroma);
-
-        setVal('set-master-volume', st.masterVolume); setLabel('set-master-volume-val', st.masterVolume);
-        setVal('set-music-volume', st.musicVolume); setLabel('set-music-volume-val', st.musicVolume);
-        setVal('set-sfx-volume', st.sfxVolume); setLabel('set-sfx-volume-val', st.sfxVolume);
-
-        setVal('set-sensitivity', st.sensitivity); setLabel('set-sensitivity-val', st.sensitivity);
-        setChecked('set-invert-y', st.invertY);
-
-        this._wireSettingsControls();
-    }
-
-    /**
-     * Wire live-apply listeners once (guarded so we never double-bind)
-     */
-    _wireSettingsControls() {
-        if (this._settingsWired) return;
-        this._settingsWired = true;
-
-        const live = () => this.applySettings({ silent: true });
-
-        // Range inputs: update the value label live, apply on change
-        const ranges = [
-            ['set-fov', 'set-fov-val', v => `${v}`],
-            ['set-render-scale', 'set-render-scale-val', v => `${v}%`],
-            ['set-render-distance', 'set-render-distance-val', v => `${v}m`],
-            ['set-master-volume', 'set-master-volume-val', v => `${v}`],
-            ['set-music-volume', 'set-music-volume-val', v => `${v}`],
-            ['set-sfx-volume', 'set-sfx-volume-val', v => `${v}`],
-            ['set-sensitivity', 'set-sensitivity-val', v => `${v}`],
-        ];
-        for (const [id, labelId, fmt] of ranges) {
-            const el = document.getElementById(id);
-            if (!el) continue;
-            el.addEventListener('input', () => {
-                const label = document.getElementById(labelId);
-                if (label) label.textContent = fmt(el.value);
-            });
-            el.addEventListener('change', live);
-        }
-
-        // Toggles and selects apply immediately
-        for (const id of ['set-fullscreen', 'set-show-fps', 'set-quality', 'set-shadows',
-                          'set-auto-quality', 'set-post', 'set-bloom', 'set-aa',
-                          'set-grain', 'set-vignette', 'set-chroma', 'set-invert-y']) {
-            const el = document.getElementById(id);
-            if (el) el.addEventListener('change', live);
-        }
-
-        document.getElementById('settings-back')?.addEventListener('click', () => this.closeSettings());
-        document.getElementById('settings-reset')?.addEventListener('click', () => {
-            try { localStorage.removeItem('darkrain_settings'); } catch (_) {}
-            this.populateSettingsPanel();
-            this.applySettings({ silent: true });
-            this.showNotification('Settings reset to defaults', 'info');
-        });
-    }
-
-    /**
-     * Read the settings panel into a settings object
-     */
-    readSettingsPanel() {
-        const val = (id) => document.getElementById(id)?.value;
-        const checked = (id) => !!document.getElementById(id)?.checked;
-        return {
-            fullscreen: checked('set-fullscreen'),
-            fov: parseInt(val('set-fov'), 10) || 75,
-            showFps: checked('set-show-fps'),
-            quality: val('set-quality') || 'medium',
-            renderScale: parseInt(val('set-render-scale'), 10) || 100,
-            renderDistance: parseInt(val('set-render-distance'), 10) || 500,
-            shadows: checked('set-shadows'),
-            autoQuality: checked('set-auto-quality'),
-            post: checked('set-post'),
-            bloom: checked('set-bloom'),
-            aa: checked('set-aa'),
-            grain: checked('set-grain'),
-            vignette: checked('set-vignette'),
-            chroma: checked('set-chroma'),
-            masterVolume: parseInt(val('set-master-volume'), 10) ?? 100,
-            musicVolume: parseInt(val('set-music-volume'), 10) ?? 50,
-            sfxVolume: parseInt(val('set-sfx-volume'), 10) ?? 80,
-            sensitivity: parseInt(val('set-sensitivity'), 10) || 50,
-            invertY: checked('set-invert-y')
-        };
-    }
+    populateSettingsPanel(){this.settingsPanel ||= new SettingsMenu(this);this.settingsPanel.populate();}
+    readSettingsPanel(){return this.settingsPanel?.read()||this.getStoredSettings();}
 
     /**
      * Apply stored settings to the live game (called once after boot)
@@ -1530,35 +1309,23 @@ export class UIManager {
     /**
      * Push a settings object into the live game systems
      */
-    _applySettingsObject(st) {
-        if (this.game?.audioManager) {
-            this.game.audioManager.setMasterVolume((st.masterVolume ?? 100) / 100);
-            this.game.audioManager.setMusicVolume((st.musicVolume ?? 50) / 100);
-            this.game.audioManager.setSFXVolume((st.sfxVolume ?? 80) / 100);
+    _applySettingsObject(value) {
+        const st=normalizeSettings(value),game=this.game;
+        if(game.audioManager){game.audioManager.setMasterVolume(st.masterVolume/100);game.audioManager.setMusicVolume(st.musicVolume/100);game.audioManager.setSFXVolume(st.sfxVolume/100);game.audioManager.setVoiceVolume(st.voiceVolume/100);game.audioManager.setDynamicRange(st.dynamicRange);game.audioManager.setMonoAudio(st.monoAudio);}
+        if(game.player){game.player.mouseSensitivity=.001*st.sensitivity/50;game.player.invertY=st.invertY;game.player.invertX=st.invertX;}
+        if(game.inputManager){game.inputManager.rawInput=st.rawInput;game.inputManager.options=st;game.inputManager.mouseResponse?.reset();game.inputManager.loadBindings(st.bindings);}
+        Object.assign(game.settings,{difficulty:st.difficulty,hudOpacity:st.hudOpacity,damageNumbers:st.damageNumbers,subtitles:st.subtitles,cameraMotion:st.cameraMotion,weaponMotion:st.weaponMotion,lensEffects:st.lensEffects,anomalyPalette:st.anomalyPalette,visualAudioCues:st.visualAudioCues});document.documentElement.style.setProperty('--hud-opacity',String(st.hudOpacity/100));
+        if(!st.subtitles){const caption=document.getElementById('audio-subtitle');if(caption)caption.hidden=true;}if(!st.damageNumbers){const number=document.getElementById('damage-readout');if(number)number.hidden=true;}
+        this.accessibilityUI?.apply(st);game.anomalySystem?.applyAccessibility(st.anomalyPalette);
+        this.updateFpsVisibility(st.showFps);
+        const graphics={quality:st.quality,renderScale:st.renderScale/100,renderDistance:st.renderDistance,shadows:st.shadows,shadowSize:st.shadowSize,autoQuality:st.autoQuality,postProcessing:st.post,ambientOcclusion:st.ambientOcclusion,lensDirt:st.lensDirt&&st.lensEffects,rollingShutter:st.rollingShutter&&st.lensEffects,bloom:st.bloom&&st.lensEffects,antiAliasing:st.aa,filmGrain:st.grain,vignette:st.vignette&&st.lensEffects,chroma:st.chroma&&st.lensEffects,fov:st.fov,reflectionQuality:st.reflectionQuality,vegetationDetail:st.vegetationDetail,particleQuality:st.particleQuality},signature=JSON.stringify(graphics);
+        if(signature!==this._lastGraphics){this.eventBus.emit('settings:graphics',graphics);this._lastGraphics=signature;}
+        const pool=game.effectsSystem?.pooledParticles;if(pool&&pool.quality!==st.particleQuality){pool.dispose();game.effectsSystem.pooledParticles=new PooledParticles(game.scene,st.particleQuality,game.renderer);}
+        const display={fullscreen:st.fullscreen,resolution:st.resolution,vsync:st.vsync},displaySignature=JSON.stringify(display);
+        if(displaySignature!==this._lastDisplay){this._lastDisplay=displaySignature;
+            if(window.darkRainDesktop?.display)void window.darkRainDesktop.display.configure(display).then(state=>{this.displayState=state;const button=document.getElementById('settings-restart');if(button)button.hidden=!state.restartRequired;const status=document.getElementById('settings-display-status');if(status)status.textContent=state.restartRequired?'Vsync changes take effect after restart.':state.fullscreen?'Fullscreen uses the display resolution.':`Window content: ${state.width} × ${state.height}`;}).catch(()=>{this._lastDisplay=null;this.showNotification('Display change could not be applied.','warning');});
+            else this._applyFullscreen(st.fullscreen);
         }
-        if (this.game?.player) {
-            this.game.player.mouseSensitivity = 0.001 * ((st.sensitivity ?? 50) / 50);
-            this.game.player.invertY = !!st.invertY;
-        }
-        // Fullscreen is applied here (not in the graphics event)
-        this._applyFullscreen(!!st.fullscreen);
-        // FPS overlay visibility
-        this.updateFpsVisibility(!!st.showFps);
-        // Everything render-related goes through the graphics event
-        this.eventBus.emit('settings:graphics', {
-            quality: st.quality,
-            renderScale: (st.renderScale ?? 100) / 100,
-            renderDistance: st.renderDistance,
-            shadows: st.shadows,
-            autoQuality: st.autoQuality,
-            postProcessing: st.post,
-            bloom: st.bloom,
-            antiAliasing: st.aa,
-            filmGrain: st.grain,
-            vignette: st.vignette,
-            chroma: st.chroma,
-            fov: st.fov
-        });
     }
 
     /**
@@ -1600,13 +1367,12 @@ export class UIManager {
         if (this.elements.loadingScreen) {
             if (show) {
                 this.elements.loadingScreen.classList.remove('hidden');
+                this.elements.loadingScreen.style.opacity = '1';
             } else {
-                // Fade out
-                this.elements.loadingScreen.style.opacity = '0';
-                setTimeout(() => {
-                    this.elements.loadingScreen.classList.add('hidden');
-                    this.elements.loadingScreen.style.opacity = '1';
-                }, 500);
+                // Session transitions own visibility; delayed hides can mask a
+                // newly opened loader or leave a captured frame covering play.
+                this.elements.loadingScreen.classList.add('hidden');
+                this.elements.loadingScreen.style.opacity = '1';
             }
         }
     }
@@ -1740,12 +1506,9 @@ export class UIManager {
         this.updateCompass(this.game.player.cameraYaw);
         
         // Update ammo if weapon equipped
-        if (this.game.player.equippedWeapon) {
-            this.updateAmmo(
-                this.game.player.equippedWeapon.currentAmmo,
-                this.game.player.equippedWeapon.reserveAmmo
-            );
-        }
+        const weapon = this.game.weaponManager?.equippedWeapon || this.game.player.equippedWeapon;
+        this.updateAmmo(weapon?.currentAmmo ?? 0, weapon?.reserveAmmo ?? 0);
+        this.experienceHUD?.update(deltaTime);
         
         // Decay detector ping readout
         if (this.detectorPingTimer > 0) {
@@ -1754,15 +1517,17 @@ export class UIManager {
         }
 
         // Update interaction prompt
-        if (this.game.player.lookingAt) {
+        if (this.game.player.lookingAt && !this.activeMenu && !this.game.isPaused) {
             const prompt = this.game.player.lookingAt.userData.promptText;
-            this.showInteractionPrompt(prompt ? `Press [E] - ${prompt}` : undefined);
+            this.showInteractionPrompt(prompt ? `Press [${this.game.inputManager.actionLabel('interact')}] - ${prompt}` : undefined);
         } else {
             this.hideInteractionPrompt();
         }
     }
 
     dispose() {
+        this.saveMenu?.dispose();this.settingsPanel?.dispose();this._rawOff?.();this.accessibilityUI?.dispose();this._damageOff?.();clearTimeout(this._captionTimer);clearTimeout(this._damageTimer);
+        this.experienceHUD?.dispose();
         // Clean up notifications
         this.notifications.forEach(n => n.remove());
         this.notifications = [];

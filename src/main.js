@@ -1,5 +1,19 @@
+import {playerError} from './shared/PlayerErrors.js';
+import {ScavengingOnboarding} from './systems/ScavengingOnboarding.js';
+import {GameFeel} from './systems/GameFeel.js';
+import {CampaignStatistics} from './systems/CampaignStatistics.js';
+import {PhotoMode} from './ui/PhotoMode.js';
+import {newSession} from './shared/SaveSchema.js';
+import {runStartupCalibration} from './core/startup/StartupCalibration.js';
+import {StartupTrace} from './core/startup/StartupTrace.js';
+import {preloadAnatomicalActors} from './entities/AnatomicalActor.js';
+import {preloadHumanAnimations} from './systems/HumanAnimationSystem.js';
+import {TunnelTutorial} from './systems/TunnelTutorial.js';
+import { paintLoadingFrame, warmSceneShaders } from './render/ShaderWarmup.ts';
+import { WorldDetailSystem } from './systems/WorldDetailSystem.js';
+import { PhysicsSystem } from './systems/PhysicsSystem.js';
 /**
- * Zone: Heart of Darkness
+ * Dark Rain
  * Main Entry Point
  */
 
@@ -33,6 +47,11 @@ import { DialogueUI } from './ui/DialogueUI.js';
 import { DebugConsole } from './ui/DebugConsole.js';
 import { DevMenu } from './ui/DevMenu.js';
 import { RagdollSystem } from './systems/RagdollSystem.js';
+import { ProgressionSystem } from './systems/ProgressionSystem.js';
+import { BodyMotionSystem } from './systems/BodyMotionSystem.js';
+import { FieldOperations } from './systems/FieldOperations.js';
+import { FieldJournal } from './ui/FieldJournal.js';
+import { ReflectionSystem } from './systems/ReflectionSystem.js';
 
 // Make THREE available globally for debugging
 window.THREE = THREE;
@@ -44,7 +63,10 @@ class StalkerGame extends Game {
     async init() {
         try {
             // Set loading state
+            this.startup=new StartupTrace();this._deferInitialWorld=true;
             this.gameState = 'loading';
+            this._bootInitializing=true;
+            if(!this._rendererLostHandler){this._rendererLostHandler=()=>{void this.recoverGraphics();};window.addEventListener('darkrain:renderer-lost',this._rendererLostHandler);}
             
             // Show loading screen
             this.uiManager?.showLoadingScreen(true);
@@ -54,7 +76,13 @@ class StalkerGame extends Game {
             await super.init();
             
             // Initialize additional systems
+            await this.startup.measure('characterAssets',()=>Promise.all([preloadAnatomicalActors(),preloadHumanAnimations()]));
             this.initAdditionalSystems();
+            // The first pipeline was created before the first-person scene existed.
+            this.buildComposer();
+            await this.saveSystem.ready;
+            // Construct physics on world entry, after static geometry exists.
+
 
             // Base init loaded the level before loot/compass systems existed,
             // so their populate step was skipped - run it now that they do
@@ -65,6 +93,9 @@ class StalkerGame extends Game {
             
             // Register sample content
             this.registerSampleContent();
+            this.fieldOperations = new FieldOperations(this);
+            this.fieldJournal = new FieldJournal(this);
+            this.tutorialSystem=new TunnelTutorial(this);this.onboarding=new ScavengingOnboarding(this);this.gameFeel=new GameFeel(this);
             
             // Setup starting equipment
             this.setupStartingEquipment();
@@ -80,6 +111,8 @@ class StalkerGame extends Game {
             this.uiManager?.applyStoredSettings();
             this.uiManager?.showLoadingScreen(false);
             this.uiManager?.showMainMenu();
+            this.setupStartupOptions();
+            this.startup.menuReady();this._bootInitializing=false;this.start();
             
         } catch (error) {
             console.error('Failed to initialize game:', error);
@@ -91,6 +124,8 @@ class StalkerGame extends Game {
 
     initAdditionalSystems() {
         console.log('Initializing additional systems...');
+        this.progressionSystem = new ProgressionSystem(this);
+        this.bodyMotionSystem = new BodyMotionSystem(this);
         
         // Route player interaction prompts to world objects (pickups, interactables)
         globalEventBus.on(GameEvents.PLAYER_INTERACT, (data) => {
@@ -148,7 +183,7 @@ class StalkerGame extends Game {
         this.questSystem = new QuestSystem(this);
         
         // Save system
-        this.saveSystem = new SaveSystem(this);
+        this.saveSystem = new SaveSystem(this);this.statisticsSystem=new CampaignStatistics(this);this.photoMode=new PhotoMode(this);
 
         // Zone life systems (S.T.A.L.K.E.R.-inspired)
         this.artifactSystem = new ArtifactSystem(this);
@@ -180,6 +215,7 @@ class StalkerGame extends Game {
         
         // Zone starting kit + briefing (once per game start)
         globalEventBus.on(GameEvents.GAME_START, () => {
+            if(this.currentLevelName==='tutorial_tunnel')return;
             if (this.inventorySystem && !this.inventorySystem.hasItem('detector')) {
                 this.inventorySystem.addItem('detector', 1);
             }
@@ -226,6 +262,7 @@ class StalkerGame extends Game {
     }
 
     setupStartingEquipment() {
+        if(this._tutorialRequested)return;
         console.log('Setting up starting equipment...');
         
         // Update loading progress
@@ -268,37 +305,124 @@ class StalkerGame extends Game {
      * Begin a play session from the main menu.
      * @param {boolean} fromSave - Load the autosave instead of a fresh start
      */
-    beginSession(fromSave) {
-        const freshStart = !(fromSave && this.saveSystem?.hasSave('autosave'));
-        if (!freshStart) {
-            this.saveSystem.loadGame('autosave');
-        } else if (this._sessionStarted) {
-            // New game after quitting to menu: reset the player, keep the world
-            this.resetPlayerForNewGame();
-        }
-        this._sessionStarted = true;
-        this.isPaused = false;
-        this.gameState = 'playing';
-        // Pointer lock needs a user gesture - the menu button click qualifies
+    setupStartupOptions(){
+        const status=document.getElementById('startup-status'),run=document.getElementById('calibrate-btn'),skip=document.getElementById('calibrate-skip-btn'),apply=document.getElementById('calibrate-apply-btn');
+        if(!localStorage.getItem('darkrain_settings')){const settings=this.uiManager.getStoredSettings();settings.autoQuality=true;localStorage.setItem('darkrain_settings',JSON.stringify(settings));this.uiManager.applyStoredSettings();}
+        if(status)status.textContent='Local session ready. Device check and tunnel training are optional.';
+        run?.addEventListener('click',async()=>{if(this._benchmarkController)return;const controller=new AbortController();this._benchmarkController=controller;run.disabled=true;skip.hidden=false;apply.hidden=true;
+            try{const result=await runStartupCalibration(this,controller.signal,value=>{if(status)status.textContent=`Checking this device… ${Math.round(value)}%`;});localStorage.setItem('darkrain_calibration',JSON.stringify(result));this._calibrationResult=result;if(status)status.textContent=`Suggested: ${result.recommended}. This short check is provisional; settings remain your choice.`;apply.textContent=`Use ${result.recommended} settings`;apply.hidden=false;}
+            catch(error){if(status)status.textContent='Device check skipped. Your settings and saves are kept.';}
+            finally{this._benchmarkController=null;run.disabled=false;skip.hidden=true;}
+        });
+        skip?.addEventListener('click',()=>this._benchmarkController?.abort());
+        apply?.addEventListener('click',()=>{if(!this._calibrationResult)return;const settings=this.uiManager.getStoredSettings();settings.quality=this._calibrationResult.recommended;settings.autoQuality=true;this.uiManager.saveStoredSettings(settings);this.uiManager.applyStoredSettings();apply.hidden=true;if(status)status.textContent='Suggested settings applied. You can change them in Options.';});
+    }
+    async warmWorldGraphics(){
+        this.viewmodelSystem?.prepare(this.renderer);
+        await this.startup.measure('shaderWarmup',()=>warmSceneShaders(this.renderer,[{scene:this.scene,camera:this.camera},{scene:this.viewmodelSystem.vmScene,camera:this.viewmodelSystem.vmCamera}],value=>this.uiManager?.updateLoadingProgress(75+value*20,'Preparing the first view…')));
+        this.dayNightCycle?.update(0);this.tutorialSystem?.update(0);await this.startup.measure('firstView',async()=>{this.render(true);await paintLoadingFrame();});this._graphicsWarmed=true;
+    }
+    async ensureWorldReady(level='zone_outskirts'){
+        if(!this.worldManager._initialized)await this.startup.measure('worldAssets',()=>this.worldManager.init());
+        if(!this.worldManager.currentLevel)await this.startup.measure('worldLoad',()=>this.loadLevel(level));
+        if(!this.physicsSystem){this.physicsSystem=new PhysicsSystem(this);try{await this.startup.measure('physics',()=>this.physicsSystem.init());}catch(error){try{this.physicsSystem.dispose();}catch{}this.physicsSystem=null;throw error;}}
+        if(!this.worldDetailSystem)this.worldDetailSystem=new WorldDetailSystem(this);
+        if(!this.reflectionSystem)this.reflectionSystem=new ReflectionSystem(this);
+        this._worldReady=true;
+    }
+    async beginSession(fromSave,saveSlot='autosave') {
+        if(this._startingSession)return;
+        this._startingSession=true;this.startup.startSession();
         this.inputManager?.requestPointerLock();
-        setTimeout(() => {
-            this.uiManager?.showNotification('Welcome to the Zone, Stalker. Good hunting.', 'info', 5000);
-        }, 800);
-        if (freshStart) {
-            globalEventBus.emit(GameEvents.GAME_START, {});
+        this.isLoading=true;
+        this.uiManager?.showLoadingScreen(true);
+        this.uiManager?.updateLoadingProgress(5,'Preparing your expedition...');
+        await paintLoadingFrame();
+        try{
+            this.effectsSystem?.blood.clear();
+
+            this._benchmarkController?.abort();
+            const freshStart=!(fromSave&&this.saveSystem?.hasSave(saveSlot));
+            const saved=fromSave?await this.saveSystem.readValidated(saveSlot):null;if(fromSave&&!saved)throw Error('Save unavailable or campaign ended');this.session=saved?.session?structuredClone(saved.session):newSession(this._newDeathMode);if(freshStart){this.statisticsSystem.reset();this.playTime=0;this.saveSystem.pendingAutosave.clear();this.saveSystem.lastChunk=null;this.saveSystem.nextAutosave=0;this.saveSystem.districts={};this.saveSystem.deathTask=null;this.saveSystem._dropPrepared=false;this.saveSystem._deathPrepared=false;}
+            let entryLevel=this._tutorialRequested?'tutorial_tunnel':'zone_outskirts';
+            if(!freshStart){try{entryLevel=JSON.parse(this.saveSystem.storage.getItem(this.saveSystem.getSaveKey(saveSlot))).currentLevel||'zone_outskirts';}catch{entryLevel='zone_outskirts';}}
+            if(this._sessionStarted){for(const id of [...this.anomalySystem.anomalies.keys()])this.anomalySystem.removeAnomaly(id);this.artifactSystem.clear();this.alifeSystem.dispose();this.psySystem.clear();this.emissionSystem.reset();this.lootSystem.clear();}
+            await this.ensureWorldReady(entryLevel);
+            if(this._sessionStarted)await this.loadLevel(entryLevel);
+            if(freshStart)this.physicsSystem.rebuild();
+            if(!freshStart){if(!await this.saveSystem.loadGame(saveSlot))throw new Error('The save could not be loaded.');this.uiManager.showLoadingScreen(true);}
+            else if(this._sessionStarted){this.resetPlayerForNewGame();this.player.position.copy(this.worldManager.getPlayerSpawnPosition());}
+            if(freshStart&&entryLevel==='tutorial_tunnel')this.tutorialSystem.start();else if(freshStart)this.tutorialSystem.active=false;
+            this._sessionStarted=true;this.isPaused=false;this.gameState='playing';
+            if(freshStart)globalEventBus.emit(GameEvents.GAME_START,{});
+            this.player?.updateCamera(0);
+            if(!this._graphicsWarmed){
+                this.viewmodelSystem?.prepare(this.renderer);
+                await this.startup.measure('shaderWarmup',()=>warmSceneShaders(this.renderer,[{scene:this.scene,camera:this.camera},
+                    {scene:this.viewmodelSystem.vmScene,camera:this.viewmodelSystem.vmCamera}],value=>this.uiManager?.updateLoadingProgress(10+value*75,'Preparing lighting and materials...')));
+                this._graphicsWarmed=true;
+            }
+            this.uiManager?.updateLoadingProgress(90,'Preparing nearby woodland...');
+            await this.worldManager?.forestStreaming?.prepareAt(this.player.position,{signal:this.worldManager.loadingAbort?.signal});
+            this.uiManager?.updateLoadingProgress(95,'Finishing the scene...');
+            await paintLoadingFrame();
+            // Keep the loading screen painted through the first reflection/post draw.
+            this.dayNightCycle?.update(0);this.tutorialSystem?.update(0);
+            await this.startup.measure('firstView',async()=>{this.render(true);await paintLoadingFrame();});
+            this.uiManager?.showLoadingScreen(false);
+            this.isLoading=false;if(freshStart){this.session.respawn={level:this.currentLevelName,position:this.player.position.toArray()};this.saveSystem.requestAutosave('session-start');}this.clock.reset();this._lastFrameStart=performance.now();this._autoQuality.emaMs=1000/60;this._autoQuality.emaFps=60;
+            if(document.hidden||this.inputManager?._unfocused)this.pause();
+            this.startup.playable();
+            this.uiManager?.showNotification('Welcome to Dark Rain. Check your field journal for local routes.','info',5000);
+        }catch(error){
+            console.error('Session startup failed:',error);
+            if(this.renderer?.backendName==='WebGPU'&&(this.renderer._isDeviceLost||/GPUDevice|Instance dropped|out of memory/i.test(String(error)))){await this.recoverGraphics();return;}
+            this.gameState='menu';this.isLoading=false;
+            this.uiManager?.showLoadingScreen(false);this.uiManager?.showMainMenu();
+            this.uiManager?.showNotification(playerError(error,'world'),'danger',6000);
+        }finally{this._startingSession=false;}
+    }
+
+    async recoverGraphics() {
+        if(this._graphicsRecovering||new URLSearchParams(location.search).get('backend')==='webgl')return;
+        this._graphicsRecovering=true;
+        const wasPlaying=this.gameState==='playing'&&!this.isLoading;
+        this.stop();this.isPaused=true;this.isLoading=true;
+        this.uiManager?.showLoadingScreen(true);this.uiManager?.updateLoadingProgress(0,'Recovering graphics with the fallback renderer...');
+        const url=new URL(location.href);url.searchParams.set('backend','webgl');
+        if(wasPlaying&&this.saveSystem){
+            try{if(await this.saveSystem.saveGame('renderer_recovery'))url.searchParams.set('resume','renderer_recovery');}catch(error){console.warn('Graphics recovery snapshot failed:',error);}
         }
+        if(window.darkRainDesktop?.graphics){await window.darkRainDesktop.graphics.restartFallback(url.searchParams.has('resume'));return;}
+        location.replace(url.href);
     }
 
     /**
      * Reset player state for a fresh run without rebooting the world
      */
     resetPlayerForNewGame() {
+        this.powerupSystem?.deserialize({permanentStacks:{},equippedArtifacts:[],activeBuffs:[],cooldowns:[]});if(this.equipmentSystem){this.equipmentSystem.equipped={head:null,body:null,back:null};this.equipmentSystem.updateCharacterModel();}Object.assign(this.alifeSystem,{spawnTimer:8,syncTimer:0,battleSoundTimer:0,partyCounter:0});
+        this.progressionSystem?.reset();
+        this.perkSystem?.deserialize({perks:[],points:0,level:1});
+        this.factionSystem?.deserialize({reputation:{},tradeRep:{}});
+        this.flags = {};
+        if (this.questSystem) {
+            this.questSystem.activeQuests.clear(); this.questSystem.completedQuests.clear();
+            for (const q of this.questSystem.quests.values()) {
+                q.state='unavailable'; q.startTime=null; q.endTime=null; q.timeRemaining=q.timeLimit;
+                for(const o of q.objectives) {o.current=0;o.completed=false;}
+            }
+            this.questSystem.checkQuestUnlocks();
+        }
+        this.fieldOperations?.syncWorldState();
         const p = this.player;
         if (p) {
+            p.isActive = true;
             p.position.set(0, 1, 0);
             p.velocity?.set(0, 0, 0);
             if (p.stats) {
                 p.stats.health = p.stats.maxHealth;
+                p.stats.bleeding=0;
                 p.stats.stamina = p.stats.maxStamina;
                 p.stats.radiation = 0;
                 p.stats.hunger = 0;
@@ -326,18 +450,21 @@ class StalkerGame extends Game {
         // Update additional systems
         this.survivalSystem?.update(deltaTime);
         this.weaponManager?.update(deltaTime);
-        this.effectsSystem?.update(deltaTime);
+        this.perfOverlay.updateSystem('Effects',this.effectsSystem,deltaTime);
         this.questSystem?.update(deltaTime);
         this.minimap?.update();
         this.artifactSystem?.update(deltaTime);
-        this.emissionSystem?.update(deltaTime);
-        this.alifeSystem?.update(deltaTime);
+        if(!this.tutorialSystem?.active)this.emissionSystem?.update(deltaTime);
+        if(!this.tutorialSystem?.active)this.perfOverlay.updateSystem('ALife',this.alifeSystem,deltaTime);
         this.psySystem?.update(deltaTime);
         this.boltSystem?.update(deltaTime);
+        this.perfOverlay.updateSystem('Physics',this.physicsSystem,deltaTime);this.tutorialSystem?.update(deltaTime);
+        this.worldDetailSystem?.update(deltaTime);
         this.ragdollSystem?.update(deltaTime);
+        this.fieldOperations?.update(deltaTime);
         
         // Track play time
-        this.playTime += deltaTime;
+        this.gameFeel?.update(deltaTime);this.onboarding?.update(deltaTime);this.statisticsSystem?.update(deltaTime);this.playTime += deltaTime;this.saveSystem?.update();
         
         // Handle weapon input
         this.handleWeaponInput();
@@ -358,12 +485,12 @@ class StalkerGame extends Game {
         // pause, loot, etc.) or pointer unlocked means clicks belong to the UI.
         const ui = this.uiManager;
         const menuOpen = ui && (ui.activeMenu || (ui.isAnyMenuOpen && ui.isAnyMenuOpen()));
-        if (menuOpen || !this.inputManager?.mouse?.locked) return;
+        if (menuOpen || (!this.inputManager?.mouse?.locked&&!this.inputManager?.controllerActive)) return;
         
         const weapon = this.weaponManager.equippedWeapon;
         
         // Firing
-        if (this.inputManager.isActionActive('fire')) {
+        if (this.inputManager.isActionActive('fire')||this.inputManager.isActionJustPressed('fire')) {
             if (weapon.data.automatic || this.inputManager.isActionJustPressed('fire')) {
                 weapon.fire();
             }
@@ -377,6 +504,7 @@ class StalkerGame extends Game {
             weapon.reload();
         }
         
+        for(const [action,direction]of [['nextWeapon',1],['previousWeapon',-1]])if(this.inputManager.isActionJustPressed(action)){const slots=this.weaponManager.weaponSlots,start=Math.max(0,slots.indexOf(this.weaponManager.equippedWeapon.id));for(let step=1;step<=slots.length;step++){const slot=(start+step*direction+slots.length)%slots.length;if(slots[slot]){this.weaponManager.equipSlot(slot);break;}}}
         // Weapon switching
         for (let i = 0; i < 3; i++) {
             if (this.inputManager.isActionJustPressed(`slot${i + 1}`)) {
@@ -386,17 +514,16 @@ class StalkerGame extends Game {
     }
 
     handleSaveLoadInput() {
+        if(this.gameState!=='playing'||this.isLoading)return;
         // Quick save (F5)
         if (this.inputManager.isActionJustPressed('quicksave')) {
             this.saveSystem?.saveGame('quicksave');
-            this.uiManager?.showNotification('Game saved!', 'success', 2000);
         }
         
         // Quick load (F9)
         if (this.inputManager.isActionJustPressed('quickload')) {
             if (this.saveSystem?.hasSave('quicksave')) {
                 this.saveSystem?.loadGame('quicksave');
-                this.uiManager?.showNotification('Game loaded!', 'success', 2000);
             } else {
                 this.uiManager?.showNotification('No quicksave found!', 'danger', 3000);
             }
@@ -405,7 +532,6 @@ class StalkerGame extends Game {
         // Auto-save (F6)
         if (this.inputManager.isActionJustPressed('autosave')) {
             this.saveSystem?.saveGame('autosave');
-            this.uiManager?.showNotification('Auto-saved!', 'success', 2000);
         }
     }
 
@@ -417,10 +543,18 @@ class StalkerGame extends Game {
         this.weaponManager?.dispose();
         this.survivalSystem?.dispose();
         this.effectsSystem?.dispose();
-        this.saveSystem?.dispose();
+        this.photoMode?.dispose();this.statisticsSystem?.dispose();this.saveSystem?.dispose();
+        this.gameFeel?.dispose();this.onboarding?.dispose();this._benchmarkController?.abort();this.tutorialSystem?.dispose();
+        this.fieldJournal?.dispose();
+        this.fieldOperations?.dispose();
+        this.bodyMotionSystem?.dispose();
+        this.reflectionSystem?.dispose();
         this.minimap?.dispose();
         this.debugConsole?.dispose();
         this.devMenu?.dispose();
+        if(this._rendererLostHandler)window.removeEventListener('darkrain:renderer-lost',this._rendererLostHandler);
+        this.worldDetailSystem?.dispose();
+        this.physicsSystem?.dispose();
         this.ragdollSystem?.dispose();
         this.dialogueUI = null;
         
@@ -463,9 +597,9 @@ function showWebGLError() {
                 text-align: center;
                 padding: 20px;
             ">
-                <h1 style="font-size: 36px; margin-bottom: 20px;">⚠ WebGL Not Available</h1>
+                <h1 style="font-size: 36px; margin-bottom: 20px;">⚠ Graphics Not Available</h1>
                 <p style="max-width: 500px; line-height: 1.6;">
-                    Your browser or device does not support WebGL, which is required to run this game.
+                    Your browser or device needs WebGPU or WebGL2 support to run Dark Rain.
                 </p>
                 <p style="margin-top: 20px; color: #888;">
                     Please try using a modern browser like Chrome, Firefox, or Edge,
@@ -546,7 +680,7 @@ window.addEventListener('unhandledrejection', function(e) {
  */
 async function main() {
     console.log('╔════════════════════════════════════════╗');
-    console.log('║     ZONE: HEART OF DARKNESS            ║');
+    console.log('║     DARK RAIN                         ║');
     console.log('║     Starting game initialization...    ║');
     console.log('╚════════════════════════════════════════╝');
     
@@ -557,7 +691,7 @@ async function main() {
     }
     
     // Check for WebGL support
-    if (!isWebGLAvailable()) {
+    if (!navigator.gpu && !isWebGLAvailable()) {
         console.error('WebGL not available');
         showWebGLError();
         return;
@@ -600,10 +734,13 @@ async function main() {
         console.log('✓ Game initialized successfully');
         window.__drBooted = true;
         if (window.__drBootWatchdog) clearTimeout(window.__drBootWatchdog);
+        if(new URLSearchParams(location.search).get('resume')==='renderer_recovery'&&game.saveSystem?.hasSave('renderer_recovery')) {
+            const url=new URL(location.href);url.searchParams.delete('resume');history.replaceState(null,'',url.href);
+            game.uiManager.hideMainMenu();await game.beginSession(true,'renderer_recovery');
+        }
         
-        // Request pointer lock after initialization
+        // Recover pointer lock only during an active play session
         if (game.inputManager) {
-            game.inputManager.requestPointerLock();
             
             // Persistent click-to-lock: recovers pointer lock whenever it is lost
             // (alt-tab, Esc, menu close). Skipped while any menu is open so menu
@@ -611,8 +748,7 @@ async function main() {
             document.addEventListener('click', () => {
                 const ui = game.uiManager;
                 const menuOpen = ui && (ui.activeMenu || (ui.isAnyMenuOpen && ui.isAnyMenuOpen()));
-                if (!game.inputManager.mouse.locked && !game.isPaused && !game.isLoading && !menuOpen &&
-                    game.gameState === 'playing') {
+                if (game.gameState === 'playing' && !game.inputManager.mouse.locked && !game.isPaused && !game.isLoading && !menuOpen) {
                     game.inputManager.requestPointerLock();
                 }
             });

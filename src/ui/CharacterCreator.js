@@ -1,8 +1,10 @@
+import { HAIR_STYLES,HAIR_COLORS } from '../entities/Hair.js';
 import * as THREE from 'three';
 import { HATS } from '../systems/ViewmodelSystem.js';
 import { SaveSystem } from '../systems/SaveSystem.js';
 import {
     buildCharacterModel,
+    disposeCharacterModel,
     normalizeCharacter,
     BEARD_STYLES,
     BACKPACK_STYLES,
@@ -149,6 +151,8 @@ export class CharacterCreator {
             () => this.selection.eyes, (id) => { this.selection.eyes = id; });
         swatchRow('creator-eye-colors', EYE_COLORS,
             () => this.selection.eyeColor, (c) => { this.selection.eyeColor = c; }, hex);
+        optionRow('creator-hair',HAIR_STYLES,()=>this.selection.hair,id=>{this.selection.hair=id;});
+        swatchRow('creator-hair-colors',HAIR_COLORS,()=>this.selection.hairColor,c=>{this.selection.hairColor=c;},hex);
         optionRow('creator-mouths', MOUTH_STYLES,
             () => this.selection.mouth, (id) => { this.selection.mouth = id; });
         optionRow('creator-faces', FACE_SHAPES,
@@ -199,13 +203,14 @@ export class CharacterCreator {
         const p = this.preview;
         if (!p) return;
         // Rebuild the full body - same model the inventory panel shows
-        while (p.group.children.length) p.group.remove(p.group.children[0]);
+        while (p.group.children.length) {disposeCharacterModel(p.group.children[0]);p.group.remove(p.group.children[0]);}
         p.group.add(buildCharacterModel(this.selection, { weapon: false }));
     }
 
     _stopPreview() {
         if (this.preview) {
             cancelAnimationFrame(this.preview.raf);
+            for(const child of this.preview.group.children)disposeCharacterModel(child);
             this.preview.renderer.dispose();
             this.preview = null;
         }

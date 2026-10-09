@@ -56,14 +56,18 @@ export class DialogueUI {
             
             const num = parseInt(e.key);
             if (num >= 1 && num <= 9) {
+                e.preventDefault();
                 this.selectOption(num - 1);
+                this.game.inputManager?.keysJustPressed.delete(e.code);
             }
             
             // Space/Enter to continue
             if (e.code === 'Space' || e.code === 'Enter') {
                 const continueBtn = this.container.querySelector('.dialogue-continue');
                 if (continueBtn) {
+                    e.preventDefault();
                     continueBtn.click();
+                    this.game.inputManager?.keysJustPressed.delete(e.code);
                 }
             }
         });
@@ -117,13 +121,18 @@ export class DialogueUI {
                 options.forEach((option, index) => {
                     const optionEl = document.createElement('div');
                     optionEl.className = 'dialogue-option';
+                    if (option.locked) {
+                        optionEl.classList.add('dialogue-option-locked');
+                        optionEl.setAttribute('aria-disabled', 'true');
+                        optionEl.style.opacity = '0.45';
+                    }
                     optionEl.innerHTML = `
                         <span class="option-number">${index + 1}</span>
                         <span class="option-text">${option.text}</span>
                     `;
                     
                     optionEl.addEventListener('click', () => {
-                        this.selectOption(index);
+                        if (!option.locked) this.selectOption(index);
                     });
                     
                     optionsEl.appendChild(optionEl);
@@ -137,26 +146,11 @@ export class DialogueUI {
      * @param {HTMLElement} element - Target element
      * @param {string} text - Text to display
      */
-    typewriterEffect(element, text) {
-        element.textContent = '';
-        let index = 0;
-        const speed = 20;
-        
-        const type = () => {
-            if (index < text.length) {
-                element.textContent += text.charAt(index);
-                index++;
-                setTimeout(type, speed);
-            }
-        };
-        
-        type();
-        
-        // Allow skipping
-        element.addEventListener('click', () => {
-            element.textContent = text;
-            index = text.length;
-        }, { once: true });
+    typewriterEffect(element,text){
+        clearTimeout(this.typeTimer);element.textContent='';let index=0;
+        const finish=()=>{clearTimeout(this.typeTimer);element.textContent=text;index=text.length;};
+        element.onclick=finish;
+        const type=()=>{if(index<text.length){element.textContent+=text.charAt(index++);this.typeTimer=setTimeout(type,20);}};type();
     }
 
     /**
@@ -179,6 +173,7 @@ export class DialogueUI {
      * Hide dialogue UI
      */
     hide() {
+        clearTimeout(this.typeTimer);
         this.isVisible = false;
         this.container?.classList.add('hidden');
     }

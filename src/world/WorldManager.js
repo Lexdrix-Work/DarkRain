@@ -1,9 +1,20 @@
+import {buildTutorialTunnel} from './TutorialTunnel.js';
+import { applyRelief } from './MaterialRelief.js';
 import * as THREE from 'three';
 import { globalEventBus, GameEvents } from '../core/EventBus.js';
 import { Enemy, Mutant, HumanEnemy, PackHound, Lurker } from '../entities/Enemy.js';
-import { getProceduralSet } from './ProceduralTextures.js';
+import { getProceduralSet, preloadSurfaceTextures } from './ProceduralTextures.js';
+import { seatOnGround } from './GroundPlacement.js';
+import { buildAtlantaBlock, addStorefrontSign } from './AtlantaDistrict.js';
+import { addFacadeDetails } from './StreetDetails.js';
+import { buildEnterableBuilding } from './EnterableBuilding.js';
+import { buildDistrictOutskirts } from './DistrictOutskirts.js';
+import { createAtlantaGeography } from './AtlantaGeography.js';
+import { preloadHumanAnimations } from '../systems/HumanAnimationSystem.js';
+import { preloadAnatomicalActors } from '../entities/AnatomicalActor.js';
+import { buildSedanModel } from './VehicleModel.js';
 import { ItemMeshFactory } from '../systems/LootSystem.js';
-import { StaticBatcher } from './StaticBatcher.js';
+import { StaticBatcher,makeBatchedDetailMaterial } from './StaticBatcher.js';
 import { DebrisInstancer } from './DebrisInstancer.js';
 
 // Scratch vector reused for per-bullet raycast directions (avoids per-frame allocation)
@@ -74,6 +85,7 @@ export class WorldManager {
 
     async init() {
         this.setupEventListeners();
+        await Promise.all([preloadSurfaceTextures(this.game),preloadAnatomicalActors(),preloadHumanAnimations()]);
         this.setupMaterials();
         this.setupDefaultLights();
         this.setupAtmosphere();
@@ -124,9 +136,9 @@ export class WorldManager {
         
         // Road/asphalt
         this.materials.road = new THREE.MeshStandardMaterial({
-            color: 0x3a3a3a,
+            color: 0xffffff,
             roughness: 0.9,
-            metalness: 0.1
+            metalness: 0.01
         });
         
         // Cracked road
@@ -200,6 +212,14 @@ export class WorldManager {
         this._applyProcedural(this.materials.rustyMetal, 'metal', 1, 1);
         this._applyProcedural(this.materials.debris, 'rubble', 2, 2);
         this._applyProcedural(this.materials.deadVegetation, 'ground', 10, 10);
+        const windowSet=getProceduralSet('window');
+        this.materials.window.map=windowSet.map;
+        this.materials.window.color.set(0xffffff);
+        this.materials.window.transparent=false;
+        this.materials.window.opacity=1;
+        this.materials.window.roughness=0.4;
+        this.materials.window.metalness=0.15;
+        this.materials.window.userData.surfaceKind='window';
     }
 
     /**
@@ -210,6 +230,7 @@ export class WorldManager {
         if (!material) return;
         try {
             const set = getProceduralSet(kind);
+            material.userData.proceduralKind=kind;
             if (set.map) {
                 const map = set.map.clone();
                 map.repeat.set(repeatX, repeatY);
@@ -223,6 +244,8 @@ export class WorldManager {
                 material.bumpMap = bump;
                 material.bumpScale = set.bumpScale || 0.5;
             }
+            if(set.roughnessMap){material.roughnessMap=set.roughnessMap.clone();material.roughnessMap.repeat.set(repeatX,repeatY);material.aoMap=material.roughnessMap;material.aoMapIntensity=.4;}
+            if(set.normalMap){material.normalMap=set.normalMap.clone();material.normalMap.repeat.set(repeatX,repeatY);material.normalMap.needsUpdate=true;material.normalScale=new THREE.Vector2(.8,.8);applyRelief(material,set.heightMap,this.game,kind);}
             material.needsUpdate = true;
         } catch (e) {
             console.warn('Procedural texture failed for', kind, e);
@@ -255,7 +278,7 @@ export class WorldManager {
             this.game.weatherSystem.applyCurrentPreset?.();
         } else {
             // Increased fog distance for larger city
-            this.scene.fog = new THREE.Fog(0x9098a0, 50, 800);
+            this.scene.fog = null;
         }
     }
 
@@ -282,17 +305,21 @@ export class WorldManager {
         }
         
         this.clearLevel();
-        this.currentLevel = levelData;
+        this.currentLevel = levelData;this.recipeSeed=((this.game.session?.worldSeed||777)^this._hashStr(levelData.name||''))>>>0;this._saveRng=this.recipeSeed||1;
+        this.loadingAbort=new AbortController();
+        const loadSignal=this.loadingAbort.signal;
         
         this.setupAtmosphere();
         
-        if (levelData.city) {
+        if(levelData.tutorialTunnel)buildTutorialTunnel(this);
+        else if (levelData.city) {
             console.log('Generating city with config:', levelData.city);
-            this.generateAbandonedCity(levelData.city);
+            await this.generateAbandonedCity(levelData.city,loadSignal);
         } else if (levelData.terrain) {
             await this.loadTerrain(levelData.terrain);
         }
         
+        if(loadSignal.aborted)throw new DOMException('World preparation cancelled','AbortError');
         if (levelData.staticObjects) {
             for (const objData of levelData.staticObjects) {
                 this.createStaticObject(objData);
@@ -326,7 +353,7 @@ export class WorldManager {
      * Generate an abandoned post-apocalyptic city
      * DEFAULT SIZE INCREASED 10X (from 6x6 to ~19x19 blocks)
      */
-    generateAbandonedCity(cityData = {}) {
+    async generateAbandonedCity(cityData = {},signal=this.loadingAbort?.signal) {
         console.log('Generating abandoned city (20x size)...');
         
         const cfg = {
@@ -341,6 +368,7 @@ export class WorldManager {
             damageLevel: cityData.damageLevel || 0.5,
             // District identity drives architecture, palettes and ruin density
             district: cityData.district || 'outskirts',
+            architecture: cityData.architecture || 'atlanta',
             ruinLevel: cityData.ruinLevel !== undefined ? cityData.ruinLevel : 0.65,
             // Rolling-hill terrain: amplitude in world units, flat urban-core radius
             terrainAmplitude: cityData.terrainAmplitude !== undefined ? cityData.terrainAmplitude : 11,
@@ -353,20 +381,24 @@ export class WorldManager {
 
         const totalWidth = cfg.blocksX * cfg.blockSize + (cfg.blocksX + 1) * cfg.roadWidth;
         const totalDepth = cfg.blocksZ * cfg.blockSize + (cfg.blocksZ + 1) * cfg.roadWidth;
+        this.atlantaGeography = cfg.architecture === 'atlanta' ? createAtlantaGeography(totalWidth, totalDepth) : null;
+        this.atlantaParks = [];
         const startX = -totalWidth / 2 + cfg.roadWidth;
         const startZ = -totalDepth / 2 + cfg.roadWidth;
 
         console.log(`City dimensions: ${totalWidth}x${totalDepth} units`);
 
         // Create ground
-        this.createGround(totalWidth, totalDepth);
+        await this.createGround(totalWidth, totalDepth);
 
         // Create roads
         this.createRoads(cfg, startX, startZ, totalWidth, totalDepth);
 
         // Create city blocks with buildings
-        this.createCityBlocks(cfg, startX, startZ);
+        await this.createCityBlocks(cfg, startX, startZ,signal);
 
+        if (cfg.architecture === 'atlanta') await buildDistrictOutskirts(this, cfg, totalWidth, totalDepth, startZ,signal);
+        if(signal?.aborted)throw new DOMException('World preparation cancelled','AbortError');
         // Add environmental details
         this.addEnvironmentalDetails(cfg, totalWidth, totalDepth);
 
@@ -403,14 +435,17 @@ export class WorldManager {
         if (!this._procKindByImage) {
             this._procKindByImage = new Map();
             this._masterTextures = new Set();
-            for (const kind of ['concrete', 'asphalt', 'ground', 'metal', 'rubble']) {
+            for (const kind of ['window', 'brick', 'concrete', 'asphalt', 'ground', 'metal', 'rubble']) {
                 try {
                     const set = getProceduralSet(kind);
+            material.userData.proceduralKind=kind;
                     if (set && set.map && set.map.image) {
                         this._procKindByImage.set(set.map.image, kind);
                     }
                     if (set && set.map) this._masterTextures.add(set.map);
                     if (set && set.bumpMap) this._masterTextures.add(set.bumpMap);
+                    if(set?.normalMap)this._masterTextures.add(set.normalMap);if(set?.roughnessMap)this._masterTextures.add(set.roughnessMap);
+                    if(set?.heightMap)this._masterTextures.add(set.heightMap);
                 } catch (e) { /* procedural set unavailable - bucket falls back to plain */ }
             }
         }
@@ -428,13 +463,14 @@ export class WorldManager {
         if (this._winFrameMat) protectedMats.add(this._winFrameMat);
         if (this._winSillMat) protectedMats.add(this._winSillMat);
         if (this._corniceMat) protectedMats.add(this._corniceMat);
+        for(const mat of this._detailMaterials?.values() || []) protectedMats.add(mat);
 
         let sourceMeshes = 0;
         const keptObjects = new Set();
 
         for (const obj of [...this._cityObjects]) {
             // Keep the vertex-colored terrain and instanced scatter untouched
-            let keep = false;
+            let keep = !!obj.userData?.detachedCollider;
             if (obj.traverse) {
                 obj.traverse(o => {
                     if (o.isInstancedMesh) keep = true;
@@ -471,7 +507,8 @@ export class WorldManager {
                         : null;
                     batcher.add(mesh.geometry, mesh.matrixWorld, bucket, {
                         color: bakeColor,
-                        uvRepeat: uvRepeat
+                        uvRepeat: uvRepeat,
+                        decorationOwner:mesh.userData.collapseDecoration
                     });
                     if (mesh.userData.isCollidable) {
                         batcher.addCollider(mesh.geometry, mesh.matrixWorld);
@@ -497,6 +534,8 @@ export class WorldManager {
         const bucketDefs = [
             // [bucket, material, castShadow, receiveShadow, collidable]
             ['tex:concrete', this._mergedBucketMaterial('concrete', 0.9, 0.08), true, true, true],
+            ['tex:brick', this._mergedBucketMaterial('brick', 0.95, 0.0), true, true, true],
+            ['tex:window', this._mergedBucketMaterial('window', 0.4, 0.15), false, false, false],
             ['tex:rubble', this._mergedBucketMaterial('rubble', 0.95, 0.05), true, true, true],
             ['tex:asphalt', this._mergedBucketMaterial('asphalt', 0.9, 0.08), false, true, true],
             ['tex:metal', this._mergedBucketMaterial('metal', 0.7, 0.4), true, true, true],
@@ -514,6 +553,11 @@ export class WorldManager {
             }), false, false, false],
             ['basic', new THREE.MeshBasicMaterial({ vertexColors: true }), false, false, false]
         ];
+        for(const [bucket,material] of this._detailMaterials || []) {
+            const batchedMaterial=makeBatchedDetailMaterial(material);
+            bucketDefs.push([bucket,batchedMaterial,false,true,false]);
+        }
+        for(const [bucket,material] of this._surfaceMaterials || []) bucketDefs.push([bucket,material,true,true,true]);
 
         let mergedMeshes = 0;
         for (const [bucket, material, castShadow, receiveShadow, collidable] of bucketDefs) {
@@ -521,7 +565,7 @@ export class WorldManager {
             if (!mesh) continue;
             mesh.castShadow = castShadow;
             mesh.receiveShadow = receiveShadow;
-            mesh.userData = { isCollidable: collidable, type: 'merged:' + bucket };
+            mesh.userData = { ...mesh.userData,isCollidable: collidable, type: 'merged:' + bucket };
             this.scene.add(mesh);
             this._cityObjects.push(mesh);
             mergedMeshes++;
@@ -552,6 +596,8 @@ export class WorldManager {
      * per-part color variation is baked into vertex colors by the caller.
      */
     _classifyStaticMaterial(mat) {
+        if(mat.userData.staticBucket) return mat.userData.staticBucket;
+        if(mat.userData.surfaceKind==='window') return 'tex:window';
         if (mat.isMeshBasicMaterial) return 'basic';
         if (mat.transparent) return 'glass';
         if (mat.emissive && mat.emissiveIntensity >= 0.5 && mat.emissive.getHex() !== 0) {
@@ -560,6 +606,17 @@ export class WorldManager {
         const img = mat.map && mat.map.image;
         if (img && this._procKindByImage && this._procKindByImage.has(img)) {
             return 'tex:' + this._procKindByImage.get(img);
+        }
+        // Preserve reflective finishes instead of turning chrome/paint into
+        // the generic matte bucket. Color variation still lives in vertices.
+        if(mat.isMeshStandardMaterial&&(mat.metalness>=0.18||mat.roughness<0.65)) {
+            if(!this._surfaceMaterials)this._surfaceMaterials=new Map();
+            const key=`surface:${mat.roughness.toFixed(2)}:${mat.metalness.toFixed(2)}`;
+            if(!this._surfaceMaterials.has(key)) {
+                const shared=mat.clone();shared.color.set(0xffffff);shared.vertexColors=true;
+                this._surfaceMaterials.set(key,shared);
+            }
+            return key;
         }
         return 'plain';
     }
@@ -581,6 +638,8 @@ export class WorldManager {
             m.bumpMap = set.bumpMap;
             m.bumpScale = set.bumpScale || 0.5;
         }
+        if(set.roughnessMap){m.roughnessMap=set.roughnessMap;m.aoMap=set.aoMap;m.aoMapIntensity=.4;}
+        if(set.normalMap){m.normalMap=set.normalMap;m.normalScale=new THREE.Vector2(.8,.8);applyRelief(m,set.heightMap,this.game,kind);}
         return m;
     }
 
@@ -657,18 +716,30 @@ export class WorldManager {
         const flatRadius = cfg.terrainFlatRadius !== undefined ? cfg.terrainFlatRadius : 90;
         const m = Math.min(1, Math.max(0, (d - flatRadius) / 130));
         const eased = m * m * (3 - 2 * m);
-        return hills * eased + undulation * (0.2 + 0.8 * eased);
+        return hills * eased + undulation * (cfg.architecture==='atlanta' ? 0.2*eased : (0.2 + 0.8 * eased));
     }
 
     /**
      * Create rolling-hill terrain with vertex-color variation
      */
-    createGround(width, depth) {
+    async createGround(width, depth) {
         const size = Math.max(width, depth) + 500;
         const segs = 220;
         const groundGeom = new THREE.PlaneGeometry(size, size, segs, segs);
         groundGeom.rotateX(-Math.PI / 2);
 
+        let workerResult=null;
+        if(typeof Worker!=='undefined') {
+            try {
+                const {generateTerrainOffThread}=await import('../workers/TerrainClient.ts');
+                workerResult=await generateTerrainOffThread({positions:groundGeom.attributes.position.array.slice(),permutation:this._noisePerm,config:this.city,spacing:size/segs});
+            }catch(error){console.warn('Terrain worker unavailable; using local generation.',error);}
+        }
+        if(workerResult) {
+            groundGeom.setAttribute('position',new THREE.BufferAttribute(workerResult.positions,3));
+            groundGeom.setAttribute('normal',new THREE.BufferAttribute(workerResult.normals,3));
+            groundGeom.setAttribute('color',new THREE.BufferAttribute(workerResult.colors,3));
+        }
         const pos = groundGeom.attributes.position;
         const colors = new Float32Array(pos.count * 3);
         const cDirt = new THREE.Color(0x4a4238);
@@ -677,6 +748,7 @@ export class WorldManager {
         const cScorch = new THREE.Color(0x2b2723);
         const tmp = new THREE.Color();
 
+        if(!workerResult) {
         for (let i = 0; i < pos.count; i++) {
             const x = pos.getX(i);
             const z = pos.getZ(i);
@@ -695,6 +767,7 @@ export class WorldManager {
         }
         groundGeom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
         groundGeom.computeVertexNormals();
+        }
 
         const groundMat = new THREE.MeshStandardMaterial({
             vertexColors: true,
@@ -745,11 +818,8 @@ export class WorldManager {
             rp.setY(i, this.getTerrainHeight(wx, wz) + 0.04);
         }
         roadGeom.computeVertexNormals();
-        const roadMat = new THREE.MeshStandardMaterial({
-            color: 0x404040,
-            roughness: 0.85,
-            metalness: 0.1
-        });
+        const roadMat = new THREE.MeshStandardMaterial({color:0xa0a8ad,roughness:0.94,metalness:0.01});
+        this._applyProcedural(roadMat,'asphalt',width/.75,depth/.75);
         
         const road = new THREE.Mesh(roadGeom, roadMat);
         road.position.set(x, 0, z);
@@ -766,29 +836,32 @@ export class WorldManager {
      * Add cracks and potholes to roads
      */
     addRoadDamage(x, z, width, depth, direction) {
-        const crackCount = Math.floor(Math.random() * 5) + 2;
+        const crackCount = Math.floor(this.worldRandom() * 5) + 2;
         
         for (let i = 0; i < crackCount; i++) {
-            const crackX = x + (Math.random() - 0.5) * width * 0.8;
-            const crackZ = z + (Math.random() - 0.5) * depth * 0.8;
+            const crackX = x + (this.worldRandom() - 0.5) * width * 0.8;
+            const crackZ = z + (this.worldRandom() - 0.5) * depth * 0.8;
             
-            const crackLength = 1 + Math.random() * 3;
-            const crackWidth = 0.1 + Math.random() * 0.3;
+            const crackLength = 1 + this.worldRandom() * 3;
+            const crackWidth = 0.012 + this.worldRandom() * 0.018;
             
-            const crackGeom = new THREE.PlaneGeometry(crackWidth, crackLength);
-            const crackMat = new THREE.MeshBasicMaterial({ color: 0x1a1a1a });
+            const path=new THREE.Shape();path.moveTo(-crackWidth/2,0);
+            for(let step=1;step<=5;step++)path.lineTo(Math.sin(step*1.7)*.055-crackWidth/2,step*crackLength/5);
+            for(let step=5;step>=0;step--)path.lineTo(Math.sin(step*1.7)*.055+crackWidth/2,step*crackLength/5);
+            path.closePath();const crackGeom=new THREE.ShapeGeometry(path);
+            const crackMat = new THREE.MeshStandardMaterial({color:0x202523,roughness:1});
             const crack = new THREE.Mesh(crackGeom, crackMat);
             crack.rotation.x = -Math.PI / 2;
-            crack.rotation.z = Math.random() * Math.PI;
+            crack.rotation.z = this.worldRandom() * Math.PI;
             crack.position.set(crackX, this.getTerrainHeight(crackX, crackZ) + 0.06, crackZ);
             this.scene.add(crack);
             this._cityObjects.push(crack);
         }
 
-        if (Math.random() < 0.3) {
-            const holeX = x + (Math.random() - 0.5) * width * 0.6;
-            const holeZ = z + (Math.random() - 0.5) * depth * 0.6;
-            const holeSize = 0.5 + Math.random() * 1;
+        if (this.worldRandom() < 0.3) {
+            const holeX = x + (this.worldRandom() - 0.5) * width * 0.6;
+            const holeZ = z + (this.worldRandom() - 0.5) * depth * 0.6;
+            const holeSize = 0.5 + this.worldRandom() * 1;
             
             const holeGeom = new THREE.CircleGeometry(holeSize, 8);
             const holeMat = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 1 });
@@ -809,7 +882,7 @@ export class WorldManager {
         if (direction === 'horizontal') {
             const dashCount = Math.floor(width / 6);
             for (let i = 0; i < dashCount; i++) {
-                if (Math.random() > 0.7) continue;
+                if (this.worldRandom() > 0.7) continue;
                 
                 const dashGeom = new THREE.PlaneGeometry(2, 0.15);
                 const dashMat = new THREE.MeshBasicMaterial({ color: markingColor });
@@ -823,7 +896,7 @@ export class WorldManager {
         } else {
             const dashCount = Math.floor(depth / 6);
             for (let i = 0; i < dashCount; i++) {
-                if (Math.random() > 0.7) continue;
+                if (this.worldRandom() > 0.7) continue;
                 
                 const dashGeom = new THREE.PlaneGeometry(0.15, 2);
                 const dashMat = new THREE.MeshBasicMaterial({ color: markingColor });
@@ -840,13 +913,17 @@ export class WorldManager {
     /**
      * Create city blocks with buildings
      */
-    createCityBlocks(cfg, startX, startZ) {
+    async createCityBlocks(cfg, startX, startZ,signal=this.loadingAbort?.signal) {
         for (let bx = 0; bx < cfg.blocksX; bx++) {
             for (let bz = 0; bz < cfg.blocksZ; bz++) {
                 const blockX = startX + bx * (cfg.blockSize + cfg.roadWidth) + cfg.blockSize / 2;
                 const blockZ = startZ + bz * (cfg.blockSize + cfg.roadWidth) + cfg.blockSize / 2;
 
+                if(signal?.aborted)throw new DOMException('World preparation cancelled','AbortError');
                 this.createCityBlock(blockX, blockZ, cfg);
+                const completed=bx*cfg.blocksZ+bz+1,total=cfg.blocksX*cfg.blocksZ;
+                this.game.uiManager?.updateLoadingProgress(55+10*completed/total,`Preparing Atlanta blocks ${completed}/${total}`);
+                await new Promise(resolve=>setTimeout(resolve,0));
             }
         }
     }
@@ -855,6 +932,7 @@ export class WorldManager {
      * Create a single city block with buildings
      */
     createCityBlock(blockX, blockZ, cfg) {
+        if (cfg.architecture==='atlanta') return buildAtlantaBlock(this,blockX,blockZ,cfg);
         const blockSize = cfg.blockSize;
         const spacing = cfg.buildingSpacing;
         
@@ -862,8 +940,8 @@ export class WorldManager {
         
         for (let gx = 0; gx < gridSize; gx++) {
             for (let gz = 0; gz < gridSize; gz++) {
-                if (Math.random() < 0.15) {
-                    if (Math.random() < 0.5) {
+                if (this.worldRandom() < 0.15) {
+                    if (this.worldRandom() < 0.5) {
                         const debrisX = blockX - blockSize / 2 + spacing * (gx + 0.5);
                         const debrisZ = blockZ - blockSize / 2 + spacing * (gz + 0.5);
                         this.createDebrisPile(debrisX, debrisZ);
@@ -875,8 +953,8 @@ export class WorldManager {
                 const buildingZ = blockZ - blockSize / 2 + spacing * (gz + 0.5);
 
                 // Organic variation: larger jitter breaks the grid rigidity
-                const offsetX = (Math.random() - 0.5) * 6;
-                const offsetZ = (Math.random() - 0.5) * 6;
+                const offsetX = (this.worldRandom() - 0.5) * 6;
+                const offsetZ = (this.worldRandom() - 0.5) * 6;
 
                 const district = cfg.district || 'outskirts';
                 const bx = buildingX + offsetX;
@@ -884,29 +962,29 @@ export class WorldManager {
                 const ruin = cfg.ruinLevel || 0;
 
                 // Industrial districts get warehouses instead of tenements
-                if (district === 'industrial' && Math.random() < 0.45) {
-                    const wW = 10 + Math.random() * 10;
-                    const wD = 8 + Math.random() * 8;
+                if (district === 'industrial' && this.worldRandom() < 0.45) {
+                    const wW = 10 + this.worldRandom() * 10;
+                    const wD = 8 + this.worldRandom() * 8;
                     this.createWarehouse(bx, bz, wW, wD);
                     continue;
                 }
 
                 // Suburban districts get houses with pitched roofs
-                if (district === 'suburban' && Math.random() < 0.7) {
-                    const hW = 5 + Math.random() * 3;
-                    const hD = 5 + Math.random() * 3;
-                    const hFloors = 1 + Math.floor(Math.random() * 2);
-                    const hDamaged = Math.random() < cfg.damageLevel + ruin * 0.3;
+                if (district === 'suburban' && this.worldRandom() < 0.7) {
+                    const hW = 5 + this.worldRandom() * 3;
+                    const hD = 5 + this.worldRandom() * 3;
+                    const hFloors = 1 + Math.floor(this.worldRandom() * 2);
+                    const hDamaged = this.worldRandom() < cfg.damageLevel + ruin * 0.3;
                     this.createBuilding(bx, bz, hW, hD, hFloors, hDamaged, hDamaged ? 0 : -1, district, 'pitched');
                     continue;
                 }
 
-                const floors = cfg.minFloors + Math.floor(Math.random() * (cfg.maxFloors - cfg.minFloors));
-                const buildingWidth = 4 + Math.random() * (spacing - 5);
-                const buildingDepth = 4 + Math.random() * (spacing - 5);
+                const floors = cfg.minFloors + Math.floor(this.worldRandom() * (cfg.maxFloors - cfg.minFloors));
+                const buildingWidth = 4 + this.worldRandom() * (spacing - 5);
+                const buildingDepth = 4 + this.worldRandom() * (spacing - 5);
 
-                const isDamaged = Math.random() < cfg.damageLevel + ruin * 0.35;
-                const damageType = isDamaged ? Math.floor(Math.random() * 3) : -1;
+                const isDamaged = this.worldRandom() < cfg.damageLevel + ruin * 0.35;
+                const damageType = isDamaged ? Math.floor(this.worldRandom() * 3) : -1;
 
                 this.createBuilding(
                     bx,
@@ -922,10 +1000,10 @@ export class WorldManager {
             }
         }
 
-        if ((cfg.district || 'outskirts') === 'industrial' && Math.random() < 0.55) {
-            const chX = blockX + (Math.random() - 0.5) * blockSize * 0.7;
-            const chZ = blockZ + (Math.random() - 0.5) * blockSize * 0.7;
-            this.createChimney(chX, chZ, 14 + Math.random() * 14);
+        if ((cfg.district || 'outskirts') === 'industrial' && this.worldRandom() < 0.55) {
+            const chX = blockX + (this.worldRandom() - 0.5) * blockSize * 0.7;
+            const chZ = blockZ + (this.worldRandom() - 0.5) * blockSize * 0.7;
+            this.createChimney(chX, chZ, 14 + this.worldRandom() * 14);
         }
 
         this.createBlockSidewalks(blockX, blockZ, blockSize, cfg.roadWidth);
@@ -936,6 +1014,11 @@ export class WorldManager {
      * Palettes vary per district for a less monotonous skyline.
      */
     createBuildingMaterial(district = 'outskirts', width = 12, height = 12) {
+        if (district==='atlanta') {
+            const mat=new THREE.MeshStandardMaterial({color:0xe5ded1,roughness:0.94,metalness:0});
+            this._applyProcedural(mat,'brick',width/1.8,height/1.5);
+            return mat;
+        }
         const palettes = {
             downtown:   [0x8a94a0, 0x9aa2ae, 0x7a8494, 0xa0a8b4, 0x8b95a5, 0x6a7688],
             outskirts:  [0x8a7a6a, 0x9a6a5a, 0x7a6a5a, 0x8a5a4a, 0x9a8a7a, 0x8a8a8a],
@@ -944,12 +1027,12 @@ export class WorldManager {
         };
         const colors = palettes[district] || palettes.outskirts;
 
-        const color = colors[Math.floor(Math.random() * colors.length)];
+        const color = colors[Math.floor(this.worldRandom() * colors.length)];
 
         const mat = new THREE.MeshStandardMaterial({
             color: color,
-            roughness: 0.85 + Math.random() * 0.1,
-            metalness: 0.05 + Math.random() * 0.1,
+            roughness: 0.85 + this.worldRandom() * 0.1,
+            metalness: 0.05 + this.worldRandom() * 0.1,
         });
         // Density-correct repeat: ~1 texture tile per 6m so grain scale is
         // consistent whether the building is a shack or a tower
@@ -963,16 +1046,18 @@ export class WorldManager {
      * Create a building with optional damage
      * ALL BUILDING PARTS NOW HAVE COLLISION
      */
-    createBuilding(x, z, width, depth, floors, isDamaged, damageType, district = 'outskirts', roofStyle = 'flat') {
+    createBuilding(x, z, width, depth, floors, isDamaged, damageType, district = 'outskirts', roofStyle = 'flat', facing = 0) {
+        if (district === 'atlanta') return buildEnterableBuilding(this, x, z, width, depth, floors, isDamaged, facing);
         const floorHeight = 3;
         const baseHeight = floors * floorHeight;
 
         let actualHeight = baseHeight;
         if (isDamaged && damageType === 0) {
-            actualHeight = baseHeight * (0.3 + Math.random() * 0.5);
+            actualHeight = baseHeight * (0.3 + this.worldRandom() * 0.5);
         }
 
         const group = new THREE.Group();
+        group.rotation.y=facing;
         // Foundation fix: sample terrain at the corners + center and seat the
         // building on the LOWEST point, sunk 0.5m. On sloped terrain a single
         // center sample left corners floating in mid-air or buried.
@@ -983,14 +1068,14 @@ export class WorldManager {
             this.getTerrainHeight(x - hx, z + hz),
             this.getTerrainHeight(x + hx, z + hz),
             this.getTerrainHeight(x, z)
-        ) - 0.5;
+        ) - (district==='atlanta'?0.04:0.5);
         group.position.set(x, baseY, z);
 
         // Remember the footprint so loot containers can spawn at doorways
         if (!this.buildingSpots) this.buildingSpots = [];
         this.buildingSpots.push({ x, z, width, depth, baseY, isDamaged });
 
-        const material = isDamaged
+        const material = isDamaged && district!=='atlanta'
             ? this.materials.damaged
             : this.createBuildingMaterial(district, width, actualHeight);
 
@@ -1003,7 +1088,7 @@ export class WorldManager {
             this.createDamagedLBuilding(group, width, depth, actualHeight, material);
         } else if (isDamaged && damageType === 2) {
             this.createBuildingWithHole(group, width, depth, actualHeight, material);
-        } else if (isDamaged && floors >= 7 && Math.random() < 0.35 + ruin * 0.35) {
+        } else if (isDamaged && floors >= 7 && this.worldRandom() < 0.35 + ruin * 0.35) {
             this.createDestroyedHighrise(group, width, depth, baseHeight, material);
             actualHeight = baseHeight;
             builtRuinedTower = true;
@@ -1023,11 +1108,12 @@ export class WorldManager {
 
         if (roofStyle === 'pitched' && floors <= 3) {
             this.addPitchedRoof(group, width, depth, actualHeight, district);
-        } else if (!isDamaged || Math.random() > 0.5) {
+        } else if (!isDamaged || this.worldRandom() > 0.5) {
             this.addRoofDetails(group, width, depth, actualHeight);
         }
 
         this.addGroundFloorDetails(group, width, depth);
+        if(district==='atlanta') { addStorefrontSign(this,group,width,depth); addFacadeDetails(this,group,width,depth,actualHeight); }
 
         if (isDamaged && !builtRuinedTower) {
             this.addBuildingRubble(group, width, depth);
@@ -1086,7 +1172,7 @@ export class WorldManager {
         main.userData = { isCollidable: true, type: 'building' };
         group.add(main);
 
-        const partialHeight = height * (0.3 + Math.random() * 0.4);
+        const partialHeight = height * (0.3 + this.worldRandom() * 0.4);
         const partialWidth = width - mainWidth;
         const partialGeom = new THREE.BoxGeometry(partialWidth, partialHeight, depth);
         const partial = new THREE.Mesh(partialGeom, material);
@@ -1115,15 +1201,15 @@ export class WorldManager {
         body.userData = { isCollidable: true, type: 'building' };
         group.add(body);
 
-        const holeHeight = 3 + Math.random() * 6;
-        const holeWidth = 2 + Math.random() * 3;
-        const holeY = 3 + Math.random() * (height - holeHeight - 3);
+        const holeHeight = 3 + this.worldRandom() * 6;
+        const holeWidth = 2 + this.worldRandom() * 3;
+        const holeY = 3 + this.worldRandom() * (height - holeHeight - 3);
         
         const holeGeom = new THREE.BoxGeometry(holeWidth, holeHeight, 1);
         const holeMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 1 });
         const hole = new THREE.Mesh(holeGeom, holeMat);
         hole.position.set(
-            (Math.random() - 0.5) * (width - holeWidth),
+            (this.worldRandom() - 0.5) * (width - holeWidth),
             holeY,
             depth / 2 + 0.1
         );
@@ -1151,10 +1237,10 @@ export class WorldManager {
         
         const actualFloors = Math.floor(height / floorHeight);
         const placeWindow = (px, py, pz, rotY) => {
-            if (Math.random() < 0.22) return;
+            if (this.worldRandom() < 0.22) return;
             let winMat = this.materials.window;
-            if (!isDamaged && Math.random() < 0.06) winMat = this.materials.windowLit;
-            else if (isDamaged && Math.random() < 0.35) return; // blown-out windows
+            if (!isDamaged && this.worldRandom() < 0.06) winMat = this.materials.windowLit;
+            else if (isDamaged && this.worldRandom() < 0.35) return; // blown-out windows
             const frame = new THREE.Mesh(this._winFrameGeom, this._winFrameMat);
             frame.position.set(px, py, pz);
             frame.rotation.y = rotY;
@@ -1237,18 +1323,18 @@ export class WorldManager {
      * Add roof details
      */
     addRoofDetails(group, width, depth, height) {
-        const detailCount = Math.floor(Math.random() * 3) + 1;
+        const detailCount = Math.floor(this.worldRandom() * 3) + 1;
         
         for (let i = 0; i < detailCount; i++) {
-            const detailType = Math.floor(Math.random() * 3);
+            const detailType = Math.floor(this.worldRandom() * 3);
             
             if (detailType === 0) {
                 const acGeom = new THREE.BoxGeometry(1.5, 0.8, 1);
                 const ac = new THREE.Mesh(acGeom, this.materials.rustyMetal);
                 ac.position.set(
-                    (Math.random() - 0.5) * (width - 2),
+                    (this.worldRandom() - 0.5) * (width - 2),
                     height + 0.4,
-                    (Math.random() - 0.5) * (depth - 2)
+                    (this.worldRandom() - 0.5) * (depth - 2)
                 );
                 ac.castShadow = true;
                 ac.userData = { isCollidable: true };
@@ -1257,9 +1343,9 @@ export class WorldManager {
                 const ventGeom = new THREE.CylinderGeometry(0.3, 0.3, 1.5, 8);
                 const vent = new THREE.Mesh(ventGeom, this.materials.rustyMetal);
                 vent.position.set(
-                    (Math.random() - 0.5) * (width - 1),
+                    (this.worldRandom() - 0.5) * (width - 1),
                     height + 0.75,
-                    (Math.random() - 0.5) * (depth - 1)
+                    (this.worldRandom() - 0.5) * (depth - 1)
                 );
                 vent.castShadow = true;
                 vent.userData = { isCollidable: true };
@@ -1268,9 +1354,9 @@ export class WorldManager {
                 const tankGeom = new THREE.CylinderGeometry(0.8, 0.8, 2, 8);
                 const tank = new THREE.Mesh(tankGeom, this.materials.rustyMetal);
                 tank.position.set(
-                    (Math.random() - 0.5) * (width - 2),
+                    (this.worldRandom() - 0.5) * (width - 2),
                     height + 1,
-                    (Math.random() - 0.5) * (depth - 2)
+                    (this.worldRandom() - 0.5) * (depth - 2)
                 );
                 tank.castShadow = true;
                 tank.userData = { isCollidable: true };
@@ -1289,20 +1375,20 @@ export class WorldManager {
         const shopFrame = new THREE.Mesh(new THREE.PlaneGeometry(shopW + 0.3, 2.3), frameMat);
         shopFrame.position.set(-width * 0.1, 1.6, depth / 2 + 0.03);
         group.add(shopFrame);
-        const shopMat = Math.random() < 0.3 ? this.materials.windowLit : this.materials.window;
+        const shopMat = this.worldRandom() < 0.3 ? this.materials.windowLit : this.materials.window;
         const shop = new THREE.Mesh(new THREE.PlaneGeometry(shopW, 2.0), shopMat);
         shop.position.set(-width * 0.1, 1.6, depth / 2 + 0.06);
         group.add(shop);
-        const doorGeom = new THREE.BoxGeometry(1.5, 2.5, 0.1);
+        const doorGeom = new THREE.BoxGeometry(0.95, 2.15, 0.12);
         const doorMat = new THREE.MeshStandardMaterial({ color: 0x2a2520, roughness: 0.8 });
         const door = new THREE.Mesh(doorGeom, doorMat);
-        door.position.set(width * 0.28, 1.25, depth / 2 + 0.05);
+        door.position.set(width * 0.28, 1.075, depth / 2 + 0.05);
         group.add(door);
 
-        if (Math.random() > 0.6) {
+        if (this.worldRandom() > 0.6) {
             const awningGeom = new THREE.BoxGeometry(3, 0.1, 1.5);
             const awningMat = new THREE.MeshStandardMaterial({ 
-                color: Math.random() > 0.5 ? 0x3a2020 : 0x203a20, 
+                color: this.worldRandom() > 0.5 ? 0x3a2020 : 0x203a20,
                 roughness: 0.9 
             });
             const awning = new THREE.Mesh(awningGeom, awningMat);
@@ -1317,15 +1403,15 @@ export class WorldManager {
      * Add rubble around damaged building
      */
     addBuildingRubble(group, width, depth) {
-        const rubbleCount = 5 + Math.floor(Math.random() * 10);
+        const rubbleCount = 5 + Math.floor(this.worldRandom() * 10);
         
         for (let i = 0; i < rubbleCount; i++) {
-            const size = 0.2 + Math.random() * 0.8;
+            const size = 0.2 + this.worldRandom() * 0.8;
             const rubbleGeom = new THREE.BoxGeometry(size, size * 0.5, size);
             const rubble = new THREE.Mesh(rubbleGeom, this.materials.debris);
             
-            const angle = Math.random() * Math.PI * 2;
-            const distance = Math.max(width, depth) / 2 + 0.5 + Math.random() * 2;
+            const angle = this.worldRandom() * Math.PI * 2;
+            const distance = Math.max(width, depth) / 2 + 0.5 + this.worldRandom() * 2;
             
             rubble.position.set(
                 Math.cos(angle) * distance,
@@ -1333,9 +1419,9 @@ export class WorldManager {
                 Math.sin(angle) * distance
             );
             rubble.rotation.set(
-                Math.random() * 0.5,
-                Math.random() * Math.PI,
-                Math.random() * 0.5
+                this.worldRandom() * 0.5,
+                this.worldRandom() * Math.PI,
+                this.worldRandom() * 0.5
             );
             rubble.castShadow = true;
             rubble.receiveShadow = true;
@@ -1352,38 +1438,38 @@ export class WorldManager {
      * footprint with exposed rebar and a rubble apron at the base.
      */
     createDestroyedHighrise(group, width, depth, height, material) {
-        const segments = 3 + Math.floor(Math.random() * 3);
+        const segments = 3 + Math.floor(this.worldRandom() * 3);
         let y = 0;
         for (let i = 0; i < segments; i++) {
             const t = i / segments;
-            const w = width * (1 - t * (0.35 + Math.random() * 0.3));
-            const d = depth * (1 - t * (0.35 + Math.random() * 0.3));
-            const h = (height / segments) * (0.7 + Math.random() * 0.6);
+            const w = width * (1 - t * (0.35 + this.worldRandom() * 0.3));
+            const d = depth * (1 - t * (0.35 + this.worldRandom() * 0.3));
+            const h = (height / segments) * (0.7 + this.worldRandom() * 0.6);
             const segGeom = new THREE.BoxGeometry(w, h, d);
             const seg = new THREE.Mesh(segGeom, material);
             seg.position.set(
-                (Math.random() - 0.5) * width * 0.25,
+                (this.worldRandom() - 0.5) * width * 0.25,
                 y + h / 2,
-                (Math.random() - 0.5) * depth * 0.25
+                (this.worldRandom() - 0.5) * depth * 0.25
             );
-            seg.rotation.y = (Math.random() - 0.5) * 0.15;
+            seg.rotation.y = (this.worldRandom() - 0.5) * 0.15;
             seg.castShadow = true;
             seg.receiveShadow = true;
             seg.userData = { isCollidable: true, type: 'building' };
             group.add(seg);
 
             // Exposed rebar jutting from the broken top of each segment
-            const rebarCount = 2 + Math.floor(Math.random() * 4);
+            const rebarCount = 2 + Math.floor(this.worldRandom() * 4);
             for (let r = 0; r < rebarCount; r++) {
-                const rh = 0.8 + Math.random() * 1.6;
+                const rh = 0.8 + this.worldRandom() * 1.6;
                 const rebarGeom = new THREE.CylinderGeometry(0.03, 0.03, rh, 5);
                 const rebar = new THREE.Mesh(rebarGeom, this.materials.rustyMetal);
                 rebar.position.set(
-                    (Math.random() - 0.5) * w * 0.7,
+                    (this.worldRandom() - 0.5) * w * 0.7,
                     y + h + rh / 2 - 0.2,
-                    (Math.random() - 0.5) * d * 0.7
+                    (this.worldRandom() - 0.5) * d * 0.7
                 );
-                rebar.rotation.set((Math.random() - 0.5) * 0.5, 0, (Math.random() - 0.5) * 0.5);
+                rebar.rotation.set((this.worldRandom() - 0.5) * 0.5, 0, (this.worldRandom() - 0.5) * 0.5);
                 group.add(rebar);
             }
             y += h;
@@ -1395,7 +1481,7 @@ export class WorldManager {
      * Pitched (gable) roof for houses and warehouses - extruded triangle prism
      */
     addPitchedRoof(group, width, depth, height, district = 'outskirts') {
-        const roofH = 1.2 + Math.random() * 1.4;
+        const roofH = 1.2 + this.worldRandom() * 1.4;
         const shape = new THREE.Shape();
         shape.moveTo(-width / 2 - 0.3, 0);
         shape.lineTo(width / 2 + 0.3, 0);
@@ -1427,7 +1513,7 @@ export class WorldManager {
         const group = new THREE.Group();
         group.position.set(x, gy, z);
 
-        const wallH = 5 + Math.random() * 3;
+        const wallH = 5 + this.worldRandom() * 3;
         const material = this.createBuildingMaterial('industrial');
         const body = new THREE.Mesh(new THREE.BoxGeometry(w, wallH, d), material);
         body.position.y = wallH / 2;
@@ -1443,16 +1529,16 @@ export class WorldManager {
         group.add(door);
 
         // Roof vents
-        const ventCount = 1 + Math.floor(Math.random() * 3);
+        const ventCount = 1 + Math.floor(this.worldRandom() * 3);
         for (let i = 0; i < ventCount; i++) {
             const vent = new THREE.Mesh(
                 new THREE.CylinderGeometry(0.4, 0.5, 1.2, 8),
                 this.materials.rustyMetal
             );
             vent.position.set(
-                (Math.random() - 0.5) * w * 0.6,
+                (this.worldRandom() - 0.5) * w * 0.6,
                 wallH + 0.6,
-                (Math.random() - 0.5) * d * 0.6
+                (this.worldRandom() - 0.5) * d * 0.6
             );
             vent.castShadow = true;
             group.add(vent);
@@ -1460,7 +1546,7 @@ export class WorldManager {
 
         this.addPitchedRoof(group, w, d, wallH, 'industrial');
 
-        if (Math.random() < 0.4) {
+        if (this.worldRandom() < 0.4) {
             this.addBuildingRubble(group, w * 0.8, d * 0.8);
         }
 
@@ -1522,15 +1608,15 @@ export class WorldManager {
 
         const rimCount = Math.floor(radius * 4);
         for (let i = 0; i < rimCount; i++) {
-            const a = (i / rimCount) * Math.PI * 2 + Math.random() * 0.3;
-            const rr = radius * (0.85 + Math.random() * 0.35);
-            const s = 0.3 + Math.random() * radius * 0.25;
+            const a = (i / rimCount) * Math.PI * 2 + this.worldRandom() * 0.3;
+            const rr = radius * (0.85 + this.worldRandom() * 0.35);
+            const s = 0.3 + this.worldRandom() * radius * 0.25;
             const rock = new THREE.Mesh(
                 new THREE.DodecahedronGeometry(s, 0),
                 this.materials.debris
             );
             rock.position.set(Math.cos(a) * rr, s * 0.3, Math.sin(a) * rr);
-            rock.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+            rock.rotation.set(this.worldRandom() * 3, this.worldRandom() * 3, this.worldRandom() * 3);
             rock.castShadow = true;
             group.add(rock);
         }
@@ -1547,9 +1633,9 @@ export class WorldManager {
         const ruin = cfg.ruinLevel || 0;
         const count = Math.floor(ruin * 16);
         for (let i = 0; i < count; i++) {
-            const x = (Math.random() - 0.5) * totalWidth * 0.95;
-            const z = (Math.random() - 0.5) * totalDepth * 0.95;
-            this.createCrater(x, z, 2.5 + Math.random() * 4);
+            const x = (this.worldRandom() - 0.5) * totalWidth * 0.95;
+            const z = (this.worldRandom() - 0.5) * totalDepth * 0.95;
+            this.createCrater(x, z, 2.5 + this.worldRandom() * 4);
         }
     }
 
@@ -1557,12 +1643,12 @@ export class WorldManager {
      * Leaning collapsed concrete slab - call with a parent group and local coords
      */
     createCollapsedSlab(parent, x, y, z, scale = 1) {
-        const w = (2 + Math.random() * 3) * scale;
-        const h = (0.4 + Math.random() * 0.5) * scale;
-        const d = (1.5 + Math.random() * 2.5) * scale;
+        const w = (2 + this.worldRandom() * 3) * scale;
+        const h = (0.4 + this.worldRandom() * 0.5) * scale;
+        const d = (1.5 + this.worldRandom() * 2.5) * scale;
         const slab = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), this.materials.debris);
         slab.position.set(x, y + h / 2, z);
-        slab.rotation.set((Math.random() - 0.5) * 0.9, Math.random() * Math.PI, (Math.random() - 0.5) * 0.9);
+        slab.rotation.set((this.worldRandom() - 0.5) * 0.9, this.worldRandom() * Math.PI, (this.worldRandom() - 0.5) * 0.9);
         slab.castShadow = true;
         slab.receiveShadow = true;
         parent.add(slab);
@@ -1581,13 +1667,13 @@ export class WorldManager {
         const rocks = new THREE.InstancedMesh(rockGeom, rockMat, rockCount);
         let placed = 0, guard = 0;
         while (placed < rockCount && guard++ < rockCount * 30) {
-            const x = (Math.random() - 0.5) * (totalWidth + 320);
-            const z = (Math.random() - 0.5) * (totalDepth + 320);
+            const x = (this.worldRandom() - 0.5) * (totalWidth + 320);
+            const z = (this.worldRandom() - 0.5) * (totalDepth + 320);
             if (Math.hypot(x, z) < 95) continue;
-            const s = 0.35 + Math.random() * 1.5;
+            const s = 0.35 + this.worldRandom() * 1.5;
             dummy.position.set(x, this.getTerrainHeight(x, z) + s * 0.25, z);
-            dummy.rotation.set(Math.random() * 0.5, Math.random() * Math.PI * 2, Math.random() * 0.5);
-            dummy.scale.set(s * (0.7 + Math.random() * 0.7), s * 0.75, s * (0.7 + Math.random() * 0.7));
+            dummy.rotation.set(this.worldRandom() * 0.5, this.worldRandom() * Math.PI * 2, this.worldRandom() * 0.5);
+            dummy.scale.set(s * (0.7 + this.worldRandom() * 0.7), s * 0.75, s * (0.7 + this.worldRandom() * 0.7));
             dummy.updateMatrix();
             rocks.setMatrixAt(placed++, dummy.matrix);
         }
@@ -1604,13 +1690,13 @@ export class WorldManager {
         const tufts = new THREE.InstancedMesh(tuftGeom, tuftMat, tuftCount);
         placed = 0; guard = 0;
         while (placed < tuftCount && guard++ < tuftCount * 30) {
-            const x = (Math.random() - 0.5) * (totalWidth + 320);
-            const z = (Math.random() - 0.5) * (totalDepth + 320);
+            const x = (this.worldRandom() - 0.5) * (totalWidth + 320);
+            const z = (this.worldRandom() - 0.5) * (totalDepth + 320);
             if (Math.hypot(x, z) < 70) continue;
-            const s = 0.6 + Math.random() * 1.1;
+            const s = 0.6 + this.worldRandom() * 1.1;
             dummy.position.set(x, this.getTerrainHeight(x, z), z);
-            dummy.rotation.set(0, Math.random() * Math.PI, 0);
-            dummy.scale.set(s, s * (0.7 + Math.random() * 0.6), s);
+            dummy.rotation.set(0, this.worldRandom() * Math.PI, 0);
+            dummy.scale.set(s, s * (0.7 + this.worldRandom() * 0.6), s);
             dummy.updateMatrix();
             tufts.setMatrixAt(placed++, dummy.matrix);
         }
@@ -1654,20 +1740,20 @@ export class WorldManager {
 
         const baseY = this.getTerrainHeight(x, z) - 0.15;
         const ruin = (this.city && this.city.ruinLevel) || 0;
-        const pieceCount = 10 + Math.floor(Math.random() * 15) + Math.floor(ruin * 12);
+        const pieceCount = 10 + Math.floor(this.worldRandom() * 15) + Math.floor(ruin * 12);
 
         for (let i = 0; i < pieceCount; i++) {
-            const size = 0.3 + Math.random() * 1;
-            const isBox = Math.random() > 0.5;
-            const px = x + (Math.random() - 0.5) * 3;
-            const pz = z + (Math.random() - 0.5) * 3;
+            const size = 0.3 + this.worldRandom() * 1;
+            const isBox = this.worldRandom() > 0.5;
+            const px = x + (this.worldRandom() - 0.5) * 3;
+            const pz = z + (this.worldRandom() - 0.5) * 3;
             const py = baseY + size * 0.2;
 
             this.debrisInstancer.addPiece(
                 px, py, pz,
-                Math.random() * Math.PI * 0.3,
-                Math.random() * Math.PI,
-                Math.random() * Math.PI * 0.3,
+                this.worldRandom() * Math.PI * 0.3,
+                this.worldRandom() * Math.PI,
+                this.worldRandom() * Math.PI * 0.3,
                 size,
                 isBox
             );
@@ -1681,6 +1767,7 @@ export class WorldManager {
         collider.position.set(x, baseY + 0.5, z);
         collider.userData = { isCollidable: true, type: 'debris' };
         this.scene.add(collider);
+        this._cityObjects.push(collider);
         this.colliders.push(collider);
     }
 
@@ -1717,9 +1804,9 @@ export class WorldManager {
                 ];
                 
                 for (const [cx, cz] of corners) {
-                    if (Math.random() > 0.7) continue;
+                    if (this.worldRandom() > 0.7) continue;
                     
-                    this.createLamppost(cx, cz, Math.random() < 0.3);
+                    this.createLamppost(cx, cz, this.worldRandom() < 0.3);
                 }
             }
         }
@@ -1745,8 +1832,8 @@ export class WorldManager {
         group.add(pole);
         
         if (isBent) {
-            const bendAngle = Math.random() * 0.15;
-            const bendDirection = Math.random() * Math.PI * 2;
+            const bendAngle = this.worldRandom() * 0.15;
+            const bendDirection = this.worldRandom() * Math.PI * 2;
             pole.rotation.x = Math.cos(bendDirection) * bendAngle;
             pole.rotation.z = Math.sin(bendDirection) * bendAngle;
         }
@@ -1806,8 +1893,8 @@ export class WorldManager {
         const vehicleCount = Math.floor((cfg.blocksX * cfg.blocksZ) / 2);
         
         for (let i = 0; i < vehicleCount; i++) {
-            const x = (Math.random() - 0.5) * totalWidth * 0.9;
-            const z = (Math.random() - 0.5) * totalDepth * 0.9;
+            const x = (this.worldRandom() - 0.5) * totalWidth * 0.9;
+            const z = (this.worldRandom() - 0.5) * totalDepth * 0.9;
             
             this.createAbandonedVehicle(x, z);
         }
@@ -1818,11 +1905,18 @@ export class WorldManager {
      * FULL COLLISION SUPPORT
      */
     createAbandonedVehicle(x, z) {
+        if(this.city?.architecture==='atlanta') {
+            const car=buildSedanModel();car.position.set(x,0,z);car.rotation.y=this.worldRandom()*Math.PI*2;
+            seatOnGround(car,(px,pz)=>this.getTerrainHeight(px,pz));
+            this.scene.add(car);this._cityObjects.push(car);this.colliders.push(car);
+            this.createVehicleCollider(x,z,4.5,1.82,1.6,car.rotation.y,car.position.y);
+            return;
+        }
         const group = new THREE.Group();
         group.position.set(x, this.getTerrainHeight(x, z) - 0.15, z); // sink slightly: never floats on slopes
-        group.rotation.y = Math.random() * Math.PI * 2;
+        group.rotation.y = this.worldRandom() * Math.PI * 2;
         
-        const isVan = Math.random() > 0.7;
+        const isVan = this.worldRandom() > 0.7;
         
         const length = isVan ? 5 : 4;
         const width = isVan ? 2 : 1.8;
@@ -1831,7 +1925,7 @@ export class WorldManager {
         // Body with collision
         const bodyGeom = new THREE.BoxGeometry(length, height, width);
         const bodyMat = new THREE.MeshStandardMaterial({
-            color: Math.random() > 0.5 ? 0x3a3a3a : 0x4a3a30,
+            color: this.worldRandom() > 0.5 ? 0x3a3a3a : 0x4a3a30,
             roughness: 0.9,
             metalness: 0.3
         });
@@ -1872,8 +1966,8 @@ export class WorldManager {
             const wheel = new THREE.Mesh(wheelGeom, wheelMat);
             wheel.position.set(wx, wy, wz);
             wheel.rotation.x = Math.PI / 2;
-            if (Math.random() > 0.8) continue;
-            if (Math.random() > 0.7) wheel.scale.y = 0.5;
+            if (this.worldRandom() > 0.8) continue;
+            if (this.worldRandom() > 0.7) wheel.scale.y = 0.5;
             group.add(wheel);
         }
         
@@ -1917,18 +2011,18 @@ export class WorldManager {
         const debrisCount = Math.floor(Math.sqrt(totalWidth * totalDepth) / 3.5);
         
         for (let i = 0; i < debrisCount; i++) {
-            const x = (Math.random() - 0.5) * totalWidth;
-            const z = (Math.random() - 0.5) * totalDepth;
+            const x = (this.worldRandom() - 0.5) * totalWidth;
+            const z = (this.worldRandom() - 0.5) * totalDepth;
             const gy = this.getTerrainHeight(x, z);
             
-            const debrisType = Math.floor(Math.random() * 4);
+            const debrisType = Math.floor(this.worldRandom() * 4);
             
             if (debrisType === 0) {
                 // Barrel with collision
                 const barrelGeom = new THREE.CylinderGeometry(0.4, 0.4, 1, 12);
                 const barrel = new THREE.Mesh(barrelGeom, this.materials.rustyMetal);
                 barrel.position.set(x, gy + 0.5, z);
-                if (Math.random() > 0.5) {
+                if (this.worldRandom() > 0.5) {
                     barrel.rotation.x = Math.PI / 2;
                     barrel.position.y = gy + 0.4;
                 }
@@ -1944,7 +2038,7 @@ export class WorldManager {
                 const crateMat = new THREE.MeshStandardMaterial({ color: 0x4a4035, roughness: 0.9 });
                 const crate = new THREE.Mesh(crateGeom, crateMat);
                 crate.position.set(x, gy + 0.4, z);
-                crate.rotation.y = Math.random() * Math.PI;
+                crate.rotation.y = this.worldRandom() * Math.PI;
                 crate.castShadow = true;
                 crate.receiveShadow = true;
                 crate.userData = { isCollidable: true, type: 'crate' };
@@ -1963,13 +2057,13 @@ export class WorldManager {
             } else {
                 // Concrete block with collision
                 const blockGeom = new THREE.BoxGeometry(
-                    0.5 + Math.random() * 0.5,
-                    0.3 + Math.random() * 0.3,
-                    0.5 + Math.random() * 0.5
+                    0.5 + this.worldRandom() * 0.5,
+                    0.3 + this.worldRandom() * 0.3,
+                    0.5 + this.worldRandom() * 0.5
                 );
                 const block = new THREE.Mesh(blockGeom, this.materials.debris);
                 block.position.set(x, gy + 0.2, z);
-                block.rotation.y = Math.random() * Math.PI;
+                block.rotation.y = this.worldRandom() * Math.PI;
                 block.castShadow = true;
                 block.receiveShadow = true;
                 block.userData = { isCollidable: true, type: 'debris' };
@@ -1987,8 +2081,8 @@ export class WorldManager {
         const treeCount = Math.floor((cfg.blocksX * cfg.blocksZ) / 1.2);
         
         for (let i = 0; i < treeCount; i++) {
-            const x = (Math.random() - 0.5) * totalWidth * 0.95;
-            const z = (Math.random() - 0.5) * totalDepth * 0.95;
+            const x = (this.worldRandom() - 0.5) * totalWidth * 0.95;
+            const z = (this.worldRandom() - 0.5) * totalDepth * 0.95;
             
             this.createDeadTree(x, z);
         }
@@ -2002,7 +2096,7 @@ export class WorldManager {
         const group = new THREE.Group();
         group.position.set(x, this.getTerrainHeight(x, z) - 0.15, z); // sink slightly: never floats on slopes
         
-        const height = 3 + Math.random() * 4;
+        const height = 3 + this.worldRandom() * 4;
         const trunkRadius = 0.15;
         
         // Trunk with collision
@@ -2014,27 +2108,27 @@ export class WorldManager {
         group.add(trunk);
         
         // Branches (no collision - too thin)
-        const branchCount = 3 + Math.floor(Math.random() * 4);
+        const branchCount = 3 + Math.floor(this.worldRandom() * 4);
         for (let i = 0; i < branchCount; i++) {
-            const branchLength = 0.5 + Math.random() * 1.5;
+            const branchLength = 0.5 + this.worldRandom() * 1.5;
             const branchGeom = new THREE.CylinderGeometry(0.02, 0.05, branchLength, 4);
             const branch = new THREE.Mesh(branchGeom, this.materials.deadVegetation);
             
-            const branchY = height * (0.5 + Math.random() * 0.4);
-            const angle = (i / branchCount) * Math.PI * 2 + Math.random() * 0.5;
+            const branchY = height * (0.5 + this.worldRandom() * 0.4);
+            const angle = (i / branchCount) * Math.PI * 2 + this.worldRandom() * 0.5;
             
             branch.position.set(
                 Math.cos(angle) * 0.2,
                 branchY,
                 Math.sin(angle) * 0.2
             );
-            branch.rotation.z = Math.PI / 2 - 0.3 - Math.random() * 0.4;
+            branch.rotation.z = Math.PI / 2 - 0.3 - this.worldRandom() * 0.4;
             branch.rotation.y = angle;
             branch.castShadow = true;
             group.add(branch);
         }
         
-        if (Math.random() > 0.5) {
+        if (this.worldRandom() > 0.5) {
             const debrisGeom = new THREE.CircleGeometry(0.8, 6);
             const debris = new THREE.Mesh(debrisGeom, this.materials.deadVegetation);
             debris.rotation.x = -Math.PI / 2;
@@ -2149,15 +2243,30 @@ export class WorldManager {
         
         for (const collider of this.colliders) {
             if (!collider.position) continue;
-            
-            const cellX = Math.floor(collider.position.x / this.collisionGridSize);
-            const cellZ = Math.floor(collider.position.z / this.collisionGridSize);
-            const key = `${cellX},${cellZ}`;
-            
-            if (!this.collisionGrid.has(key)) {
-                this.collisionGrid.set(key, []);
+
+            // Merged geometry is baked in world space; its mesh position is
+            // zero even when the geometry is hundreds of metres away.
+            let keys = collider.userData?.gridCells;
+            if (!keys) {
+                if (collider === this.terrainMesh) {
+                    // Terrain is always appended by getNearbyColliders().
+                    continue;
+                }
+                const bounds = new THREE.Box3().setFromObject(collider);
+                keys = [];
+                if (bounds.isEmpty()) continue;
+                for (let x = Math.floor(bounds.min.x / this.collisionGridSize);
+                    x <= Math.floor(bounds.max.x / this.collisionGridSize); x++) {
+                    for (let z = Math.floor(bounds.min.z / this.collisionGridSize);
+                        z <= Math.floor(bounds.max.z / this.collisionGridSize); z++) {
+                        keys.push(`${x},${z}`);
+                    }
+                }
             }
-            this.collisionGrid.get(key).push(collider);
+            for (const key of new Set(keys)) {
+                if (!this.collisionGrid.has(key)) this.collisionGrid.set(key, []);
+                this.collisionGrid.get(key).push(collider);
+            }
         }
         
         console.log(`Built collision grid with ${this.collisionGrid.size} cells`);
@@ -2167,7 +2276,7 @@ export class WorldManager {
      * Get nearby colliders using spatial hash
      */
     getNearbyColliders(position, radius = 20) {
-        const result = [];
+        const result = new Set();
         const cellRadius = Math.ceil(radius / this.collisionGridSize);
         const centerX = Math.floor(position.x / this.collisionGridSize);
         const centerZ = Math.floor(position.z / this.collisionGridSize);
@@ -2177,18 +2286,16 @@ export class WorldManager {
                 const key = `${x},${z}`;
                 const cell = this.collisionGrid.get(key);
                 if (cell) {
-                    result.push(...cell);
+                    for (const collider of cell) result.add(collider);
                 }
             }
         }
 
         // The terrain mesh sits in a single grid cell - always include it
         // so bullets and LOS checks collide with hills anywhere.
-        if (this.terrainMesh && !result.includes(this.terrainMesh)) {
-            result.push(this.terrainMesh);
-        }
+        if (this.terrainMesh) result.add(this.terrainMesh);
 
-        return result;
+        return [...result];
     }
 
     /**
@@ -2219,13 +2326,18 @@ export class WorldManager {
                 enemy.position.fromArray(data.position);
             } else if (this.spawnPoints.enemy.length > 0) {
                 const spawnPoint = this.spawnPoints.enemy[
-                    Math.floor(Math.random() * this.spawnPoints.enemy.length)
+                    Math.floor(this.worldRandom() * this.spawnPoints.enemy.length)
                 ];
                 enemy.position.fromArray(spawnPoint);
             }
             
             if (data.patrolPoints) {
                 enemy.setPatrolRoute(data.patrolPoints.map(p => new THREE.Vector3().fromArray(p)));
+            }
+
+            if(this.city?.architecture==='atlanta') {
+                const grounded=this.findOpenGroundPosition(enemy.position.x,enemy.position.z);
+                enemy.position.copy(grounded);
             }
             
             enemy.init(this.game);
@@ -2272,7 +2384,7 @@ export class WorldManager {
         mesh.castShadow = true;
         
         const interactable = {
-            id: `interact_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            id: `interact_${Date.now()}_${this.worldRandom().toString(36).substr(2, 9)}`,
             mesh,
             type: data.type || 'generic',
             data: data.data || {},
@@ -2291,18 +2403,18 @@ export class WorldManager {
 
     spawnLoot(position, lootTable) {
         for (const loot of lootTable) {
-            if (Math.random() < loot.chance) {
+            if (this.worldRandom() < loot.chance) {
                 const amount = Array.isArray(loot.amount)
-                    ? Math.floor(loot.amount[0] + Math.random() * (loot.amount[1] - loot.amount[0]))
+                    ? Math.floor(loot.amount[0] + this.worldRandom() * (loot.amount[1] - loot.amount[0]))
                     : loot.amount;
                 
                 this.createPickup({
                     item: loot.item,
                     amount,
                     position: [
-                        position.x + (Math.random() - 0.5) * 2,
+                        position.x + (this.worldRandom() - 0.5) * 2,
                         position.y + 0.5,
-                        position.z + (Math.random() - 0.5) * 2
+                        position.z + (this.worldRandom() - 0.5) * 2
                     ]
                 });
             }
@@ -2313,15 +2425,15 @@ export class WorldManager {
         // The mesh looks like the actual item instead of a glowing cube
         const mesh = ItemMeshFactory.build(data.item);
         mesh.position.fromArray(data.position);
-        mesh.position.y = Math.max(mesh.position.y, this.getTerrainHeight(mesh.position.x, mesh.position.z) + 0.12);
+        seatOnGround(mesh,(x,z)=>this.getTerrainHeight(x,z));
         
         const pickup = {
-            id: `pickup_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            id: `pickup_${Date.now()}_${this.worldRandom().toString(36).substr(2, 9)}`,
             mesh,
             item: data.item,
             amount: data.amount || 1,
             isActive: true,
-            bobOffset: Math.random() * Math.PI * 2
+            bobOffset: this.worldRandom() * Math.PI * 2
         };
         
         mesh.userData.pickup = pickup;
@@ -2459,7 +2571,7 @@ export class WorldManager {
         
         // Use nearby colliders for optimization in large city
         const nearbyColliders = this.getNearbyColliders(origin, maxDistance);
-        const staticTargets = nearbyColliders.length > 0 ? nearbyColliders : this.colliders;
+        const staticTargets = (nearbyColliders.length > 0 ? nearbyColliders : this.colliders).concat(this.game.physicsSystem?.targets()||[]);
         // Include live entity hitboxes (enemies, NPCs) so bullets can hit them
         const entityTargets = [];
         for (const entity of this.entities.values()) {
@@ -2470,7 +2582,7 @@ export class WorldManager {
         const targets = entityTargets.length > 0 ? staticTargets.concat(entityTargets) : staticTargets;
         const intersects = raycaster.intersectObjects(targets, true);
         
-        return intersects.length > 0 ? intersects[0] : null;
+        return intersects.find(hit=>{for(let object=hit.object;object;object=object.parent)if(!object.visible)return false;return true;})||null;
     }
 
     /**
@@ -2480,13 +2592,13 @@ export class WorldManager {
         const raycaster = new THREE.Raycaster(origin, direction, 0, maxDistance);
         
         // Get colliders along the ray path
-        const nearbyColliders = this.getCollidersAlongRay(origin, direction, maxDistance);
+        const nearbyColliders = this.getCollidersAlongRay(origin, direction, maxDistance).concat(this.game.physicsSystem?.targets?.()||[]);
         
         if (nearbyColliders.length === 0) {
             return null;
         }
         
-        const intersects = raycaster.intersectObjects(nearbyColliders, true);
+        const intersects = raycaster.intersectObjects(nearbyColliders, true).filter(hit=>{for(let object=hit.object;object;object=object.parent)if(!object.visible)return false;return true;});
         
         // Filter to only collidable objects
         for (const hit of intersects) {
@@ -2600,6 +2712,7 @@ export class WorldManager {
      * Update all world entities
      */
     update(deltaTime) {
+        if(this.game.player)this.forestStreaming?.update(deltaTime,this.game.player.position,this.game.player.velocity);
         // Update entities
         for (const entity of this.entities.values()) {
             if (!entity.isActive) continue;
@@ -2610,15 +2723,7 @@ export class WorldManager {
             this.updateSpatialGrid(entity);
         }
         
-        // Update pickups (bob animation)
-        for (const pickup of this.pickups.values()) {
-            if (pickup.isActive && pickup.mesh) {
-                pickup.bobOffset += deltaTime * 2;
-                pickup.mesh.position.y = pickup.mesh.position.y * 0.95 + 
-                    (0.5 + Math.sin(pickup.bobOffset) * 0.1) * 0.05;
-                pickup.mesh.rotation.y += deltaTime * 0.5;
-            }
-        }
+        // Physical supplies remain seated where they were dropped.
         
         // Update bullets
         for (const bullet of this.pools.bullets) {
@@ -2712,6 +2817,8 @@ export class WorldManager {
      */
     clearLevel() {
         console.log('Clearing level...');
+        this.tutorialDefinition=null;this.tutorialContainers=[];this._cellMaterials?.clear();
+        this.loadingAbort?.abort();this.forestStreaming?.dispose();this.forestStreaming=null;
 
         this.terrainMesh = null;
         this._terrainReady = false;
@@ -2804,11 +2911,14 @@ export class WorldManager {
     /**
      * Serialize world state for saving
      */
+    worldRandom(){this._saveRng=(Math.imul(this._saveRng||1,1664525)+1013904223)>>>0;return this._saveRng/4294967296;}
+
     serialize() {
         return {
+            recipeSeed:this.recipeSeed,rngState:this._saveRng,
             level: this.currentLevel?.name,
             entities: Array.from(this.entities.values())
-                .filter(e => e.serialize)
+                .filter(e => e.serialize&&!e.alifePartyId)
                 .map(e => e.serialize()),
             pickups: Array.from(this.pickups.values()).map(p => ({
                 item: p.item,
@@ -2816,6 +2926,13 @@ export class WorldManager {
                 position: p.mesh.position.toArray()
             }))
         };
+    }
+
+    restoreSaved(data){
+        if(!data)return;this._saveRng=data.rngState??this._saveRng;for(const enemy of [...this.enemies.values()]){this.scene.remove(enemy.mesh);enemy.dispose?.();this.removeEnemy(enemy);}
+        for(const e of data.entities||[]){if(e.tags?.includes('npc')){const npc=[...this.entities.values()].find(n=>n.name===e.name&&n.tags.has('npc'));if(npc){this.entities.delete(npc.id);this.removeFromSpatialGrid(npc);npc.deserialize(e);this.entities.set(npc.id,npc);this.addToSpatialGrid(npc);}continue;}if(e.health===undefined||e.health<=0)continue;const enemy=this.spawnEnemy({type:e.enemyType||'human',faction:e.faction,position:e.position});if(enemy){this.enemies.delete(enemy.id);this.entities.delete(enemy.id);this.removeFromSpatialGrid(enemy);enemy.deserialize(e);enemy.position.fromArray(e.position);enemy.alive=e.health>0;enemy.target=e.targetPlayer?this.game.player:null;this.enemies.set(enemy.id,enemy);this.entities.set(enemy.id,enemy);this.addToSpatialGrid(enemy);}}
+        for(const p of [...this.pickups.values()]){this.scene.remove(p.mesh);p.mesh.traverse(o=>{o.geometry?.dispose();o.material?.dispose?.();});this.pickups.delete(p.id);this.interactables.delete(p.id);}for(const p of data.pickups||[])this.createPickup(p);
+        for(const e of this.enemies.values())this.updateSpatialGrid(e);
     }
 
     /**
@@ -2835,7 +2952,7 @@ export class WorldManager {
     getRandomEnemySpawnPosition() {
         if (this.spawnPoints.enemy && this.spawnPoints.enemy.length > 0) {
             const spawn = this.spawnPoints.enemy[
-                Math.floor(Math.random() * this.spawnPoints.enemy.length)
+                Math.floor(this.worldRandom() * this.spawnPoints.enemy.length)
             ];
             return new THREE.Vector3(spawn[0], spawn[1], spawn[2]);
         }
@@ -2845,16 +2962,16 @@ export class WorldManager {
             const totalWidth = this.city.blocksX * this.city.blockSize;
             const totalDepth = this.city.blocksZ * this.city.blockSize;
             return new THREE.Vector3(
-                (Math.random() - 0.5) * totalWidth * 0.8,
+                (this.worldRandom() - 0.5) * totalWidth * 0.8,
                 0,
-                (Math.random() - 0.5) * totalDepth * 0.8
+                (this.worldRandom() - 0.5) * totalDepth * 0.8
             );
         }
         
         return new THREE.Vector3(
-            (Math.random() - 0.5) * 100,
+            (this.worldRandom() - 0.5) * 100,
             0,
-            (Math.random() - 0.5) * 100
+            (this.worldRandom() - 0.5) * 100
         );
     }
 
@@ -2914,6 +3031,17 @@ export class WorldManager {
      */
     getGroundHeight(x, z) {
         return this.getTerrainHeight(x, z);
+    }
+
+    findOpenGroundPosition(x,z,clearance=0.8) {
+        const spots=this.buildingSpots || [];
+        const free=(px,pz)=>!spots.some(s=>Math.abs(px-s.x)<s.width/2+clearance&&Math.abs(pz-s.z)<s.depth/2+clearance);
+        for(let radius=0;radius<=40;radius+=2) {
+            for(const [dx,dz]of [[radius,0],[-radius,0],[0,radius],[0,-radius],[radius,radius],[-radius,-radius],[radius,-radius],[-radius,radius]]) {
+                if(free(x+dx,z+dz))return new THREE.Vector3(x+dx,this.getTerrainHeight(x+dx,z+dz),z+dz);
+            }
+        }
+        return new THREE.Vector3(0,this.getTerrainHeight(0,10),10);
     }
 
     /**

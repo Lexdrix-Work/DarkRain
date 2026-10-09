@@ -1,4 +1,17 @@
+import {TextureResidency} from '../core/memory/TextureResidency.js';
+import { makeSurfaceRelief } from './MaterialRelief.js';
 import * as THREE from 'three';
+const brickUrl = new URL('../assets/materials/atlanta-brick-v1.png', import.meta.url).href;
+const asphaltUrl = new URL('../assets/materials/atlanta-asphalt-v1.png', import.meta.url).href;
+const windowUrl = new URL('../assets/materials/atlanta-window-v1.png', import.meta.url).href;
+const concreteFiles={
+ map:[new URL('../assets/materials/polyhaven/rough-concrete/rough_concrete_diff_1k.jpg',import.meta.url).href,new URL('../assets/materials/polyhaven/rough-concrete/rough_concrete_diff_2k.jpg',import.meta.url).href],
+ normalMap:[new URL('../assets/materials/polyhaven/rough-concrete/rough_concrete_nor_gl_1k.jpg',import.meta.url).href,new URL('../assets/materials/polyhaven/rough-concrete/rough_concrete_nor_gl_2k.jpg',import.meta.url).href],
+ roughnessMap:[new URL('../assets/materials/polyhaven/rough-concrete/rough_concrete_arm_1k.jpg',import.meta.url).href,new URL('../assets/materials/polyhaven/rough-concrete/rough_concrete_arm_2k.jpg',import.meta.url).href],
+ heightMap:[new URL('../assets/materials/polyhaven/rough-concrete/rough_concrete_disp_1k.jpg',import.meta.url).href,new URL('../assets/materials/polyhaven/rough-concrete/rough_concrete_disp_2k.jpg',import.meta.url).href]
+};
+const authoredConcrete={};
+
 
 /**
  * ProceduralTextures - Canvas-generated detail textures.
@@ -67,11 +80,37 @@ function toBump(canvas, repeat = 1, scale = 1) {
 }
 
 const cache = {};
+const surfaceImages = {};
+
+export async function preloadSurfaceTextures(game) {
+    if(game&&!game.textureResidency)game.textureResidency=new TextureResidency(game.renderer,game.settings?.quality);
+    const loader=new THREE.TextureLoader();
+    if(game)for(const [channel,urls]of Object.entries(concreteFiles)){
+        try{authoredConcrete[channel]=await game.textureResidency.load('rough-concrete-'+channel,{variants:[{dimension:1024,url:urls[0]},{dimension:2048,url:urls[1]}],fallback:urls[0]},{pinned:true,colorSpace:channel==='map'?THREE.SRGBColorSpace:THREE.NoColorSpace});}catch(error){console.warn('Concrete PBR fallback:',channel,error.message);}
+    }
+    await Promise.all(Object.entries({brick:brickUrl,asphalt:asphaltUrl,window:windowUrl}).map(async([kind,url])=>{
+        if(surfaceImages[kind]) return;
+        try {
+            const tex=game?.textureResidency?await game.textureResidency.load(kind,{fallback:url},{pinned:true}):await loader.loadAsync(url);
+            tex.colorSpace=THREE.SRGBColorSpace;
+            tex.wrapS=tex.wrapT=THREE.RepeatWrapping;tex.anisotropy=4;
+            surfaceImages[kind]=tex;
+        } catch(error) { console.warn(`Surface '${kind}' fell back to procedural detail:`,error.message); }
+    }));
+}
 
 export function getProceduralSet(kind) {
     if (cache[kind]) return cache[kind];
-    const builders = { concrete, asphalt, ground, metal, wood, rubble };
+    const builders = { window:concrete, brick:concrete, concrete, asphalt, ground, metal, wood, rubble };
     const set = builders[kind] ? builders[kind]() : builders.concrete();
+    if(kind==='concrete'&&authoredConcrete.map&&authoredConcrete.normalMap&&authoredConcrete.roughnessMap){set.map.dispose();set.bumpMap?.dispose();Object.assign(set,authoredConcrete,{aoMap:authoredConcrete.roughnessMap,bumpMap:null});cache[kind]=set;return set;}
+    if(surfaceImages[kind]) {
+        set.map.dispose();set.map=surfaceImages[kind];
+        set.bumpScale=kind==='brick'?0.025:0.018;
+        if(kind==='window'){set.bumpMap.dispose();set.bumpMap=null;set.bumpScale=0;}
+        else {const relief=makeSurfaceRelief(set.map,kind);set.bumpMap.dispose();set.bumpMap=null;Object.assign(set,relief);}
+    }
+    if(kind!=='window'&&!set.normalMap){Object.assign(set,makeSurfaceRelief(set.map,kind));set.bumpMap?.dispose();set.bumpMap=null;}
     cache[kind] = set;
     return set;
 }

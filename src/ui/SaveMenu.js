@@ -1,0 +1,12 @@
+/** Five manual slots plus system saves, using the existing paused menu context. */
+export class SaveMenu{
+ constructor(ui){this.ui=ui;this.game=ui.game;this.root=document.createElement('div');this.root.id='saves-menu';this.root.className='menu hidden';this.root.innerHTML='<div class="menu-header"><h2>Expedition records</h2></div><div class="menu-content" id="save-slot-list"></div><div class="menu-actions"><button class="menu-button" id="saves-back">Back</button></div>';document.getElementById('game-container').append(this.root);ui.elements.savesPanel=this.root;ui.menuStates.saves=false;this.root.querySelector('#saves-back').onclick=()=>this.close();}
+ show(mode='load'){this.mode=mode;this.ui.openMenu('saves');this.refresh();}
+ refresh(){const host=this.root.querySelector('#save-slot-list');host.replaceChildren();const records=this.game.saveSystem.getSaveSlots(),bySlot=new Map(records.map(r=>[r.slot,r]));const slots=this.mode==='save'?Array.from({length:5},(_,i)=>'manual_'+(i+1)):[...new Set(['autosave','quicksave',...Array.from({length:5},(_,i)=>'manual_'+(i+1)),...records.map(r=>r.slot)])];
+  for(const slot of slots){const record=bySlot.get(slot),b=document.createElement('button');b.className='menu-button save-slot';b.textContent=slot.replace('_',' ')+' — '+(record?(record.ended?'Campaign ended':new Date(record.timestamp).toLocaleString()+' · '+record.level+(record.recovered?' · Backup recovered':'')):'Empty');b.disabled=this.mode==='load'?!record||record.ended:this.game.session?.status==='ended';b.onclick=()=>{if(this.mode==='save'&&record)this.ui.showConfirm('Overwrite slot','Replace '+slot+' with the current expedition?',()=>this.save(slot));else if(this.mode==='save')void this.save(slot);else if(this.game.gameState==='playing')this.ui.showConfirm('Load expedition','Unsaved progress will be replaced.',()=>this.load(slot));else void this.load(slot);};host.append(b);}
+ }
+ async save(slot){const ok=await this.game.saveSystem.saveGame(slot);if(ok)this.refresh();}
+ async load(slot){this.ui.closeMenu('saves',false);if(this.game.gameState!=='playing'){this.ui.hideMainMenu();this.ui.hideDeathScreen();await this.game.beginSession(true,slot);return;}if(await this.game.saveSystem.loadGame(slot)){this.ui.hideAllMenus();this.game.isPaused=false;this.game.gameState='playing';this.game.clock.reset();this.game.inputManager.requestPointerLock();}else this.show('load');}
+ close(){this.ui.closeMenu('saves',false);if(this.game.gameState==='playing')this.ui.openMenu('pause');else this.ui.showMainMenu();}
+ dispose(){this.root.remove();}
+}

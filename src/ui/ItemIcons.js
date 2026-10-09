@@ -71,6 +71,11 @@ function bottle(ctx, x, y, w, h, liquid, label) {
 }
 
 const painters = {
+    grenade(ctx){ctx.fillStyle='#64704e';ctx.beginPath();ctx.ellipse(31,37,13,18,-.2,0,Math.PI*2);ctx.fill();ctx.fillStyle='#aaa58c';ctx.fillRect(26,12,11,9);ctx.strokeStyle='#b2b3a5';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(35,15);ctx.lineTo(44,27);ctx.lineTo(43,39);ctx.stroke();ctx.beginPath();ctx.arc(23,15,5,0,Math.PI*2);ctx.stroke();},
+    knife(ctx){ctx.fillStyle='#545849';ctx.fillRect(27,38,9,20);ctx.fillStyle='#b9bdb6';ctx.beginPath();ctx.moveTo(27,38);ctx.lineTo(28,13);ctx.lineTo(35,5);ctx.lineTo(37,38);ctx.closePath();ctx.fill();ctx.fillStyle='#747871';ctx.fillRect(23,37,18,4);},
+    crowbar(ctx){ctx.strokeStyle='#888c8b';ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(20,55);ctx.lineTo(35,17);ctx.quadraticCurveTo(40,6,49,15);ctx.stroke();},
+    fireaxe(ctx){ctx.fillStyle='#927044';ctx.save();ctx.translate(32,32);ctx.rotate(.45);ctx.fillRect(-3,-22,6,49);ctx.fillStyle='#acafa7';ctx.beginPath();ctx.moveTo(-4,-22);ctx.lineTo(16,-27);ctx.lineTo(17,-10);ctx.lineTo(-4,-14);ctx.closePath();ctx.fill();ctx.restore();},
+    sledgehammer(ctx){ctx.save();ctx.translate(32,32);ctx.rotate(.4);ctx.fillStyle='#947444';ctx.fillRect(-3,-20,6,48);ctx.fillStyle='#6e7575';rr(ctx,-17,-23,34,13,3);ctx.fill();ctx.restore();},
     medkit_small(ctx) {
         ctx.fillStyle = '#b03030'; rr(ctx, 12, 18, 40, 30, 6); ctx.fill();
         ctx.fillStyle = '#7c1f1f'; rr(ctx, 12, 18, 40, 8, 4); ctx.fill();
@@ -278,6 +283,14 @@ const painters = {
     },
 };
 
+function gearIcon(ctx,id) {
+    ctx.fillStyle='#69715d';ctx.strokeStyle='#252d27';ctx.lineWidth=2;
+    if(id.startsWith('helmet')){ctx.beginPath();ctx.arc(32,32,19,Math.PI,Math.PI*2);ctx.lineTo(53,36);ctx.lineTo(12,36);ctx.closePath();ctx.fill();ctx.stroke();ctx.fillStyle='#252d27';ctx.fillRect(13,34,39,4);}
+    else if(id.startsWith('armor')){rr(ctx,14,15,36,38,5);ctx.fill();ctx.fillStyle='#3c4436';ctx.fillRect(17,8,7,14);ctx.fillRect(40,8,7,14);ctx.fillRect(18,36,11,12);ctx.fillRect(35,36,11,12);ctx.strokeRect(18,22,28,9);}
+    else if(id.startsWith('backpack')){rr(ctx,17,9,30,45,9);ctx.fill();ctx.fillStyle='#414b39';rr(ctx,21,31,22,17,4);ctx.fill();ctx.strokeRect(20,14,24,12);}
+    else{ctx.fillStyle='#59605d';const pistol=id==='pm_pistol';rr(ctx,pistol?17:6,24,pistol?32:49,8,2);ctx.fill();ctx.fillStyle='#6b4d32';ctx.fillRect(pistol?36:42,30,7,pistol?16:10);ctx.fillRect(8,30,pistol?0:12,5);ctx.fillStyle='#343c37';ctx.fillRect(pistol?33:29,31,6,12);ctx.fillRect(pistol?18:6,23,pistol?8:42,2);}
+}
+
 function fallbackIcon(ctx, id) {
     ctx.fillStyle = '#5a5f66'; rr(ctx, 14, 14, 36, 36, 8); ctx.fill();
     ctx.fillStyle = '#fff'; ctx.font = 'bold 24px sans-serif';
@@ -291,7 +304,7 @@ export const ItemIcons = {
         if (cache.has(iconId)) return cache.get(iconId);
         const [c, ctx] = makeCanvas();
         try {
-            (painters[iconId] || (ctx => fallbackIcon(ctx, iconId)))(ctx);
+            (painters[iconId] || (ctx => /^(helmet|armor|backpack)/.test(iconId)||['pm_pistol','ak74','shotgun_toz','svd_sniper'].includes(iconId)?gearIcon(ctx,iconId):fallbackIcon(ctx, iconId)))(ctx);
         } catch (e) {
             fallbackIcon(ctx, iconId);
         }
