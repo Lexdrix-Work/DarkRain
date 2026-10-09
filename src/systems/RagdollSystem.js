@@ -1,4 +1,7 @@
+import { RigidRagdoll } from './RigidRagdoll.js';
 import * as THREE from 'three';
+import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
+import { globalEventBus } from '../core/EventBus.js';
 
 /**
  * RagdollSystem - Procedural verlet-based ragdoll physics.
@@ -13,6 +16,7 @@ export class RagdollSystem {
         this.ragdolls = new Set();
         this.gravity = -22;
         this.groundY = 0;
+        this.offLevel = globalEventBus.on('level:loaded', () => this.clear());
     }
 
     /**
@@ -23,7 +27,10 @@ export class RagdollSystem {
      * @returns {Ragdoll} The ragdoll instance
      */
     createRagdoll(characterGroup, position, impulse = new THREE.Vector3()) {
-        const ragdoll = new Ragdoll(this.scene, characterGroup, position, impulse);
+        const canArticulate=this.game.physicsSystem?.world&&characterGroup.getObjectByName('hips');
+        if(canArticulate)while(this.ragdolls.size>=6){const old=this.ragdolls.values().next().value;old.dispose();this.ragdolls.delete(old);}
+        const slot=(this.rigidSerial||0)%6;this.rigidSerial=(this.rigidSerial||0)+1;
+        const ragdoll=canArticulate?new RigidRagdoll(this.game.physicsSystem,characterGroup,position,impulse,slot):new Ragdoll(this.scene,characterGroup,position,impulse);
         this.ragdolls.add(ragdoll);
         return ragdoll;
     }
@@ -31,8 +38,8 @@ export class RagdollSystem {
     update(deltaTime) {
         const dt = Math.min(deltaTime, 0.033);
         for (const r of this.ragdolls) {
-            r.update(dt, this.gravity, this.groundY);
-            if (r.settled && r.settleTime > 30) {
+            r.update(dt, this.gravity, (x,z) => (this.game.worldManager?.getTerrainHeight(x,z) ?? this.groundY) + 0.06);
+            if ((r.settled && r.settleTime > 30)||r.age>45) {
                 // Remove old settled ragdolls after 30s
                 r.dispose();
                 this.ragdolls.delete(r);
@@ -40,10 +47,12 @@ export class RagdollSystem {
         }
     }
 
-    dispose() {
+    clear() {
         for (const r of this.ragdolls) r.dispose();
         this.ragdolls.clear();
     }
+
+    dispose() { this.offLevel?.(); this.clear(); }
 }
 
 class Ragdoll {
@@ -54,7 +63,11 @@ class Ragdoll {
         this.scene.add(this.group);
 
         // Clone the character mesh for the ragdoll visual
-        this.visual = characterGroup.clone(true);
+        this.visual = cloneSkeleton(characterGroup);
+        this.visual.position.set(0,0,0);
+        this.visual.visible = true;
+        this.visual.traverse(o => { if (o.isMesh) { o.geometry = o.geometry.clone();
+            o.material = Array.isArray(o.material) ? o.material.map(m=>m.clone()) : o.material.clone(); } });
         this.group.add(this.visual);
 
         // Define body parts as point masses (positions relative to group)
@@ -128,6 +141,7 @@ class Ragdoll {
     }
 
     update(dt, gravity, groundY) {
+        const groundAt = (p) => typeof groundY === 'function' ? groundY(this.group.position.x+p.pos.x,this.group.position.z+p.pos.z) : groundY;
         // Verlet integration
         for (const p of this.particles) {
             const vel = p.pos.clone().sub(p.prev);
@@ -138,8 +152,8 @@ class Ragdoll {
 
             // Ground collision
             const worldY = this.group.position.y + p.pos.y;
-            if (worldY < groundY + p.radius) {
-                p.pos.y = groundY + p.radius - this.group.position.y;
+            if (worldY < groundAt(p) + p.radius) {
+                p.pos.y = groundAt(p) + p.radius - this.group.position.y;
                 // Friction: dampen horizontal velocity on ground contact
                 const vx = p.pos.x - p.prev.x;
                 const vz = p.pos.z - p.prev.z;
@@ -164,7 +178,14 @@ class Ragdoll {
         // Update visual: position the character mesh to match ragdoll
         // For simplicity, we fade the visual and show a simplified representation
         // Actually, let's pose the visual using the particle positions
+        for (const p of this.particles) p.pos.y = Math.max(p.pos.y, groundAt(p)+p.radius-this.group.position.y);
         this.poseVisual();
+        this.group.updateMatrixWorld(true);
+        const bounds = new THREE.Box3().setFromObject(this.visual);
+        let floor = -Infinity;
+        for (const x of [bounds.min.x,bounds.max.x]) for(const z of [bounds.min.z,bounds.max.z])
+            floor = Math.max(floor, typeof groundY === 'function' ? groundY(x,z) : groundY);
+        if (bounds.min.y < floor) this.visual.position.y += floor-bounds.min.y;
 
         // Check if settled (low movement)
         let movement = 0;
@@ -192,8 +213,7 @@ class Ragdoll {
         this.visual.quaternion.slerp(targetQuat, 0.3);
         
         // Position visual at pelvis
-        this.visual.position.copy(this.pelvis.pos);
-        this.visual.position.y -= 1.05; // offset so pelvis aligns
+        this.visual.position.copy(this.pelvis.pos).sub(new THREE.Vector3(0,1.05,0).applyQuaternion(this.visual.quaternion)); // offset so pelvis aligns
     }
 
     dispose() {
@@ -201,7 +221,7 @@ class Ragdoll {
         this.visual.traverse(o => {
             if (o.isMesh) {
                 o.geometry?.dispose?.();
-                // Don't dispose shared materials
+                for (const mat of (Array.isArray(o.material) ? o.material : [o.material])) mat.dispose();
             }
         });
     }

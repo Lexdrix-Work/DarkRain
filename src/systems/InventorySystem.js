@@ -170,6 +170,7 @@ export class InventorySystem {
             return createItem(item.id, amount);
         } else {
             this.slots[slotIndex] = null;
+            this.quickSlots=this.quickSlots.map(slot=>slot===slotIndex?null:slot);
             this.recalculateWeight();
             this.notifyChange();
             return item;
@@ -188,6 +189,8 @@ export class InventorySystem {
         return this.removeItem(slotIndex, amount);
     }
 
+    findItem(itemId) {return this.slots.find(item=>item?.id===itemId)||null;}
+
     /**
      * Use an item
      * @param {number} slotIndex - Slot index
@@ -202,6 +205,9 @@ export class InventorySystem {
         let consumed = false;
         
         switch (item.type) {
+            case 'explosive':consumed=!!this.game.physicsSystem?.explosives?.throwFromPlayer(item);break;
+            case 'weapon': {this.game.weaponManager?.equipWeapon(item.weaponId);const weapon=this.game.weaponManager?.equippedWeapon;if(weapon&&item.weaponState){weapon.currentAmmo=item.weaponState.currentAmmo;weapon.reserveAmmo=item.weaponState.reserveAmmo;delete item.weaponState;}break;}
+            case 'equipment':this.game.equipmentSystem?.equip(item.id);break;
             case 'medical':
                 // Effects are applied by SurvivalSystem (the single 'item:use' effect handler);
                 // here we only decide whether the item is consumed.
@@ -283,6 +289,7 @@ export class InventorySystem {
     dropItem(slotIndex, amount = 1) {
         const item = this.removeItem(slotIndex, amount);
         if (!item) return;
+        if(item.type==='weapon'&&!this.findItem(item.id))this.game.weaponManager?.removeWeapon(item.weaponId);
         
         const player = this.game.player;
         if (!player) return;
@@ -309,6 +316,7 @@ export class InventorySystem {
      * @param {number} toSlot - Destination slot
      */
     moveItem(fromSlot, toSlot) {
+        if(!Number.isInteger(fromSlot)||!Number.isInteger(toSlot))return;
         if (fromSlot < 0 || fromSlot >= this.slots.length) return;
         if (toSlot < 0 || toSlot >= this.slots.length) return;
         if (fromSlot === toSlot) return;
@@ -326,11 +334,13 @@ export class InventorySystem {
             
             if (fromItem.count <= 0) {
                 this.slots[fromSlot] = null;
+                this.quickSlots=this.quickSlots.map(slot=>slot===fromSlot?toSlot:slot);
             }
         } else {
             // Swap items
             this.slots[fromSlot] = toItem;
             this.slots[toSlot] = fromItem;
+            this.quickSlots=this.quickSlots.map(slot=>slot===fromSlot?toSlot:slot===toSlot?fromSlot:slot);
         }
         
         this.notifyChange();
@@ -343,6 +353,7 @@ export class InventorySystem {
      */
     setQuickSlot(quickSlotIndex, inventorySlotIndex) {
         if (quickSlotIndex < 0 || quickSlotIndex >= this.quickSlots.length) return;
+        if(!Number.isInteger(inventorySlotIndex)||!this.slots[inventorySlotIndex])return;
         
         this.quickSlots[quickSlotIndex] = inventorySlotIndex;
         this.notifyChange();

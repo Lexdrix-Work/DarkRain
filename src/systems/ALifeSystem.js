@@ -248,13 +248,8 @@ export class ALifeSystem {
                         const angle = (i / party.visuals.size) * Math.PI * 2;
                         const tx = party.pos.x + Math.cos(angle) * 4;
                         const tz = party.pos.z + Math.sin(angle) * 4;
-                        const dx = tx - enemy.position.x;
-                        const dz = tz - enemy.position.z;
-                        const d = Math.hypot(dx, dz);
-                        if (d > 3) {
-                            enemy.position.x += (dx / d) * Math.min(d, 3 * 2.0);
-                            enemy.position.z += (dz / d) * Math.min(d, 3 * 2.0);
-                        }
+                        // Synchronize an intention, never teleport a visible actor.
+                        enemy.alifeGoal ||=new THREE.Vector3();enemy.alifeGoal.set(tx,enemy.position.y,tz);
                     }
                     i++;
                 }
@@ -288,6 +283,9 @@ export class ALifeSystem {
             });
         }
     }
+
+    serialize(){return {spawnTimer:this.spawnTimer,syncTimer:this.syncTimer,partyCounter:this.partyCounter,parties:[...this.parties.values()].map(p=>({id:p.id,faction:p.faction,pos:p.pos.toArray(),members:p.members,hp:p.hp,waypoint:p.waypoint.toArray(),state:p.state,fightTargetId:p.fightTargetId}))};}
+    restore(data){this.dispose();if(!data)return;this.spawnTimer=data.spawnTimer;this.syncTimer=data.syncTimer;this.partyCounter=data.partyCounter;for(const p of data.parties||[])this.parties.set(p.id,{...p,pos:new THREE.Vector3().fromArray(p.pos),waypoint:new THREE.Vector3().fromArray(p.waypoint),visuals:new Set()});}
 
     dispose() {
         for (const party of this.parties.values()) {

@@ -211,7 +211,7 @@ export class PowerupSystem {
         if (!def) return false;
 
         // Check cooldown (5 min for rare+)
-        const now = Date.now() / 1000;
+        const now = this.game.playTime || 0;
         const availableAt = this.cooldowns.get(buffId) || 0;
         if (now < availableAt) {
             console.log(`${def.name} on cooldown`);
@@ -286,7 +286,7 @@ export class PowerupSystem {
         }
 
         // Temporary buffs
-        const now = Date.now() / 1000;
+        const now = this.game.playTime || 0;
         for (const [id, buff] of this.activeBuffs) {
             if (now >= buff.expiresAt) {
                 this.activeBuffs.delete(id);
@@ -318,6 +318,11 @@ export class PowerupSystem {
                     stats[stat] = (stats[stat] || 0) + value;
                 }
             }
+        }
+
+        // Character specializations use the same capped stat path.
+        for (const [stat, value] of Object.entries(this.game?.perkSystem?.getEffects() || {})) {
+            stats[stat] = typeof value === 'boolean' ? value : (stats[stat] || 0) + value;
         }
 
         // Apply hard caps (anti-abuse)
@@ -353,7 +358,7 @@ export class PowerupSystem {
      * Check if wallhack is active
      */
     hasWallhack() {
-        const now = Date.now() / 1000;
+        const now = this.game.playTime || 0;
         for (const [id, buff] of this.activeBuffs) {
             if (now < buff.expiresAt && buff.effects.wallhack) {
                 return true;
@@ -364,7 +369,7 @@ export class PowerupSystem {
 
     update(deltaTime) {
         // Clean up expired buffs
-        const now = Date.now() / 1000;
+        const now = this.game.playTime || 0;
         let changed = false;
         for (const [id, buff] of this.activeBuffs) {
             if (now >= buff.expiresAt) {
@@ -389,12 +394,13 @@ export class PowerupSystem {
     serialize() {
         return {
             permanentStacks: this.permanentStacks,
-            equippedArtifacts: [...this.equippedArtifacts],
+            equippedArtifacts: [...this.equippedArtifacts],activeBuffs:[...this.activeBuffs].map(([id,b])=>({id,remaining:Math.max(0,b.expiresAt-(this.game.playTime||0))})),cooldowns:[...this.cooldowns].map(([id,at])=>({id,remaining:Math.max(0,at-(this.game.playTime||0))})),
         };
     }
 
     deserialize(data) {
         if (!data) return;
+        this.activeBuffs=new Map((data.activeBuffs||[]).filter(b=>TEMPORARY_BUFFS[b.id]&&b.remaining>0).map(b=>[b.id,{expiresAt:(this.game.playTime||0)+b.remaining,effects:TEMPORARY_BUFFS[b.id].effects}]));this.cooldowns=new Map((data.cooldowns||[]).map(c=>[c.id,(this.game.playTime||0)+c.remaining]));
         this.permanentStacks = data.permanentStacks || {};
         this.equippedArtifacts = new Set(data.equippedArtifacts || []);
         this.recalculateStats();

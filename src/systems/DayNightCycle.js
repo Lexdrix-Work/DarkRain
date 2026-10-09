@@ -1,4 +1,6 @@
+import { createNodeSkyMaterial } from '../render/ModernRenderer.ts';
 import * as THREE from 'three';
+import { sampleAtmosphere } from './SkyAtmosphere.js';
 import { globalEventBus, GameEvents } from '../core/EventBus.js';
 
 /**
@@ -84,14 +86,15 @@ export class DayNightCycle {
         this.sunLight.castShadow = false;
         this.sunLight.shadow.mapSize.width = 2048;
         this.sunLight.shadow.mapSize.height = 2048;
-        this.sunLight.shadow.camera.near = 10;
-        this.sunLight.shadow.camera.far = 1000;
-        this.sunLight.shadow.camera.left = -120;
-        this.sunLight.shadow.camera.right = 120;
-        this.sunLight.shadow.camera.top = 120;
-        this.sunLight.shadow.camera.bottom = -120;
-        this.sunLight.shadow.bias = -0.0003;
-        this.sunLight.shadow.normalBias = 0.02;
+        this.sunLight.shadow.camera.near = 1;
+        this.sunLight.shadow.camera.far = 700;
+        this.sunLight.shadow.camera.left = -36;
+        this.sunLight.shadow.camera.right = 36;
+        this.sunLight.shadow.camera.top = 36;
+        this.sunLight.shadow.camera.bottom = -36;
+        this.sunLight.shadow.bias = -0.00008;
+        this.sunLight.shadow.normalBias = 0.012;
+        this.sunLight.shadow.autoUpdate=false;this.sunLight.shadow.needsUpdate=true;
         this.sunLight.shadow.camera.updateProjectionMatrix();
         this.scene.add(this.sunLight);
         this.scene.add(this.sunLight.target);
@@ -99,6 +102,9 @@ export class DayNightCycle {
         // Moon light
         this.moonLight = new THREE.DirectionalLight(0x4444ff, 0.15);
         this.moonLight.castShadow = false;
+        this.moonLight.shadow.camera.copy(this.sunLight.shadow.camera);
+        this.moonLight.shadow.bias=-.00008;this.moonLight.shadow.normalBias=.012;
+        this.moonLight.shadow.autoUpdate=false;this.moonLight.shadow.needsUpdate=true;
         this.scene.add(this.moonLight);
         this.scene.add(this.moonLight.target);
         
@@ -112,92 +118,18 @@ export class DayNightCycle {
     }
 
     createSkyDome() {
-        // Simple sky dome
-        const geometry = new THREE.SphereGeometry(500, 32, 32);
-        const material = new THREE.ShaderMaterial({
-            uniforms: {
-                topColor: { value: new THREE.Color(0x0077ff) },
-                bottomColor: { value: new THREE.Color(0xffffff) },
-                offset: { value: 33 },
-                exponent: { value: 0.6 },
-                sunDirection: { value: new THREE.Vector3(0, 1, 0) },
-                sunColor: { value: new THREE.Color(0xfff4e0) },
-                nightFactor: { value: 0 }
-            },
-            vertexShader: `
-                varying vec3 vWorldPosition;
-                void main() {
-                    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-                    vWorldPosition = worldPosition.xyz;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                }
-            `,
-            fragmentShader: `
-                uniform vec3 topColor;
-                uniform vec3 bottomColor;
-                uniform float offset;
-                uniform float exponent;
-                uniform vec3 sunDirection;
-                uniform vec3 sunColor;
-                uniform float nightFactor;
-                varying vec3 vWorldPosition;
-                
-                // Hash for procedural stars
-                float hash(vec3 p) {
-                    p = fract(p * 0.3183099 + 0.1);
-                    p *= 17.0;
-                    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
-                }
-                
-                void main() {
-                    vec3 dir = normalize(vWorldPosition + offset);
-                    float h = max(dir.y, 0.0);
-                    vec3 sky = mix(bottomColor, topColor, pow(h, exponent));
-                    
-                    // Horizon haze: lighten near horizon for atmospheric depth
-                    float horizon = pow(1.0 - abs(dir.y), 3.0);
-                    sky = mix(sky, bottomColor * 1.15 + vec3(0.04), horizon * 0.5);
-                    
-                    // Sun disc + glow
-                    float sunDot = max(dot(dir, normalize(sunDirection)), 0.0);
-                    float disc = smoothstep(0.9993, 0.9997, sunDot);
-                    float glow = pow(sunDot, 180.0) * 0.6 + pow(sunDot, 8.0) * 0.18;
-                    sky += sunColor * (disc * 2.0 + glow) * (1.0 - nightFactor);
-                    
-                    // Stars at night (above horizon only)
-                    if (nightFactor > 0.01 && dir.y > 0.02) {
-                        vec3 sp = dir * 140.0;
-                        vec3 cell = floor(sp);
-                        float star = hash(cell);
-                        if (star > 0.992) {
-                            vec3 f = fract(sp) - 0.5;
-                            float d = length(f);
-                            float tw = 0.75 + 0.25 * sin(6.0 * star * 40.0);
-                            float b = smoothstep(0.25, 0.0, d) * tw;
-                            sky += vec3(0.9, 0.93, 1.0) * b * nightFactor * smoothstep(0.02, 0.25, dir.y);
-                        }
-                    }
-                    
-                    gl_FragColor = vec4(sky, 1.0);
-                }
-            `,
-            side: THREE.BackSide
-        });
-        
-        this.skyDome = new THREE.Mesh(geometry, material);
+        const material=createNodeSkyMaterial();
+        this.skyDome=new THREE.Mesh(new THREE.SphereGeometry(1,24,16),material);
+        this.skyDome.renderOrder=-1000;this.skyDome.frustumCulled=false;
+        this.skyDome.raycast=()=>{};
+        // Follow the camera used for this render, including reflection cameras.
+        this.skyDome.onBeforeRender=(_renderer,_scene,camera)=>{
+            camera.getWorldPosition(this.skyDome.position);
+            if(this.game.renderer?.isWebGPURenderer)this.skyDome.scale.setScalar(camera.far*.85);
+            this.skyDome.updateMatrixWorld(true);
+        };
         this.scene.add(this.skyDome);
-        
-        // Sun visual
-        const sunGeometry = new THREE.SphereGeometry(10, 16, 16);
-        const sunMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
-        this.sunMesh = new THREE.Mesh(sunGeometry, sunMaterial);
-        this.scene.add(this.sunMesh);
-        
-        // Moon visual
-        const moonGeometry = new THREE.SphereGeometry(8, 16, 16);
-        const moonMaterial = new THREE.MeshBasicMaterial({ color: 0xcccccc });
-        this.moonMesh = new THREE.Mesh(moonGeometry, moonMaterial);
-        this.scene.add(this.moonMesh);
+        this.update(0);
     }
 
     /**
@@ -208,6 +140,7 @@ export class DayNightCycle {
     setTime(hours, minutes = 0) {
         this.currentTime = (hours * 3600) + (minutes * 60);
         this.update(0);
+        if(this.game.renderer?.shadowMap)this.game.renderer.shadowMap.needsUpdate=true;
     }
 
     /**
@@ -248,9 +181,8 @@ export class DayNightCycle {
     update(deltaTime) {
         // Update time
         this.currentTime += deltaTime * this.timeScale;
-        if (this.currentTime >= this.dayLength) {
-            this.currentTime -= this.dayLength;
-        }
+        this.currentTime=((this.currentTime%this.dayLength)+this.dayLength)%this.dayLength;
+        this.skyElapsed=(this.skyElapsed||0)+Math.max(0,deltaTime);
         
         const normalizedTime = this.currentTime / this.dayLength;
         const sunAngle = normalizedTime * Math.PI * 2 - Math.PI / 2;
@@ -269,20 +201,26 @@ export class DayNightCycle {
         this.moonPosition.set(
             -this.sunPosition.x,
             -this.sunPosition.y,
-            0
+            -this.sunPosition.z
         );
-        
-        // Update light positions
-        if (this.sunLight) {
-            this.sunLight.position.copy(this.sunPosition);
-            this.sunLight.target.position.set(0, 0, 0);
+
+        // Follow the player with one active celestial shadow map, snapped to texels.
+        this.updateLighting(normalizedTime);
+        const focus=this.game.player?.position || new THREE.Vector3();
+        for(const [light,direction] of [[this.sunLight,this.sunPosition],[this.moonLight,this.moonPosition]]) {
+            const texel=72/light.shadow.mapSize.x;
+            const forward=direction.clone().normalize();
+            const right=new THREE.Vector3().crossVectors(forward,new THREE.Vector3(0,1,0)).normalize();
+            const up=new THREE.Vector3().crossVectors(right,forward).normalize();
+            const target=focus.clone();
+            target.addScaledVector(right,Math.round(focus.dot(right)/texel)*texel-focus.dot(right));
+            target.addScaledVector(up,Math.round(focus.dot(up)/texel)*texel-focus.dot(up));
+            light.target.position.copy(target);
+            light.position.copy(forward).multiplyScalar(300).add(target);
+            const enabled=light.userData.shadowEnabled ?? false;
+            light.castShadow=enabled&&(this.sunLight.intensity>.02?light===this.sunLight:light===this.moonLight);
         }
-        
-        if (this.moonLight) {
-            this.moonLight.position.copy(this.moonPosition);
-            this.moonLight.target.position.set(0, 0, 0);
-        }
-        
+
         // Update celestial body meshes
         if (this.sunMesh) {
             this.sunMesh.position.copy(this.sunPosition);
@@ -293,7 +231,6 @@ export class DayNightCycle {
         }
         
         // Update colors and intensities
-        this.updateLighting(normalizedTime);
         this.updateSky(normalizedTime);
         
         // Emit time update
@@ -301,133 +238,49 @@ export class DayNightCycle {
     }
 
     updateLighting(normalizedTime) {
-        const hours = normalizedTime * 24;
-        const period = this.getTimePeriod();
-        
-        // Calculate blend factors based on time of day
-        let sunIntensity, moonIntensity, ambientIntensity;
-        let sunColor, skyColor;
-        
-        if (period === 'night') {
-            sunIntensity = 0;
-            moonIntensity = 0.35;
-            ambientIntensity = 0.14;
-            sunColor = this.sunColors.night;
-            skyColor = this.skyColors.night;
-        } else if (period === 'dawn') {
-            const t = (hours - this.timePeriods.dawnStart) / (this.timePeriods.dawnEnd - this.timePeriods.dawnStart);
-            sunIntensity = THREE.MathUtils.lerp(0, 0.7, t);
-            moonIntensity = THREE.MathUtils.lerp(0.1, 0, t);
-            ambientIntensity = THREE.MathUtils.lerp(0.1, 0.3, t);
-            sunColor = new THREE.Color().lerpColors(this.sunColors.night, this.sunColors.dawn, t);
-            skyColor = new THREE.Color().lerpColors(this.skyColors.night, this.skyColors.dawn, t);
-        } else if (period === 'day') {
-            const midDay = (this.timePeriods.dayStart + this.timePeriods.dayEnd) / 2;
-            const distFromMid = Math.abs(hours - midDay) / (midDay - this.timePeriods.dayStart);
-            sunIntensity = THREE.MathUtils.lerp(3.0, 2.2, distFromMid);
-            moonIntensity = 0;
-            ambientIntensity = THREE.MathUtils.lerp(0.65, 0.5, distFromMid);
-            sunColor = this.sunColors.day;
-            skyColor = this.skyColors.day;
-        } else { // dusk
-            const t = (hours - this.timePeriods.duskStart) / (this.timePeriods.duskEnd - this.timePeriods.duskStart);
-            sunIntensity = THREE.MathUtils.lerp(0.6, 0, t);
-            moonIntensity = THREE.MathUtils.lerp(0, 0.1, t);
-            ambientIntensity = THREE.MathUtils.lerp(0.25, 0.1, t);
-            sunColor = new THREE.Color().lerpColors(this.sunColors.dusk, this.sunColors.night, t);
-            skyColor = new THREE.Color().lerpColors(this.skyColors.dusk, this.skyColors.night, t);
-        }
-        
-        // Weather dims/brightens the whole rig (storms go dark, clear days blaze)
-        const wx = this.game.weatherSystem?.params;
-        // NaN guard: a poisoned weather param must never kill the lights
-        const sunWeatherFactor = (wx && isFinite(wx.sunIntensity)) ? wx.sunIntensity : 1;
-        const ambientWeatherFactor = (wx && isFinite(wx.ambientIntensity)) ? wx.ambientIntensity : 1;
-        
-        // Apply to lights
-        if (this.sunLight) {
-            this.sunLight.intensity = sunIntensity * sunWeatherFactor;
-            this.sunLight.color.copy(sunColor);
-        }
-        
-        if (this.moonLight) {
-            this.moonLight.intensity = moonIntensity;
-        }
-        
-        if (this.ambientLight) {
-            this.ambientLight.intensity = ambientIntensity * ambientWeatherFactor;
-            // Tint ambient with the period color for believable day/night mood
-            const ambCol = this.ambientColors[period] || this.ambientColors.day;
-            this.ambientLight.color.copy(ambCol);
-        }
-        
-        // Update hemisphere light (fill so shadow faces never go pitch black)
-        if (this.hemiLight) {
-            this.hemiLight.intensity = ambientIntensity * 2.0 * ambientWeatherFactor;
-            this.hemiLight.color.copy(skyColor);
-        }
+        const state=this.atmosphere=sampleAtmosphere(normalizedTime*24);
+        const wx=this.game.weatherSystem?.params;
+        const sunWx=Number.isFinite(wx?.sunIntensity)?wx.sunIntensity:1;
+        const ambientWx=Number.isFinite(wx?.ambientIntensity)?wx.ambientIntensity:1;
+        const cloud=Number.isFinite(wx?.cloudDensity)?THREE.MathUtils.clamp(wx.cloudDensity,0,1):0;
+        const elevation=this.sunPosition.clone().normalize().y;
+        this.sunLight.intensity=state.sun*sunWx*THREE.MathUtils.smoothstep(elevation,-.04,.08);
+        this.sunLight.color.copy(state.sunColor);
+        this.moonLight.intensity=state.moon*(1-cloud*.8);
+        this.moonLight.color.set(0xa8b9d2);
+        this.ambientLight.intensity=state.ambient*ambientWx;
+        this.ambientLight.color.copy(state.ambientColor);
+        this.hemiLight.intensity=state.ambient*2*ambientWx;
+        this.hemiLight.color.copy(state.horizon);
     }
 
     updateSky(normalizedTime) {
-        if (!this.skyDome) return;
-        
-        const period = this.getTimePeriod();
-        let topColor, bottomColor;
-        
-        switch (period) {
-            case 'night':
-                topColor = new THREE.Color(0x000011);
-                bottomColor = new THREE.Color(0x0a0a1a);
-                break;
-            case 'dawn':
-                topColor = new THREE.Color(0x4477aa);
-                bottomColor = new THREE.Color(0xff7744);
-                break;
-            case 'day':
-                topColor = new THREE.Color(0x0077ff);
-                bottomColor = new THREE.Color(0x87ceeb);
-                break;
-            case 'dusk':
-                topColor = new THREE.Color(0x553377);
-                bottomColor = new THREE.Color(0xff5522);
-                break;
-        }
-        
-        // Weather dims the sky dome (storms go dark, clear days blaze)
-        const sunWx = this.game?.weatherSystem?.params?.sunIntensity;
-        const skyDim = sunWx !== undefined ? 0.35 + 0.65 * THREE.MathUtils.clamp(sunWx, 0, 1) : 1;
-        topColor.multiplyScalar(skyDim);
-        bottomColor.multiplyScalar(skyDim);
-
-        this.skyDome.material.uniforms.topColor.value.copy(topColor);
-        this.skyDome.material.uniforms.bottomColor.value.copy(bottomColor);
-        
-        // Sun glow + stars
-        const u = this.skyDome.material.uniforms;
-        if (u.sunDirection) u.sunDirection.value.copy(this.sunPosition).normalize();
-        if (u.nightFactor) {
-            // 1 at deep night, 0 during day, smooth through dawn/dusk
-            const nf = period === 'night' ? 1 : (period === 'day' ? 0 : 0.35);
-            u.nightFactor.value += (nf - u.nightFactor.value) * 0.05;
-        }
-        if (u.sunColor && this.sunLight) u.sunColor.value.copy(this.sunLight.color);
-
-        // Fog must follow time of day too - otherwise bright daytime fog
-        // washes out the night sky and makes night look like day.
-        this.updateFogForTime(period);
+        if(!this.skyDome)return;
+        const state=this.atmosphere||sampleAtmosphere(normalizedTime*24),u=this.skyDome.material.uniforms;
+        const wx=this.game.weatherSystem?.params;
+        const sunWx=Number.isFinite(wx?.sunIntensity)?wx.sunIntensity:1;
+        const dim=.35+.65*THREE.MathUtils.clamp(sunWx,0,1);
+        u.topColor.value.copy(state.top).multiplyScalar(dim);
+        u.bottomColor.value.copy(state.horizon).multiplyScalar(dim);
+        u.sunDirection.value.copy(this.sunPosition).normalize();
+        u.moonDirection.value.copy(this.moonPosition).normalize();
+        u.sunColor.value.copy(state.sunColor);u.nightFactor.value=state.night;
+        u.cloudDensity.value=Number.isFinite(wx?.cloudDensity)?THREE.MathUtils.clamp(wx.cloudDensity,0,1):0;
+        u.skyTime.value=this.skyElapsed||0;
+        if(this.game.weatherSystem?.cloudOffset)u.cloudOffset.value.copy(this.game.weatherSystem.cloudOffset);
+        this.updateFogForTime();
     }
 
-    updateFogForTime(period) {
-        const scene = this.game?.scene;
-        const ws = this.game?.weatherSystem;
-        if (!scene?.fog || !ws) return;
-        const preset = ws.presets?.[ws.currentWeather];
-        if (!preset?.fogColor) return;
-        // Brightness: 1.0 at day, ~0.07 at deep night, smooth through dawn/dusk
-        const target = period === 'night' ? 0.07 : (period === 'day' ? 1.0 : 0.45);
-        if (this._fogBrightness === undefined) this._fogBrightness = target;
-        this._fogBrightness += (target - this._fogBrightness) * 0.05;
-        scene.fog.color.copy(preset.fogColor).multiplyScalar(this._fogBrightness);
+    updateFogForTime() {
+        const ws=this.game.weatherSystem,scene=this.scene;
+        if(!ws||!scene.fog)return;
+        const current=ws.presets?.[ws.currentWeather],target=ws.presets?.[ws.targetWeather];
+        if(!current?.fogColor)return;
+        const progress=THREE.MathUtils.clamp(ws.transitionProgress??1,0,1);
+        const blend=ws.easeInOutCubic?.(progress)??progress;
+        scene.fog.color.copy(current.fogColor);
+        if(target?.fogColor)scene.fog.color.lerp(target.fogColor,blend);
+        scene.fog.color.multiplyScalar(this.atmosphere.fogBrightness);
     }
 
     /**
@@ -440,8 +293,8 @@ export class DayNightCycle {
     }
 
     dispose() {
-        if (this.sunLight) this.scene.remove(this.sunLight);
-        if (this.moonLight) this.scene.remove(this.moonLight);
+        if (this.sunLight) {this.scene.remove(this.sunLight);this.scene.remove(this.sunLight.target);}
+        if (this.moonLight) {this.scene.remove(this.moonLight);this.scene.remove(this.moonLight.target);}
         if (this.ambientLight) this.scene.remove(this.ambientLight);
         if (this.hemiLight) this.scene.remove(this.hemiLight);
         if (this.skyDome) {

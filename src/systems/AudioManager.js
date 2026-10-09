@@ -1,3 +1,4 @@
+import {soundCue} from '../core/settings/Accessibility.js';
 import * as THREE from 'three';
 import { globalEventBus, GameEvents } from '../core/EventBus.js';
 import { AmbientMusicSystem } from './AmbientMusicSystem.js';
@@ -12,6 +13,7 @@ export class AudioManager {
         // Audio context and listener
         this.listener = new THREE.AudioListener();
         this.audioContext = this.listener.context;
+        this.compressor=this.audioContext.createDynamicsCompressor();this.listener.setFilter(this.compressor);this.voiceVolume=1;this.dynamicRange='wide';this.setDynamicRange('wide');
         
         // Audio pools
         this.sounds = new Map();
@@ -19,7 +21,7 @@ export class AudioManager {
         this.ambience = new Map();
         
         // Active sounds for management
-        this.activeSounds = new Set();
+        this.activeSounds = new Set();this.fadeEpoch=new WeakMap();
         this.currentMusic = null;
         this.currentAmbience = [];
         
@@ -60,7 +62,7 @@ export class AudioManager {
         // (browser autoplay policy: no audio before user interaction)
         const unlockAudio = () => {
             if (this.audioContext.state === 'suspended') {
-                this.audioContext.resume();
+                this.audioContext.resume().catch(error => console.warn('Audio resume failed:', error));
             }
             if (this.musicSystem && !this.musicSystem.started) {
                 this.musicSystem.start();
@@ -127,6 +129,20 @@ export class AudioManager {
         const noise = () => Math.random() * 2 - 1;
         const env = (t, a, d) => t < a ? t / a : Math.max(0, 1 - (t - a) / d);
 
+        for(const [id,seconds,thump] of [['pm_pistol',.18,110],['ak74',.22,85],['shotgun_toz',.34,65],['svd_sniper',.38,55],['knife',.12,180]]) {
+            this.registerSound('weapon_'+id+'_fire',synth(seconds,(d,rate,len)=>{
+                for(let i=0;i<len;i++){const t=i/rate;d[i]=(noise()*.6*Math.exp(-t*40)+Math.sin(t*Math.PI*2*thump)*.4*Math.exp(-t*18))*Math.min(1,t/.001);}
+            }),{volume:.55,spatial:false,poolSize:5});
+            this.registerSound('weapon_'+id+'_reload',synth(1.8,(d,rate,len)=>{
+                for(let i=0;i<len;i++){const t=i/rate;let n=0;for(const beat of [.08,.65,1.2,1.6]){const a=t-beat;if(a>=0&&a<.06)n+=noise()*Math.exp(-a*80)*.35;}d[i]=n;}
+            }),{volume:.3,spatial:false,poolSize:1});
+        }
+
+        for(const [id,freq]of [['explosion',45],['glass_break',2800],['wall_break',130],['wood_break',340]]) {
+            this.registerSound(id,synth(.6,(d,rate,len)=>{for(let i=0;i<len;i++){const t=i/rate;d[i]=(noise()*.6+Math.sin(t*Math.PI*2*freq)*.12)*Math.exp(-t*9);}}),{volume:.5,spatial:false,poolSize:3});
+        }
+        for(const [surface,hz,decay,noiseGain]of [['concrete',95,30,.25],['metal',420,18,.18],['wood',180,24,.2],['gravel',65,14,.5],['water',45,9,.45]])this.registerSound('step_'+surface,synth(.22,(d,rate,len)=>{let lp=0;for(let i=0;i<len;i++){const t=i/rate;lp+=.18*(noise()-lp);d[i]=(lp*noiseGain+Math.sin(t*2*Math.PI*hz)*.18)*Math.exp(-t*decay)*Math.min(1,t/.004);}}),{volume:.35,spatial:false,poolSize:3});
+        for(const [id,hz,seconds]of [['ui_click',650,.035],['hit_flesh',90,.08]])this.registerSound(id,synth(seconds,(d,rate,len)=>{for(let i=0;i<len;i++){const t=i/rate;d[i]=(Math.sin(t*2*Math.PI*hz)*.1+noise()*(id==='hit_flesh'?.2:.02))*Math.exp(-t*65)*Math.min(1,t/.002);}}),{volume:.25,spatial:false,poolSize:3});
         // Detector blip - short sine ping, faster near anomalies
         this.registerSound('detector_beep', synth(0.09, (d, rate, len) => {
             for (let i = 0; i < len; i++) {
@@ -192,7 +208,7 @@ export class AudioManager {
                 bp += 0.12 * ((n - lp) - bp);
                 d[i] = (lp * 0.4 + bp * 1.6) * syl * env(t, 0.25, 1.55) * 0.55;
             }
-        }), { volume: 0.75, spatial: false, poolSize: 3 });
+        }), { volume: 0.75, spatial: false, poolSize: 3,category:'voice',caption:'[Indistinct whispering]' });
 
         // Anomaly discharge - electrical crackle
         this.registerSound('anomaly_zap', synth(0.5, (d, rate, len) => {
@@ -319,6 +335,7 @@ export class AudioManager {
      * @param {Object} options - Playback options
      */
     playSound(name, options = {}) {
+        const cue=soundCue(name,options);if(cue&&(!cue.position||!this.game.player?.position||this.game.player.position.distanceTo(cue.position)<=this.maxDistance)){globalEventBus.emit('accessibility:sound',cue);globalEventBus.emit('audio:caption',{text:'['+cue.text+']',priority:cue.priority,duration:cue.priority>=3?8000:3000});}
         const soundData = this.sounds.get(name);
         if (!soundData) {
             console.warn(`Sound not found: ${name}`);
@@ -349,8 +366,9 @@ export class AudioManager {
         }
         
         // Configure audio
-        const volume = (options.volume || soundData.options.volume) * this.sfxVolume * this.masterVolume;
-        audio.setVolume(volume);
+        const category=(options.category||soundData.options.category)==='voice'?'voice':'effects';
+        audio.userData.mix={base:options.volume??soundData.options.volume,category};this.setAudioGain(audio,this.mixedVolume(audio.userData.mix));
+        const caption=options.caption||soundData.options.caption;if(caption)globalEventBus.emit('audio:caption',{text:caption,duration:Math.min(8000,soundData.buffer.duration*1000)});
         audio.setLoop(options.loop || soundData.options.loop);
         
         // Position for spatial audio
@@ -374,6 +392,7 @@ export class AudioManager {
         
         // Auto-cleanup
         audio.onEnded = () => {
+            audio.isPlaying=false;audio._progress=0;
             this.activeSounds.delete(audio);
         };
         
@@ -386,6 +405,13 @@ export class AudioManager {
      * @param {THREE.Vector3} position - World position
      * @param {Object} options - Additional options
      */
+    setMonoAudio(enabled){
+        if(this.monoAudio===enabled)return;this.monoAudio=enabled;
+        this.monoNode ||= this.audioContext.createGain();this.monoNode.channelCount=1;this.monoNode.channelCountMode='explicit';this.monoNode.channelInterpretation='speakers';
+        this.compressor.disconnect();this.monoNode.disconnect();
+        if(enabled){this.compressor.connect(this.monoNode);this.monoNode.connect(this.audioContext.destination);}else this.compressor.connect(this.audioContext.destination);
+    }
+
     playSoundAt(name, position, options = {}) {
         return this.playSound(name, { ...options, position });
     }
@@ -417,7 +443,7 @@ export class AudioManager {
             return;
         }
         
-        const targetVolume = this.musicVolume * this.masterVolume;
+        const targetVolume = this.musicVolume;
         
         if (this.currentMusic && this.currentMusic !== newTrack) {
             if (fade) {
@@ -480,7 +506,7 @@ export class AudioManager {
         const audio = new THREE.Audio(this.listener);
         audio.setBuffer(ambienceData.buffer);
         audio.setLoop(true);
-        audio.setVolume(ambienceData.options.volume * this.ambienceVolume * this.masterVolume);
+        audio.setVolume(ambienceData.options.volume * this.ambienceVolume * this.sfxVolume);
         audio.play();
         
         this.currentAmbience.push({ name, audio });
@@ -516,10 +542,12 @@ export class AudioManager {
      * @param {Function} onComplete - Callback when complete
      */
     fadeAudio(audio, targetVolume, duration, onComplete) {
+        const epoch=(this.fadeEpoch.get(audio)||0)+1;this.fadeEpoch.set(audio,epoch);
         const startVolume = audio.getVolume();
         const startTime = performance.now();
         
         const fade = () => {
+            if(this.fadeEpoch.get(audio)!==epoch)return;
             const elapsed = (performance.now() - startTime) / 1000;
             const t = Math.min(elapsed / duration, 1);
             
@@ -541,6 +569,7 @@ export class AudioManager {
      */
     setMasterVolume(volume) {
         this.masterVolume = Math.max(0, Math.min(1, volume));
+        if(this.masterVolume===0){this.listener.gain.gain.cancelScheduledValues(this.audioContext.currentTime);this.listener.gain.gain.setValueAtTime(0,this.audioContext.currentTime);}else this.listener.setMasterVolume(this.masterVolume);
         this.updateAllVolumes();
     }
 
@@ -550,11 +579,12 @@ export class AudioManager {
      */
     setMusicVolume(volume) {
         this.musicVolume = Math.max(0, Math.min(1, volume));
+        for(const audio of this.music.values())if(audio.isPlaying){this.fadeEpoch.set(audio,(this.fadeEpoch.get(audio)||0)+1);if(audio!==this.currentMusic)audio.stop();}
         if (this.currentMusic) {
-            this.currentMusic.setVolume(this.musicVolume * this.masterVolume);
+            this.setAudioGain(this.currentMusic,this.musicVolume);
         }
         if (this.musicSystem) {
-            this.musicSystem.setVolume(this.musicVolume * this.masterVolume);
+            this.musicSystem.setVolume(this.musicVolume);
         }
     }
 
@@ -563,7 +593,7 @@ export class AudioManager {
      * @param {number} volume - Volume (0-1)
      */
     setSFXVolume(volume) {
-        this.sfxVolume = Math.max(0, Math.min(1, volume));
+        this.sfxVolume = Math.max(0, Math.min(1, volume));this.updateAllVolumes();
     }
 
     /**
@@ -575,25 +605,30 @@ export class AudioManager {
         this.currentAmbience.forEach(({ audio, name }) => {
             const data = this.ambience.get(name);
             if (data) {
-                audio.setVolume(data.options.volume * this.ambienceVolume * this.masterVolume);
+                this.setAudioGain(audio,data.options.volume * this.ambienceVolume * this.sfxVolume);
             }
         });
     }
 
+    setAudioGain(audio,volume){if(volume===0&&audio.gain?.gain){audio.gain.gain.cancelScheduledValues(this.audioContext.currentTime);audio.gain.gain.setValueAtTime(0,this.audioContext.currentTime);}else audio.setVolume(volume);}
+    mixedVolume(mix){return mix.base*(mix.category==='voice'?this.voiceVolume:this.sfxVolume);}
+    setVoiceVolume(volume){this.voiceVolume=Math.max(0,Math.min(1,volume));this.updateAllVolumes();}
+    setDynamicRange(mode){this.dynamicRange=mode==='night'?'night':'wide';const c=this.compressor;if(!c)return;const values=this.dynamicRange==='night'?{threshold:-24,knee:24,ratio:6,attack:.003,release:.25}:{threshold:0,knee:0,ratio:1,attack:.003,release:.25};for(const [key,value]of Object.entries(values))c[key].value=value;}
     updateAllVolumes() {
+        for(const audio of this.activeSounds)if(audio.userData.mix)this.setAudioGain(audio,this.mixedVolume(audio.userData.mix));
         // Update music
         if (this.currentMusic) {
-            this.currentMusic.setVolume(this.musicVolume * this.masterVolume);
+            this.setAudioGain(this.currentMusic,this.musicVolume);
         }
         if (this.musicSystem) {
-            this.musicSystem.setVolume(this.musicVolume * this.masterVolume);
+            this.musicSystem.setVolume(this.musicVolume);
         }
         
         // Update ambience
         this.currentAmbience.forEach(({ audio, name }) => {
             const data = this.ambience.get(name);
             if (data) {
-                audio.setVolume(data.options.volume * this.ambienceVolume * this.masterVolume);
+                this.setAudioGain(audio,data.options.volume * this.ambienceVolume * this.sfxVolume);
             }
         });
     }
@@ -608,6 +643,7 @@ export class AudioManager {
     }
 
     dispose() {
+        this.listener.removeFilter();this.compressor?.disconnect();
         // Stop all sounds
         this.activeSounds.forEach(audio => {
             if (audio.isPlaying) audio.stop();

@@ -53,6 +53,7 @@ export class EmissionSystem {
         globalEventBus.emit('zone:emission_phase', { phase, prev });
 
         if (phase === EmissionPhase.WARNING) {
+            this.game.saveSystem?.requestAutosave('before-emission');
             globalEventBus.emit('audio:play', { sound: 'emission_siren', volume: 0.9 });
             globalEventBus.emit(GameEvents.NOTIFICATION, {
                 message: '⚠ EMISSION INCOMING — Take cover inside a building!',
@@ -93,7 +94,13 @@ export class EmissionSystem {
      * (cheap), falls back to an upward raycast against building meshes.
      */
     isSheltered(position) {
+        if (!position) return false;
+        if (this.game.fieldOperations?.isCheckpointSheltered(position)) return true;
         const wm = this.game.worldManager;
+        if (wm?.buildingSpots?.some(s => s.enterable &&
+            Math.abs(position.x-s.x)<s.width/2-0.35 && Math.abs(position.z-s.z)<s.depth/2-0.35 &&
+            position.y >= s.baseY-0.2 && position.y < s.baseY+3.2 &&
+            !(s.floors===1&&s.roofOpening&&Math.abs(position.x-s.x)<s.roofOpening.width/2&&Math.abs(position.z-s.z)<s.roofOpening.depth/2))) return true;
         // Primary: building colliders (world-space boxes added to the scene)
         const colliders = wm?.colliders;
         if (colliders) {
@@ -202,6 +209,9 @@ export class EmissionSystem {
         }
         globalEventBus.emit('zone:emission_sky', { intensity });
     }
+
+    serialize(){return {phase:this.phase,phaseTime:this.phaseTime,elapsed:this.elapsed,nextEmissionAt:this.nextEmissionAt,pulseTimer:this.pulseTimer};}
+    restore(data){if(!data)return;const prev=this.phase;Object.assign(this,data);globalEventBus.emit('zone:emission_phase',{phase:this.phase,prev,restored:true});if(this.game.anomalySystem)this.game.anomalySystem.emissionDamageMultiplier=this.phase==='emission'?1.6:1;globalEventBus.emit(this.phase==='warning'||this.phase==='emission'?'audio:play':'audio:stop',{sound:'emission_siren',volume:.9});globalEventBus.emit(this.phase==='emission'?'audio:play':'audio:stop',{sound:'psy_drone',volume:.8});}
 
     getState() {
         return {

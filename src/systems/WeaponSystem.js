@@ -1,4 +1,8 @@
+import {motionScale} from '../core/settings/Accessibility.js';
+import { AdditionalWeapons } from '../data/NewWeapons.js';
+import { FirstPersonHands,HANDLING_PROFILES } from './FirstPersonHands.js';
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { globalEventBus, GameEvents } from '../core/EventBus.js';
 
 // Scratch vector for the ADS pose math in Weapon.updateVisuals
@@ -9,11 +13,12 @@ const _aimPos = new THREE.Vector3();
  * Weapon definitions
  */
 export const WeaponData = {
+    ...AdditionalWeapons,
     pm_pistol: {
         id: 'pm_pistol',
         name: 'PM Pistol',
         type: 'pistol',
-        damage: 15,
+        damage: 34,
         fireRate: 3,
         accuracy: 0.85,
         recoil: 0.08,
@@ -29,7 +34,7 @@ export const WeaponData = {
         id: 'ak74',
         name: 'AK-74',
         type: 'rifle',
-        damage: 28,
+        damage: 56,
         fireRate: 10,
         accuracy: 0.75,
         recoil: 0.15,
@@ -45,7 +50,7 @@ export const WeaponData = {
         id: 'shotgun_toz',
         name: 'TOZ-34',
         type: 'shotgun',
-        damage: 60,
+        damage: 100,
         fireRate: 1,
         accuracy: 0.6,
         recoil: 0.3,
@@ -63,7 +68,7 @@ export const WeaponData = {
         id: 'svd_sniper',
         name: 'SVD Dragunov',
         type: 'sniper',
-        damage: 80,
+        damage: 120,
         fireRate: 1,
         accuracy: 0.95,
         recoil: 0.25,
@@ -80,7 +85,8 @@ export const WeaponData = {
         id: 'knife',
         name: 'Combat Knife',
         type: 'melee',
-        damage: 25,
+        damage: 38,
+        structureDamage: 4,
         fireRate: 2,
         accuracy: 1.0,
         recoil: 0,
@@ -127,9 +133,10 @@ export class Weapon {
         this.aimProgress = 0;
         
         // Audio
+        const soundId=this.data.type==='pistol'?'pm_pistol':this.data.type==='shotgun'?'shotgun_toz':this.data.type==='sniper'?'svd_sniper':this.data.type==='melee'?'knife':'ak74';
         this.sounds = {
-            fire: `weapon_${weaponId}_fire`,
-            reload: `weapon_${weaponId}_reload`,
+            fire: `weapon_${soundId}_fire`,
+            reload: `weapon_${soundId}_reload`,
             empty: 'weapon_empty',
             equip: 'weapon_equip'
         };
@@ -142,6 +149,7 @@ export class Weapon {
         // The group is parented to the ViewmodelSystem overlay rig (its own
         // scene rendered after the main pass), so it can never clip walls.
         const group = new THREE.Group();
+        this.magazineParts=[];
         // Note: no environment map in the overlay scene, so keep metalness low -
         // high metalness renders near-black without env reflections.
         const metal = new THREE.MeshStandardMaterial({ color: 0x3d3d44, metalness: 0.3, roughness: 0.5 });
@@ -155,7 +163,7 @@ export class Weapon {
         const glassMat = new THREE.MeshStandardMaterial({ color: 0x1c2f3a, metalness: 0.8, roughness: 0.15, emissive: 0x0a1a24, emissiveIntensity: 0.6 });
 
         const box = (w, h, d, mat, x, y, z, rx = 0, ry = 0, rz = 0) => {
-            const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+            const m = new THREE.Mesh(new RoundedBoxGeometry(w,h,d,2,Math.min(w,h,d)*0.14), mat);
             m.position.set(x, y, z);
             m.rotation.set(rx, ry, rz);
             group.add(m);
@@ -188,7 +196,18 @@ export class Weapon {
         let flashY = 0.02;
 
         const type = this.data.type;
-        if (type === 'pistol') {
+        if(this.data.shape==='revolver') {
+            box(.045,.065,.17,metal,0,0,-.01);
+            const cylinder=new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,.062,24),gunmetal);cylinder.rotation.z=Math.PI/2;cylinder.position.set(0,.017,-.035);group.add(cylinder);this.actionPart=cylinder;
+            tube(.013,.013,.23,metal,0,.031,-.19);box(.047,.12,.064,wood,0,-.075,.07,-.25);
+            box(.045,.015,.09,darkMetal,0,-.03,.005);box(.008,.018,.015,darkMetal,0,.052,-.3);
+            tipZ=-.31;flashY=.031;sightLineY=.06;
+        } else if(this.data.shape==='pump') {
+            box(.056,.065,.20,metal,0,0,.015);tube(.017,.017,.55,metal,0,.023,-.34);tube(.018,.018,.46,darkMetal,0,-.018,-.30);
+            this.actionPart=box(.065,.06,.16,wood,0,-.015,-.26);box(.057,.10,.3,wood,0,-.055,.23,-.1);
+            box(.042,.017,.08,darkMetal,0,-.045,.055);box(.008,.014,.01,metal,0,.05,-.60);
+            tipZ=-.615;flashY=.023;sightLineY=.055;
+        } else if (type === 'pistol') {
             // PM-style pistol: frame, slide with rear serrations, notched
             // rear sight, front post, hammer, trigger group, grip with
             // panels and magazine baseplate.
@@ -206,7 +225,7 @@ export class Weapon {
             box(0.047, 0.125, 0.056, polymer, 0, -0.098, 0.052, -0.22); // grip
             box(0.051, 0.09, 0.045, woodDark, 0, -0.095, 0.05, -0.22); // grip panels
             pin(0.004, 0.056, metal, 0, -0.075, 0.045, 'x');          // grip screw
-            box(0.05, 0.016, 0.06, darkMetal, 0, -0.163, 0.066, -0.22); // mag baseplate
+            this.magazineParts.push(box(0.05, 0.016, 0.06, darkMetal, 0, -0.163, 0.066, -0.22)); // mag baseplate
             sightLineY = 0.076; aimDepth = -0.32; tipZ = -0.17; flashY = 0.028;
         } else if (type === 'rifle') {
             // AK-74: receiver with top cover, tangent rear sight, protected
@@ -232,17 +251,17 @@ export class Weapon {
                 box(0.06, 0.012, 0.01, woodDark, 0, -0.008, -0.34 - i * 0.05);
             tube(0.004, 0.004, 0.38, darkMetal, 0, -0.022, -0.42);    // cleaning rod
             box(0.055, 0.05, 0.07, darkMetal, 0, -0.045, -0.15);      // mag well
-            box(0.05, 0.08, 0.06, gunmetal, 0, -0.075, -0.145, 0.30); // magazine (curved)
-            box(0.05, 0.08, 0.06, gunmetal, 0, -0.125, -0.12, 0.55);
-            box(0.054, 0.014, 0.064, gunmetal, 0, -0.10, -0.135, 0.42); // mag rib
-            box(0.054, 0.02, 0.065, darkMetal, 0, -0.165, -0.105, 0.55); // mag baseplate
+            this.magazineParts.push(box(0.05, 0.08, 0.06, gunmetal, 0, -0.075, -0.145, 0.30)); // magazine (curved)
+            this.magazineParts.push(box(0.05, 0.08, 0.06, gunmetal, 0, -0.125, -0.12, 0.55));
+            this.magazineParts.push(box(0.054, 0.014, 0.064, gunmetal, 0, -0.10, -0.135, 0.42)); // mag rib
+            this.magazineParts.push(box(0.054, 0.02, 0.065, darkMetal, 0, -0.165, -0.105, 0.55)); // mag baseplate
             box(0.044, 0.016, 0.09, darkMetal, 0, -0.048, -0.01);     // trigger guard
             box(0.01, 0.03, 0.014, darkMetal, 0, -0.042, -0.015, 0.3); // trigger
             box(0.044, 0.105, 0.052, wood, 0, -0.075, 0.03, -0.38);   // pistol grip
             box(0.056, 0.105, 0.26, wood, 0, -0.012, 0.30, 0.05);     // stock
             box(0.06, 0.125, 0.035, rubber, 0, -0.018, 0.435, 0.05);  // buttpad
             box(0.008, 0.02, 0.09, darkMetal, 0.034, 0.03, -0.05, 0, 0, -0.5); // selector
-            box(0.03, 0.018, 0.03, darkMetal, 0.042, 0.035, -0.18);   // charging handle
+            this.chargingHandle=box(0.03, 0.018, 0.03, darkMetal, 0.042, 0.035, -0.18);   // charging handle
             pin(0.008, 0.07, darkMetal, 0, 0.01, 0.15, 'x');          // rear trunnion pin
             sightLineY = 0.092; aimDepth = -0.28; tipZ = -0.725; flashY = 0.015;
         } else if (type === 'shotgun') {
@@ -297,7 +316,7 @@ export class Weapon {
                 box(0.06, 0.01, 0.014, woodDark, 0, 0.012, -0.24 - i * 0.05);
             tube(0.012, 0.012, 0.22, darkMetal, 0, 0.048, -0.33);    // gas tube
             box(0.048, 0.115, 0.062, gunmetal, 0, -0.088, -0.03, 0.22); // magazine
-            box(0.052, 0.018, 0.066, darkMetal, 0, -0.148, -0.017, 0.22); // mag baseplate
+            this.magazineParts.push(box(0.052, 0.018, 0.066, darkMetal, 0, -0.148, -0.017, 0.22)); // mag baseplate
             box(0.044, 0.015, 0.085, darkMetal, 0, -0.055, 0.05);    // trigger guard
             box(0.01, 0.03, 0.013, darkMetal, 0, -0.05, 0.05, 0.3);   // trigger
             box(0.056, 0.055, 0.32, wood, 0, 0.008, 0.36);           // thumbhole stock top
@@ -307,6 +326,11 @@ export class Weapon {
             tube(0.006, 0.006, 0.30, darkMetal, -0.035, -0.045, -0.30); // bipod leg L (folded)
             tube(0.006, 0.006, 0.30, darkMetal, 0.035, -0.045, -0.30); // bipod leg R (folded)
             sightLineY = 0.098; aimDepth = -0.29; tipZ = -0.775; flashY = 0.015;
+        } else if(this.data.type==='melee'&&this.id!=='knife') {
+            box(.035,.035,.65,this.id==='crowbar'?darkMetal:wood,0,0,-.23);
+            if(this.id==='sledgehammer')box(.23,.12,.13,metal,0,.015,-.54);
+            else if(this.id==='fireaxe'){box(.19,.045,.16,bladeSteel,.06,.01,-.54);box(.09,.07,.12,woodDark,-.03,0,-.54);}
+            else {box(.04,.10,.08,darkMetal,0,.035,-.54);box(.06,.022,.10,bladeSteel,0,.075,-.56);}
         } else { // melee - knife
             // Combat knife: fullered blade with clipped point, guard,
             // scaled handle with rivets, pommel.
@@ -322,6 +346,16 @@ export class Weapon {
             sightLineY = 0.0; aimDepth = -0.30; tipZ = -0.40; flashY = 0.015;
         }
 
+        // Distinct silhouettes and moving mechanisms for the additional arsenal.
+        if(this.data.shape==='compact'){for(const o of group.children)o.position.z*=.84;tipZ*=.84;}
+        if(this.data.shape==='heavy'){for(const o of group.children){o.position.z*=1.12;o.scale.z*=1.12;}tipZ*=1.12;}
+        if(this.data.shape==='smg'){for(const o of group.children){o.position.z*=.64;o.scale.z*=.64;}tipZ*=.64;box(.055,.12,.07,polymer,0,-.13,-.10);}
+        if(this.data.shape==='carbine'){box(.08,.022,.36,polymer,0,.06,-.20);box(.07,.075,.20,polymer,0,0,-.4);}
+        if(this.data.shape==='support'){this.magazineParts.push(box(.15,.15,.10,polymer,0,-.135,-.13));tube(.02,.02,.20,metal,0,.015,-.77);tipZ=-.88;this.actionPart=box(.065,.02,.28,metal,0,.062,-.13);}
+        if(this.data.shape==='bolt'){this.actionPart=box(.08,.018,.02,metal,.05,.038,.04);}
+        if(this.actionPart){this.actionPart.userData.bindPosition=this.actionPart.position.clone();this.actionPart.userData.bindRotation=this.actionPart.rotation.clone();}
+
+        if(this.chargingHandle)this.chargingHandle.userData.bindPosition=this.chargingHandle.position.clone();
         // Muzzle flash sprite at the barrel tip
         const flashGeom = new THREE.SphereGeometry(0.06, 8, 8);
         const flashMat = new THREE.MeshBasicMaterial({ color: 0xffcc33, transparent: true, opacity: 0, depthWrite: false });
@@ -367,6 +401,7 @@ export class Weapon {
      * Detach weapon from camera
      */
     detach() {
+        this.swingRemaining=0;this.swingHitPending=false;
         if (this.mesh && this.mesh.parent) {
             this.mesh.parent.remove(this.mesh);
         }
@@ -378,61 +413,8 @@ export class Weapon {
      * @param {Object} character - { skinTone, sleeveColor }
      */
     setCharacter(character) {
-        if (this.armGroup && this.mesh) {
-            this.mesh.remove(this.armGroup);
-            this.armGroup = null;
-        }
-        if (!character || !this.mesh) return;
-
-        const sleeveMat = new THREE.MeshStandardMaterial({ color: character.sleeveColor ?? 0x4a5240, roughness: 0.9 });
-        const skinMat = new THREE.MeshStandardMaterial({ color: character.skinTone ?? 0xc9a186, roughness: 0.7 });
-        const arms = new THREE.Group();
-
-        const limb = (from, to, r, mat) => {
-            const dir = new THREE.Vector3().subVectors(to, from);
-            const len = dir.length();
-            const m = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.85, r, len, 10), mat);
-            m.position.copy(from).addScaledVector(dir, 0.5);
-            m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
-            return m;
-        };
-        const hand = (x, y, z, rx = 0.3, ry = 0) => {
-            const h = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.05, 0.12), skinMat);
-            h.position.set(x, y, z);
-            h.rotation.set(rx, ry, 0);
-            return h;
-        };
-
-        // Grip points per weapon type (weapon-local space, -Z forward)
-        const grips = {
-            pistol:  { r: [0, -0.10, 0.05],  l: [0.025, -0.13, 0.03], twoHand: true },
-            rifle:   { r: [0, -0.085, 0.02], l: [0.01, -0.03, -0.40] },
-            shotgun: { r: [0, -0.06, 0.10],  l: [0.01, -0.045, -0.28] },
-            sniper:  { r: [0, -0.075, 0.20], l: [0.01, -0.03, -0.33] },
-            melee:   { r: [0, -0.05, 0.03],  l: null },
-        };
-        const gp = grips[this.data.type] || grips.rifle;
-        const rElbow = new THREE.Vector3(0.30, -0.42, 0.30);
-        const lElbow = new THREE.Vector3(-0.10, -0.42, 0.18);
-
-        const rHand = new THREE.Vector3(...gp.r);
-        arms.add(hand(rHand.x, rHand.y, rHand.z, 0.35, 0.2));
-        arms.add(limb(rElbow, rHand, 0.055, sleeveMat));
-
-        if (gp.l) {
-            const lHand = new THREE.Vector3(...gp.l);
-            arms.add(hand(lHand.x, lHand.y, lHand.z, 0.4, -0.15));
-            arms.add(limb(lElbow, lHand, 0.055, sleeveMat));
-        } else {
-            // Off hand rests low for melee
-            const rest = new THREE.Vector3(-0.05, -0.35, 0.1);
-            arms.add(hand(rest.x, rest.y, rest.z, 0.2, 0));
-            arms.add(limb(lElbow, rest, 0.055, sleeveMat));
-        }
-
-        arms.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
-        this.armGroup = arms;
-        this.mesh.add(arms);
+        this.hands?.dispose();
+        if(character&&this.mesh){this.hands=new FirstPersonHands(this,character);this.armGroup=this.hands.group;}
     }
 
     /**
@@ -441,6 +423,9 @@ export class Weapon {
      */
     fire() {
         if (!this.canFire || this.isReloading) return false;
+        if(this.data.type==='melee')return this.swing();
+        const player=this.game.player;
+        if (player?.isSprinting && Math.hypot(player.velocity.x,player.velocity.z)>0.5 && !this.isAiming) return false;
         
         if (this.currentAmmo <= 0) {
             // Click sound for empty
@@ -448,12 +433,18 @@ export class Weapon {
                 sound: this.sounds.empty,
                 volume: 0.5
             });
+            this.canFire = false;
+            this.fireTimer = 0.25;
             return false;
         }
         
         this.canFire = false;
-        this.fireTimer = 1 / this.data.fireRate;
+        const fireBonus = this.data.type==='pistol' ? (this.game.perkSystem?.getEffects().pistolFireRate || 0) : 0;
+        this.fireTimer = 1 / (this.data.fireRate * (1 + fireBonus));
         this.currentAmmo--;
+        for (const entity of this.game.worldManager?.entities.values() || []) {
+            entity.hearNoise?.(player.position, this.data.type === 'pistol' ? 55 : 90);
+        }
         
         // Apply recoil
         this.applyRecoil();
@@ -469,6 +460,7 @@ export class Weapon {
             volume: 0.8
         });
         
+        this.game.inputManager?.recordShot();
         // Spawn projectile/hitscan
         this.performHitscan();
         
@@ -484,6 +476,24 @@ export class Weapon {
     /**
      * Perform hitscan for instant-hit weapons
      */
+    swing(){
+        this.canFire=false;this.isAiming=false;this.fireTimer=1/this.data.fireRate;
+        this.swingRemaining=this.fireTimer;this.swingHitPending=true;
+        globalEventBus.emit('audio:play',{sound:'weapon_knife_fire',volume:.45});
+        return true;
+    }
+
+    performMelee(){
+        const camera=this.game.player?.camera;if(!camera)return;
+        const direction=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion),right=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion),up=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion);
+        // A real swing occupies a short arc instead of a single rifle-like
+        // pixel. The rays overlap, so one strike can reach a rear brace after
+        // the front plank has fractured without deleting anything behind it.
+        const sweep=this.data.shape==='hammer'||this.data.shape==='axe'||this.data.id==='crowbar'?[[-.22,0],[0,0],[.22,0],[0,.16],[0,-.16]]:[[0,0]];
+        for(const [x,y]of sweep){const origin=camera.position.clone().addScaledVector(right,x).addScaledVector(up,y),aim=direction.clone().addScaledVector(right,x*.18).addScaledVector(up,y*.18).normalize();this.processHit(new THREE.Raycaster(origin,aim,0,this.data.range),this.data.damage/sweep.length);}
+        for(const entity of this.game.worldManager?.entities.values()||[])entity.hearNoise?.(camera.position,12);
+    }
+
     performHitscan() {
         const player = this.game.player;
         if (!player) return;
@@ -492,7 +502,13 @@ export class Weapon {
         const raycaster = new THREE.Raycaster();
         
         // Get firing direction with accuracy spread
-        const spread = (1 - this.data.accuracy) * (this.isAiming ? 0.3 : 1);
+        const movement = Math.min(1, Math.hypot(player.velocity.x, player.velocity.z) / 6);
+        const exhaustion = 1 - Math.min(1, player.stats.stamina / player.stats.maxStamina);
+        const steady = this.game.bodyMotionSystem?.breathHolding ? 0.55 : 1;
+        const crouch = player.isCrouching ? 0.8 : 1;
+        const spreadBonus = this.data.type==='rifle' ? (this.game.perkSystem?.getEffects().spread || 0) : 0;
+        const spread = (1 - this.data.accuracy) * (this.isAiming ? 0.3 : 1)
+            * (1 + movement * 0.7 + exhaustion * 0.35) * steady * crouch * (1+spreadBonus);
         const direction = new THREE.Vector3(0, 0, -1);
         direction.x += (Math.random() - 0.5) * spread;
         direction.y += (Math.random() - 0.5) * spread;
@@ -506,8 +522,10 @@ export class Weapon {
         if (this.data.pellets) {
             for (let i = 0; i < this.data.pellets; i++) {
                 const pelletDir = direction.clone();
-                pelletDir.x += (Math.random() - 0.5) * this.data.spread;
-                pelletDir.y += (Math.random() - 0.5) * this.data.spread;
+                // Pellet spread stays in camera space, including while looking sideways.
+                const offset = new THREE.Vector3((Math.random() - 0.5) * this.data.spread,
+                    (Math.random() - 0.5) * this.data.spread, 0).applyQuaternion(camera.quaternion);
+                pelletDir.add(offset);
                 pelletDir.normalize();
                 
                 const pelletRay = new THREE.Raycaster(camera.position, pelletDir, 0, this.data.range);
@@ -534,6 +552,7 @@ export class Weapon {
         );
         
         if (hit) {
+            if(this.game.physicsSystem?.hit(hit,raycaster.ray.direction,this.data.type==='melee'?(this.data.structureDamage??damage):damage))return;
             // Check for entity hit
             let hitEntity = null;
             let current = hit.object;
@@ -550,21 +569,30 @@ export class Weapon {
                 // Calculate damage with distance falloff
                 const distance = hit.distance;
                 const falloff = Math.max(0.5, 1 - (distance / this.data.range) * 0.5);
-                let finalDamage = damage * falloff;
+                let finalDamage = damage * falloff * (hit.object.userData.hitRegion === 'head' ? 2 : 1);
+                const effects=this.game.perkSystem?.getEffects() || {};
+                finalDamage *= 1 + (effects[`${this.data.type}Damage`] || 0);
                 // Apply powerup damage bonus (capped at +100%)
                 if (this.game?.powerupSystem) {
                     const bonus = this.game.powerupSystem.getStat('damage');
                     finalDamage = finalDamage * (1 + Math.min(bonus, 1.0));
                 }
                 
-                hitEntity.takeDamage(finalDamage, this.game.player);
+                const before=hitEntity.health??hitEntity.stats?.health;hitEntity.takeDamage(finalDamage, this.game.player);
+                if((hitEntity.health??hitEntity.stats?.health)<before)globalEventBus.emit('combat:confirmed-hit',{position:hit.point,entity:hitEntity});
             }
             
+            // Transform face normals from mesh-local space before placing effects.
+            const normal = hit.face?.normal?.clone().applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld))
+                || new THREE.Vector3(0, 1, 0);
+            const materials = Array.isArray(hit.object.material) ? hit.object.material : [hit.object.material];
+            const metal = materials.some(m => (m?.metalness || 0) >= 0.4);
             // Spawn impact effect
             globalEventBus.emit('effect:impact', {
                 position: hit.point,
-                normal: hit.face?.normal || new THREE.Vector3(0, 1, 0),
-                type: hitEntity ? 'flesh' : 'default'
+                direction:raycaster.ray.direction.clone(),
+                normal,
+                type: hitEntity ? 'flesh' : metal ? 'metal' : 'default'
             });
         }
     }
@@ -607,11 +635,13 @@ export class Weapon {
      * Start reloading
      */
     reload() {
+        if(this.data.type==='melee')return;
         if (this.isReloading) return;
         if (this.currentAmmo >= this.data.magazineSize) return;
         if (this.reserveAmmo <= 0) return;
         
         this.isReloading = true;
+        this.isAiming=false;
         this.reloadProgress = 0;
         
         // Reload sound
@@ -649,7 +679,7 @@ export class Weapon {
      * @param {boolean} aiming - Whether aiming
      */
     setAiming(aiming) {
-        this.isAiming = aiming;
+        this.isAiming = aiming&&!this.isReloading;
     }
 
     /**
@@ -657,6 +687,7 @@ export class Weapon {
      * @param {number} deltaTime - Frame delta
      */
     update(deltaTime) {
+        if(this.swingRemaining>0){this.swingRemaining=Math.max(0,this.swingRemaining-deltaTime);if(this.swingHitPending&&this.swingRemaining<=.65/this.data.fireRate){this.swingHitPending=false;this.performMelee();}}
         // Update fire timer
         if (!this.canFire) {
             this.fireTimer -= deltaTime;
@@ -667,7 +698,7 @@ export class Weapon {
         
         // Update reload
         if (this.isReloading) {
-            this.reloadProgress += deltaTime / this.data.reloadTime;
+            this.reloadProgress += deltaTime * (1 + (this.game.perkSystem?.getEffects().reloadSpeed || 0)) / this.data.reloadTime;
             if (this.reloadProgress >= 1) {
                 this.finishReload();
             }
@@ -702,9 +733,10 @@ export class Weapon {
         this.mesh.position.lerpVectors(this.hipPos, _aimPos, a);
         this.mesh.rotation.y = THREE.MathUtils.lerp(this.hipRotY, 0, a);
         this.mesh.rotation.x = THREE.MathUtils.lerp(this.hipRotX || 0, 0, a);
+        if(this.data.type==='melee'&&this.swingRemaining>0){const phase=1-this.swingRemaining*this.data.fireRate,arc=Math.sin(phase*Math.PI);this.mesh.rotation.x-=arc*.95;this.mesh.rotation.y+=arc*.5;this.mesh.position.z-=arc*.18;}
 
         // Apply recoil offset
-        this.mesh.position.add(this.recoilOffset);
+        this.mesh.position.addScaledVector(this.recoilOffset,motionScale(this.game.settings,'weaponMotion'));
 
         // Weapon sway (reduced when aiming)
         const swayAmount = (1 - a * 0.8) * 0.002;
@@ -712,12 +744,38 @@ export class Weapon {
         this.swayOffset.x = Math.sin(time * 1.5) * swayAmount;
         this.swayOffset.y = Math.cos(time * 2) * swayAmount;
 
-        this.mesh.position.add(this.swayOffset);
+        this.mesh.position.addScaledVector(this.swayOffset,motionScale(this.game.settings,'weaponMotion'));
+        this.hands?.update();
+        this.updateMechanism();
     }
 
     /**
      * Get weapon info for UI
      */
+    updateMechanism() {
+        if(this.chargingHandle){this.chargingHandle.position.copy(this.chargingHandle.userData.bindPosition);const p=this.reloadProgress;this.chargingHandle.position.z+=this.isReloading&&p>.76&&p<.9?Math.sin((p-.76)/.14*Math.PI)*.08:0;}
+        const mechanism=this.data.shape;
+        if(this.actionPart) {
+            const part=this.actionPart,p=this.reloadProgress,fire=Math.max(0,1-this.fireTimer/Math.max(.001,1/this.data.fireRate));
+            part.position.copy(part.userData.bindPosition);part.rotation.copy(part.userData.bindRotation);
+            if(mechanism==='revolver'&&this.isReloading){part.position.x-=Math.sin(p*Math.PI)*.08;part.rotation.x+=p*Math.PI*2;}
+            if(mechanism==='pump')part.position.z+=Math.sin(fire*Math.PI)*.09;
+            if(mechanism==='bolt'){part.position.z+=Math.sin(fire*Math.PI)*.09;part.rotation.z=Math.sin(fire*Math.PI)*.55;}
+            if(mechanism==='support'&&this.isReloading)part.rotation.x=Math.sin(p*Math.PI)*.65;
+        }
+        for(const part of this.magazineParts||[]) {
+            part.userData.bindPosition ||= part.position.clone();
+            part.position.copy(part.userData.bindPosition);
+            const p=this.reloadProgress;
+            if(this.isReloading) {
+                const pull=p<.35?THREE.MathUtils.smoothstep(p,.17,.35):1-THREE.MathUtils.smoothstep(p,.48,.65);
+                const well=HANDLING_PROFILES[this.id]?.well || (this.data.type==='pistol'?[.015,-.16,.06]:[.015,-.14,-.12]);
+                if(this.hands)part.position.addScaledVector(this.hands.hands.L.position.clone().sub(new THREE.Vector3(...well)),pull);
+                part.visible=p<.35||p>.48;
+            } else part.visible=true;
+        }
+    }
+
     getInfo() {
         return {
             name: this.data.name,
@@ -760,6 +818,7 @@ export class WeaponManager {
         if (this.weapons.has(weaponId)) return;
         
         const weapon = new Weapon(weaponId, this.game);
+        weapon.setCharacter(this.game.character||{skinTone:0xc9a186,sleeveColor:0x4a5240});
         this.weapons.set(weaponId, weapon);
         
         // Auto-assign to slot
@@ -786,6 +845,7 @@ export class WeaponManager {
      * @param {string} weaponId - Weapon ID
      */
     equipWeapon(weaponId) {
+        if(!this.weapons.has(weaponId)&&WeaponData[weaponId])this.addWeapon(weaponId);
         const weapon = this.weapons.get(weaponId);
         if (!weapon) return;
         
@@ -828,11 +888,22 @@ export class WeaponManager {
      */
     clearAll() {
         for (const weapon of this.weapons.values()) {
-            try { weapon.detach(); } catch (_) { /* already detached */ }
+            weapon.hands?.dispose();weapon.detach();
+            const materials=new Set();weapon.mesh.traverse(o=>{o.geometry?.dispose();if(o.material)materials.add(o.material);});
+            for(const material of materials)material.dispose();
         }
         this.weapons.clear();
         this.weaponSlots = [null, null, null];
         this.equippedWeapon = null;
+    }
+
+    removeWeapon(id) {
+        const weapon=this.weapons.get(id);if(!weapon)return;
+        weapon.hands?.dispose();weapon.detach();
+        const materials=new Set();weapon.mesh.traverse(o=>{o.geometry?.dispose();if(o.material)materials.add(o.material);});
+        for(const material of materials)material.dispose();
+        this.weapons.delete(id);this.weaponSlots=this.weaponSlots.map(slot=>slot===id?null:slot);
+        if(this.equippedWeapon===weapon){this.equippedWeapon=null;if(this.game.player)this.game.player.equippedWeapon=null;const next=this.weapons.keys().next().value;if(next)this.equipWeapon(next);}
     }
 
     /**
@@ -864,10 +935,6 @@ export class WeaponManager {
     }
 
     dispose() {
-        for (const weapon of this.weapons.values()) {
-            weapon.detach();
-        }
-        this.weapons.clear();
-        this.equippedWeapon = null;
+        this.clearAll();
     }
 }

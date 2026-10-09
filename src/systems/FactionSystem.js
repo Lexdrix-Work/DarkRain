@@ -28,37 +28,37 @@ import { globalEventBus, GameEvents } from '../core/EventBus.js';
 
 const FACTIONS = {
     loners: {
-        name: 'Loners',
+        name: 'Drifters',
         description: 'Independent stalkers. No masters, no leaders.',
         rivals: ['bandits'],
         allies: ['scientists'],
     },
     bandits: {
-        name: 'Bandits',
+        name: 'Marauders',
         description: 'Thieves and murderers. The Zone\'s predators.',
         rivals: ['loners', 'duty'],
         allies: [],
     },
     duty: {
-        name: 'Duty',
+        name: 'Containment Directorate',
         description: 'Military order. The Zone must be contained.',
         rivals: ['bandits', 'freedom'],
         allies: ['scientists'],
     },
     freedom: {
-        name: 'Freedom',
+        name: 'Open Road',
         description: 'Anarchists. The Zone belongs to everyone.',
         rivals: ['duty'],
         allies: ['loners'],
     },
     scientists: {
-        name: 'Scientists',
+        name: 'Survey Bureau',
         description: 'Researchers. Knowledge above all.',
         rivals: [],
         allies: ['duty', 'loners'],
     },
     mutants: {
-        name: 'Mutants',
+        name: 'Altered',
         description: 'Twisted by the Zone. Beyond reason.',
         rivals: ['loners', 'duty', 'freedom', 'bandits', 'scientists'],
         allies: [],
@@ -106,7 +106,7 @@ export class FactionSystem {
     }
 
     onKill(data) {
-        const victim = data.entity;
+        const victim = data.entity || data.enemy;
         if (!victim?.faction) return;
 
         const faction = victim.faction;
@@ -141,6 +141,7 @@ export class FactionSystem {
      */
     adjustRep(factionId, amount, reason) {
         if (!FACTIONS[factionId]) return;
+        if (amount > 0) amount *= 1 + (this.game.perkSystem?.getEffects().repGain || 0);
 
         const oldTier = this.getTier(factionId);
         this.reputation[factionId] = Math.max(-100, Math.min(100,
@@ -221,8 +222,9 @@ export class FactionSystem {
 
     deserialize(data) {
         if (!data) return;
-        this.reputation = { ...data.reputation };
-        this.tradeRep = { ...data.tradeRep } || {};
+        this.reputation = Object.fromEntries(Object.keys(FACTIONS).map(id => [id,
+            Number.isFinite(data.reputation?.[id]) ? Math.max(-100,Math.min(100,data.reputation[id])) : 0]));
+        this.tradeRep = { ...data.tradeRep };
     }
 }
 

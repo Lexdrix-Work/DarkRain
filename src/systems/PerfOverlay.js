@@ -1,159 +1,38 @@
-/**
- * PerfOverlay - GPU/CPU performance monitor (toggle with F3)
- *
- * Shows:
- * - FPS and frame time (avg/p95)
- * - Draw calls, triangles, geometries, textures
- * - Scene objects (meshes, lights)
- * - JS heap usage
- * - System update times
- */
-
+import {FrameDiagnostics,FRAME_BUDGET,SYSTEM_BUDGETS} from '../core/diagnostics/FrameDiagnostics.js';
+const colors={good:'#9fca92',caution:'#efc571',poor:'#ff8e85',waiting:'#b7bdc4'};
+const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const color=(value,budget)=>value>budget*1.5?colors.poor:value>budget?colors.caution:colors.good;
 export class PerfOverlay {
-    constructor(game) {
-        this.game = game;
-        this.visible = false;
-        this.element = null;
-
-        // Frame time history
-        this.frameTimes = [];
-        this.maxHistory = 120;
-
-        // System timings
-        this.systemTimes = new Map();
-
-        this.createElement();
-        this.setupInput();
+    constructor(game){this.game=game;this.visible=false;this.systemTimes=new Map();this.diagnostics=new FrameDiagnostics();this.createElement();this.setupInput();if(globalThis.window?.darkRainDesktop?.perf)this.toggle();}
+    createElement(){this.element=document.createElement('div');this.element.id='perf-overlay';this.element.style.cssText='position:fixed;top:10px;right:10px;background:rgba(0,0,0,.9);color:#d8dfda;font:12px/1.5 monospace;padding:12px;border:1px solid #667366;z-index:10000;display:none;min-width:310px;pointer-events:none;max-height:90vh;overflow:hidden';document.body.appendChild(this.element);}
+    setupInput(){this.onKey=e=>{if(e.code==='F3'&&!e.repeat&&!this.game.inputManager?.claimsCode(e)){e.preventDefault();this.toggle();}};document.addEventListener('keydown',this.onKey);this.onExport=()=>this.exportReport();document.getElementById('perf-export-btn')?.addEventListener('click',this.onExport);}
+    toggle(){this.visible=!this.visible;this.element.style.display=this.visible?'block':'none';}
+    beginFrame(now=performance.now()){
+        this.diagnostics ||= new FrameDiagnostics();
+        const active=(!this.game||this.game.gameState==='playing'&&!this.game.isLoading&&!this.game.isPaused)&&!globalThis.document?.hidden;
+        if(active&&this.previousActive&&this.frameStart!==undefined)this.diagnostics.push(now-this.frameStart,this.cpuMs||0,now,this.systemTimes);
+        this.previousActive=active;this.frameStart=now;this.systemTimes.clear();
     }
-
-    createElement() {
-        this.element = document.createElement('div');
-        this.element.id = 'perf-overlay';
-        this.element.style.cssText = `
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            background: rgba(0, 0, 0, 0.85);
-            color: #0f0;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            padding: 12px;
-            border: 1px solid #0f0;
-            border-radius: 4px;
-            z-index: 10000;
-            display: none;
-            min-width: 280px;
-            line-height: 1.6;
-            pointer-events: none;
-        `;
-        document.body.appendChild(this.element);
+    endFrame(now=performance.now()){
+        if(this.frameStart===undefined)return;this.cpuMs=now-this.frameStart;
+        if(this.visible&&(this.lastDisplay===undefined||now-this.lastDisplay>=250)){this.lastDisplay=now;this.update();}
+        if(this.game&&(this.lastHealth===undefined||now-this.lastHealth>=1000)){this.lastHealth=now;const element=document.getElementById('performance-health');if(element){const health=this.diagnostics.health(this.game.memorySystem?.snapshot?.pressure);const text=(this.previousActive?'':'Last gameplay: ')+health.text;if(element.textContent!==text)element.textContent=text;element.style.color=colors[health.state];}}
     }
-
-    setupInput() {
-        document.addEventListener('keydown', (e) => {
-            if (e.code === 'F3') {
-                e.preventDefault();
-                this.toggle();
-            }
-        });
+    timeSystem(name,fn){const start=performance.now();try{return fn();}finally{this.systemTimes.set(name,(this.systemTimes.get(name)||0)+performance.now()-start);}}
+    updateSystem(name,system,deltaTime){const start=performance.now();try{return system?.update(deltaTime);}finally{this.systemTimes.set(name,(this.systemTimes.get(name)||0)+performance.now()-start);}}
+    getStats(){return this.diagnostics?.stats()||{fps:0,avg:0,p95:0,p99:0,count:0};}
+    update(){
+        const s=this.getStats(),game=this.game,info=game.renderer?.info,memory=game.memorySystem?.snapshot;
+        let html='<b>PERFORMANCE · F3 to hide</b><div>Gameplay samples only · target 60 FPS</div>';
+        html+=`<div>${s.fps.toFixed(1)} FPS · <span style="color:${color(s.avg,17.5)}">${s.avg.toFixed(2)} ms average</span></div><div><span style="color:${color(s.p95,FRAME_BUDGET.p95)}">p95 ${s.p95.toFixed(2)} ms</span> · <span style="color:${color(s.p99,FRAME_BUDGET.p99)}">p99 ${s.p99.toFixed(2)} ms</span></div><div>${s.count} samples · ${s.hitches} hitches ≥50 ms</div><div>CPU submission ${(this.cpuMs||0).toFixed(2)} ms · GPU time unavailable</div>`;
+        if(info)html+=`<div>Draw calls ${info.render.drawCalls??info.render.calls??0} · triangles ${(info.render.triangles/1000).toFixed(1)}k</div><div>Geometries ${info.memory.geometries} · textures ${info.memory.textures}</div>`;
+        if(memory){const mb=v=>v==null?'unavailable':(v/1048576).toFixed(1)+' MiB';html+=`<div>Textures (estimate) ${mb(memory.textureBytes)}</div><div>Geometry buffers ${mb(memory.geometryBytes)}</div><div>App private RAM ${mb(memory.appPrivateBytes)}</div><div style="color:${colors[memory.pressure==='critical'?'poor':memory.pressure==='high'?'caution':'good']}">Memory pressure: ${escape(memory.pressure)}</div>`;}
+        if(performance.memory)html+=`<div>JS heap ${(performance.memory.usedJSHeapSize/1048576).toFixed(1)} MiB</div>`;
+        const stream=game.worldManager?.forestStreaming?.stats();if(stream)html+=`<div>Streaming ${stream.resident} ready / ${stream.pending} pending</div><div style="color:${color(stream.commitMs,stream.budgetMs)}">Commit ${stream.commitMs.toFixed(2)} / ${stream.budgetMs} ms (${stream.overruns} overruns)</div>`;
+        html+='<div>CPU sections (Simulation includes child sections):</div>';
+        for(const [name,ms] of [...this.systemTimes].sort((a,b)=>b[1]-a[1]))html+=`<div style="color:${color(ms,SYSTEM_BUDGETS[name]||2)}">${escape(name)}: ${ms.toFixed(2)} / ${SYSTEM_BUDGETS[name]||2} ms</div>`;
+        this.element.innerHTML=html;
     }
-
-    toggle() {
-        this.visible = !this.visible;
-        this.element.style.display = this.visible ? 'block' : 'none';
-    }
-
-    /**
-     * Call at start of frame
-     */
-    beginFrame() {
-        this.frameStart = performance.now();
-    }
-
-    /**
-     * Call at end of frame
-     */
-    endFrame() {
-        if (!this.frameStart) return;
-        const dt = performance.now() - this.frameStart;
-        this.frameTimes.push(dt);
-        if (this.frameTimes.length > this.maxHistory) {
-            this.frameTimes.shift();
-        }
-        if (this.visible) this.update();
-    }
-
-    /**
-     * Time a system update
-     */
-    timeSystem(name, fn) {
-        const start = performance.now();
-        const result = fn();
-        const dt = performance.now() - start;
-        this.systemTimes.set(name, dt);
-        return result;
-    }
-
-    getStats() {
-        const times = [...this.frameTimes].sort((a, b) => a - b);
-        const avg = times.reduce((a, b) => a + b, 0) / times.length || 0;
-        const p95 = times[Math.floor(times.length * 0.95)] || 0;
-        const fps = avg > 0 ? 1000 / avg : 0;
-
-        return { fps, avg, p95, count: times.length };
-    }
-
-    update() {
-        const { fps, avg, p95 } = this.getStats();
-        const renderer = this.game.renderer;
-        const info = renderer?.info;
-
-        let html = `<div style="color:#ff0;font-weight:bold;margin-bottom:8px;">PERF (F3 to hide)</div>`;
-
-        // FPS
-        const fpsColor = fps >= 55 ? '#0f0' : fps >= 30 ? '#ff0' : '#f00';
-        html += `<div>FPS: <span style="color:${fpsColor}">${fps.toFixed(1)}</span> `;
-        html += `(${avg.toFixed(1)}ms avg, ${p95.toFixed(1)}ms p95)</div>`;
-
-        // Renderer info (GPU)
-        if (info) {
-            html += `<div style="margin-top:8px;color:#0ff;">— GPU —</div>`;
-            html += `<div>Draw calls: ${info.render.calls}</div>`;
-            html += `<div>Triangles: ${(info.render.triangles / 1000).toFixed(1)}k</div>`;
-            html += `<div>Geometries: ${info.memory.geometries}</div>`;
-            html += `<div>Textures: ${info.memory.textures}</div>`;
-        }
-
-        // Scene info (CPU)
-        if (this.game.scene) {
-            let meshes = 0, lights = 0;
-            this.game.scene.traverse(o => {
-                if (o.isMesh) meshes++;
-                if (o.isLight) lights++;
-            });
-            html += `<div style="margin-top:8px;color:#0ff;">— CPU Scene —</div>`;
-            html += `<div>Meshes: ${meshes}</div>`;
-            html += `<div>Lights: ${lights}</div>`;
-        }
-
-        // Memory
-        if (performance.memory) {
-            const mb = performance.memory.usedJSHeapSize / 1048576;
-            html += `<div>JS Heap: ${mb.toFixed(1)} MB</div>`;
-        }
-
-        // System times
-        if (this.systemTimes.size > 0) {
-            html += `<div style="margin-top:8px;color:#0ff;">— Systems —</div>`;
-            const sorted = [...this.systemTimes.entries()]
-                .sort((a, b) => b[1] - a[1])
-                .slice(0, 8);
-            for (const [name, time] of sorted) {
-                const color = time > 5 ? '#f00' : time > 2 ? '#ff0' : '#0f0';
-                html += `<div>${name}: <span style="color:${color}">${time.toFixed(2)}ms</span></div>`;
-            }
-        }
-
-        this.element.innerHTML = html;
-    }
+    exportReport(){const blob=new Blob([JSON.stringify(this.diagnostics.report(this.game),null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='Dark-Rain-performance.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+    dispose(){document.removeEventListener('keydown',this.onKey);document.getElementById('perf-export-btn')?.removeEventListener('click',this.onExport);this.element?.remove();}
 }

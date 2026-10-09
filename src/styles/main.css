@@ -1954,3 +1954,107 @@ body.has-minimap #ammo-display {
     #detector-hud { left: 12px; top: 12px; }
     #emission-banner { font-size: 11px; padding: 8px 12px; top: 66px; }
 }
+/* Quiet field feedback stays clear of the compass and inventory. */
+.assignment-readout { position:absolute; top:110px; right:24px; max-width:270px; white-space:pre-line; font-size:12px; line-height:1.7; color:#dedbd1; text-shadow:0 2px 4px #000; border-right:2px solid #aa9875; padding-right:12px; text-align:right; }
+.survival-readout { position:absolute; bottom:145px; left:50%; transform:translateX(-50%); color:#ebbc93; font-size:12px; text-align:center; text-shadow:0 2px 4px #000; width:min(80%,650px); }
+.weapon-readout { position:absolute; bottom:78px; right:26px; color:#c8c5bc; font-size:11px; text-shadow:0 2px 4px #000; }
+.experience-hud progress { position:absolute; right:26px; bottom:68px; width:140px; height:3px; border:0; appearance:none; }
+.experience-hud progress::-webkit-progress-bar { background:#ffffff20; }
+.experience-hud progress::-webkit-progress-value { background:#c0ac80; }
+#crosshair.aiming { opacity:0; }
+.experience-hud [hidden], .experience-hud[hidden] { display:none; }
+body.has-minimap .weapon-readout { bottom:235px; }
+body.has-minimap .experience-hud progress { bottom:225px; }
+@media (max-width:760px) { .assignment-readout { top:95px; right:12px; max-width:180px; font-size:10px; } }
+
+/* Field equipment: clear slots, shared character, storage and a quick-access belt. */
+#inventory-menu {width:min(1120px,94vw);max-width:94vw;min-width:0;border-radius:2px;background:rgba(18,23,23,.93);}
+#inventory-menu .menu-header {display:flex;justify-content:space-between;align-items:center;}
+#inventory-container {display:grid;grid-template-columns:190px 220px minmax(280px,1fr);gap:14px;padding:16px;overflow:auto;}
+#inventory-character-canvas {border:0;border-radius:0;background:transparent;}
+#gear-equipment {display:flex;flex-direction:column;gap:8px;}
+#gear-slots {display:grid;gap:6px;}
+.gear-section-title,.gear-slot-label {font-size:10px;letter-spacing:1.5px;color:#c3cbbd;}
+.gear-card {height:88px;position:relative;display:grid;grid-template-columns:62px 1fr;align-items:center;gap:4px;text-align:left;background:rgba(43,50,43,.5);border:1px solid #596050;border-radius:1px;color:#d1d6cb;font-size:11px;padding:8px;}
+.gear-card .gear-slot-label {grid-column:1/-1;}
+.gear-card img {width:48px;height:48px;object-fit:contain;}
+.gear-weapon {display:block;width:100%;padding:10px;margin:5px 0;text-align:left;border:1px solid #454d43;background:#1c2320;font-size:11px;color:#bdc7b6;}
+.gear-weapon.active {border-color:#bcb66b;}
+#inventory-grid {grid-template-columns:repeat(6,minmax(44px,1fr));gap:2px;}
+#inventory-menu .inventory-slot {border-radius:0;background:rgba(12,16,14,.45);border-color:#3c443b;min-height:52px;}
+#inventory-menu .inventory-slot .item-icon {width:40px;height:40px;}
+#inventory-menu .inventory-slot .item-name {font-size:8px;}
+#gear-description {min-height:108px;border-top:1px solid #454d43;font-size:12px;color:#b7beb0;}
+#gear-description h3 {font-size:14px;margin:8px 0;}
+#gear-description button,#gear-back {padding:7px 14px;margin:0 6px 6px 0;}
+#gear-vitals {padding:10px 16px;border-top:1px solid #3c443b;font-size:11px;letter-spacing:1px;color:#c6c48a;}
+#gear-belt {display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:0 16px 12px;}
+.gear-quick {min-height:44px;border:1px solid #485044;background:#202820;color:#bac2b2;font-size:10px;}
+@media(max-width:800px){#inventory-container{grid-template-columns:150px 1fr;}#inventory-character-panel{display:none;}#inventory-grid{grid-template-columns:repeat(5,1fr);}#gear-belt{grid-template-columns:repeat(2,1fr);}}
+
+#gear-weapons{max-height:170px;overflow:auto;}
+.recorder-status { color:#afb6ab; font:11px monospace; letter-spacing:2px; margin-bottom:20px; }
+.tutorial-choice { width:340px; padding:12px; margin-bottom:20px; color:#c8cfbe; font-size:14px; text-align:left; background:rgba(12,17,15,.6); border:1px solid #414940; }
+.tutorial-choice small { display:block; margin:8px 0 0 22px; color:#a2ab9a; line-height:1.5; }
+#tutorial-note { position:fixed; bottom:85px; left:24px; max-width:440px; padding:12px 16px; border-left:2px solid #9da58d; color:#d2d6c7; background:rgba(12,16,13,.86); font:13px/1.6 monospace; z-index:50; pointer-events:none; }
+#tutorial-note[hidden], #tutorial-skip-btn[hidden] { display:none; }
+.startup-status { max-width:390px; font:12px/1.5 monospace; color:#a8b09e; margin:0 0 16px; }
+#calibrate-skip-btn[hidden], #calibrate-apply-btn[hidden] { display:none; }
+#tutorial-note { background:rgba(12,16,13,.98); }
+
+.settings-tabs {display:flex;flex-wrap:wrap;gap:6px;margin-bottom:18px;position:sticky;top:0;background:#101313;z-index:2;padding:6px 0}
+.settings-tabs .menu-button {width:auto;min-width:95px;padding:9px 12px;font-size:11px}
+.settings-tabs [aria-pressed="true"] {border-color:#b08d4f;color:#dbc9a5}
+#settings-menu section[hidden] {display:none}
+#settings-menu details {margin:12px 0}
+#settings-menu summary {cursor:pointer;color:#c6b58a;padding:8px 0}
+#settings-bindings .control-row {display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+#settings-bindings .control-row > span {flex:1;min-width:150px}
+#settings-menu [disabled] {opacity:.4;cursor:not-allowed}
+#health-bar,#stamina-bar,#radiation-bar,#ammo-display,#compass,#crosshair,#detector-hud,#flashlight-ui,#minimap {opacity:var(--hud-opacity,1)}
+#audio-subtitle {position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:rgba(5,8,7,.9);padding:10px 18px;max-width:75vw;color:#ddd;z-index:1001;pointer-events:none}
+#damage-readout {position:fixed;left:calc(50% + 24px);top:calc(50% - 22px);color:#decab0;font:14px monospace;pointer-events:none;z-index:1001}
+#audio-subtitle[hidden],#damage-readout[hidden],#settings-restart[hidden] {display:none}
+
+.binding-clear {border:1px solid #44534a;border-radius:3px;background:#19211d;color:#bec7bc;cursor:pointer;font:12px monospace;padding:2px 6px}
+
+/* Accessibility is independent of the optional passive HUD. */
+#audio-subtitle,#critical-sound-cues {font:var(--subtitle-size,22px)/1.5 sans-serif;color:#fff;background:rgba(0,0,0,var(--subtitle-background,.9));text-shadow:0 1px 2px #000;overflow-wrap:anywhere}
+#audio-subtitle {max-height:25vh;overflow:auto;text-align:center;max-width:min(900px,85vw)}
+#critical-sound-cues {position:fixed;right:24px;top:145px;max-width:min(440px,85vw);padding:6px 14px;z-index:1001;pointer-events:none;border-left:3px solid #fff}
+#critical-sound-cues p {margin:4px 0}
+#critical-sound-cues[hidden],#accessibility-first-launch[hidden] {display:none}
+#dialogue-text,#dialogue-options .dialogue-option {font-size:var(--subtitle-size,22px);line-height:1.5}
+.accessibility-offer {position:fixed;right:24px;bottom:24px;width:min(370px,90vw);padding:12px;background:#101313;border:1px solid #b9beb4;color:#fff;z-index:10;text-align:left;font:14px/1.5 sans-serif}
+.accessibility-offer p {margin:0 0 5px}.accessibility-offer small {display:block;margin-bottom:8px}.accessibility-offer .menu-button {width:auto;font-size:11px;padding:7px 10px;margin:4px}
+:root.high-contrast .menu,:root.high-contrast #dialogue-container,:root.high-contrast #interaction-prompt,:root.high-contrast #tutorial-note,:root.high-contrast #emission-banner,:root.high-contrast #detector-hud,:root.high-contrast .notification,:root.high-contrast #pda-feed {background:#080b0c!important;color:#fff!important;border-color:#fff!important}
+:root.high-contrast .menu label,:root.high-contrast .menu p,:root.high-contrast .menu small,:root.high-contrast .menu span,:root.high-contrast .menu summary,:root.high-contrast .menu h3,:root.high-contrast .setting-desc,:root.high-contrast #dialogue-text,:root.high-contrast #dialogue-speaker {color:#fff!important}
+:root.high-contrast button,:root.high-contrast select,:root.high-contrast input[type="text"],:root.high-contrast .dialogue-option {background:#10181b!important;color:#fff!important;border:1px solid #fff!important}
+:root.high-contrast :focus-visible {outline:3px solid #f0e442!important;outline-offset:3px}
+:root.high-contrast .toggle:checked {background:#fff!important;border-color:#fff!important}
+:root.high-contrast .stat-bar {background:#000;border:1px solid #fff}
+:root.high-contrast .stat-bar .bar-fill {background:#0072b2!important}
+:root.high-contrast #audio-subtitle,:root.high-contrast #critical-sound-cues {background:#000!important;color:#fff!important}
+@media(max-width:900px){.accessibility-offer{position:static;width:auto;max-width:390px;margin:12px auto}.accessibility-offer .menu-button{font-size:10px}}
+
+.anomaly-legend {display:grid;grid-template-columns:1fr 1fr;gap:4px;color:#fff;font:14px/1.5 sans-serif}.anomaly-legend p{margin:4px 0}.anomaly-swatch{display:inline-block;width:28px;margin-right:8px;border-left:4px solid;padding-left:4px;color:#fff}
+#detector-hud .det-ping.hot{animation:none}
+
+/* Paused menus must not be covered by transient gameplay captions. */
+body:has(.menu.visible) #audio-subtitle,body:has(.menu.visible) #critical-sound-cues{visibility:hidden}
+
+#saves-menu{width:min(780px,94vw);transition:none}#save-slot-list{display:flex;flex-direction:column;gap:8px}.save-slot{white-space:normal;text-align:left;line-height:1.5;width:100%}
+
+#main-menu .menu-content{max-height:calc(100vh - 36px);overflow-y:auto;justify-content:flex-start;padding:18px 10px}
+
+/* A small camera desk leaves the scene visible; no animated mount dependency. */
+#photo-panel{left:auto;right:18px;top:18px;transform:none;width:min(340px,40vw);max-height:90vh;transition:none;z-index:160;background:rgba(10,13,14,.92)}
+#photo-panel .menu-content{display:flex;flex-direction:column;gap:10px;padding:16px;font-size:13px}
+#photo-panel label{display:flex;flex-wrap:wrap;align-items:center;gap:8px}#photo-panel input[type=range]{width:100%}#photo-panel output{font-variant-numeric:tabular-nums}
+#photo-panel .menu-actions{display:flex;gap:8px}#photo-status{overflow-wrap:anywhere}
+#statistics-panel{transition:none;z-index:160;width:min(640px,94vw)}#statistics-panel .menu-content{overflow-y:auto;padding:18px;max-height:65vh}
+body.photo-active #hud,body.photo-active #minimap,body.photo-active #perf-overlay,body.photo-active #audio-subtitle,body.photo-active #critical-sound-cues{visibility:hidden}
+
+/* Closing menus relinquish input immediately; visual fading never owns focus. */
+.menu{transition-duration:120ms}.menu:not(.visible){pointer-events:none}.menu.visible{pointer-events:auto}
+@media(prefers-reduced-motion:reduce){.menu{transition:none!important}}

@@ -80,13 +80,14 @@ export class FlashlightSystem {
             this.settings.decay
         );
         
-        this.spotLight.castShadow = true;
+        this.spotLight.castShadow = false;
         this.spotLight.shadow.mapSize.width = 1024;
         this.spotLight.shadow.mapSize.height = 1024;
         this.spotLight.shadow.camera.near = 0.5;
         this.spotLight.shadow.camera.far = this.settings.distance;
         this.spotLight.shadow.bias = -0.0003;
         this.spotLight.shadow.normalBias = 0.02;
+        this.spotLight.shadow.autoUpdate=false;this.spotLight.shadow.needsUpdate=true;
         
         // Target for the spotlight to look at
         this.spotLight.target = new THREE.Object3D();
@@ -150,6 +151,9 @@ export class FlashlightSystem {
      * Toggle flashlight on/off
      */
     toggle() {
+        if(this.game.tutorialSystem?.active&&!this.isOn&&!this.game.inventorySystem?.hasItem('flashlight')){
+            this.game.uiManager?.showNotification('Find a flashlight in the emergency supplies near the entrance.','info');return;
+        }
         if (this.battery <= 0 && !this.isOn) {
             // Can't turn on with no battery
             globalEventBus.emit(GameEvents.NOTIFICATION, {
@@ -225,6 +229,7 @@ export class FlashlightSystem {
      */
     update(deltaTime) {
         if (!this.player) return;
+        this.spotLight.castShadow=this.isOn&&this.game.settings.shadows&&this.game.settings.quality!=='low';
         
         // Get camera/player position and direction
         const camera = this.player.camera;
@@ -383,7 +388,7 @@ export class FlashlightSystem {
      * Deserialize from save
      */
     deserialize(data) {
-        this.battery = data.battery || 100;
+        this.battery = data.battery ?? 100;
         if (data.isOn) {
             this.turnOn();
         } else {

@@ -143,7 +143,7 @@ export class ArtifactSystem {
         if (!this.scene || this.artifacts.size >= this.maxArtifacts) return null;
 
         const wm = this.game.worldManager;
-        const y = (wm?.getTerrainHeight ? wm.getTerrainHeight(x, z) : 0) + 0.7;
+        const y = (wm?.getTerrainHeight ? wm.getTerrainHeight(x, z) : 0) + 0.23;
 
         const group = new THREE.Group();
         const core = new THREE.Mesh(
@@ -173,6 +173,8 @@ export class ArtifactSystem {
         group.add(glow);
 
         group.position.set(x, y, z);
+        core.geometry.computeBoundingBox();
+        core.position.y = -0.23 - core.geometry.boundingBox.min.y + 0.01;
         group.userData.isInteractive = true;
         group.userData.promptText = `Take ${def.name}`;
         const id = `artifact_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -241,9 +243,7 @@ export class ArtifactSystem {
 
         // Animate
         for (const artifact of this.artifacts.values()) {
-            artifact.mesh.position.y += Math.sin(this.time * 2 + artifact.phase) * deltaTime * 0.25;
-            artifact.core.rotation.y += deltaTime * 1.2;
-            artifact.core.rotation.x += deltaTime * 0.5;
+            // Artifacts remain physically seated; light pulses communicate danger.
             const pulse = 1.8 + Math.sin(this.time * 3 + artifact.phase) * 0.5;
             artifact.core.material.emissiveIntensity = pulse;
         }
@@ -304,6 +304,9 @@ export class ArtifactSystem {
     }
 
     /** Remove all artifact meshes (level change) without disposing shared resources. */
+    serialize(){return [...this.artifacts.values()].filter(a=>!a.taken).map(a=>({type:a.def.id,position:a.mesh.position.toArray()}));}
+    restore(data){if(!Array.isArray(data))return;this.clear();for(const a of data){const def=ARTIFACT_DEFS[a.type];if(def)this.spawnArtifact(def,a.position[0],a.position[2]);}}
+
     clear() {
         for (const artifact of this.artifacts.values()) {
             this.scene?.remove(artifact.mesh);

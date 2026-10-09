@@ -60,7 +60,7 @@ export class AmbientMusicSystem {
         globalEventBus.on(GameEvents.WEAPON_FIRE, () => {
             this.combatTimer = Math.max(this.combatTimer, 14);
         });
-        globalEventBus.on(GameEvents.PLAYER_DAMAGE, () => {
+        globalEventBus.on('player:injured', () => {
             this.combatTimer = Math.max(this.combatTimer, 14);
         });
     }
@@ -82,7 +82,7 @@ export class AmbientMusicSystem {
         // Master music bus
         N.master = ctx.createGain();
         N.master.gain.value = this.volume * this.duck;
-        N.master.connect(ctx.destination);
+        N.master.connect(this.audioManager.listener.getInput());
 
         // Echo for the motif (space, loneliness)
         N.delay = ctx.createDelay(1.5);
@@ -222,6 +222,7 @@ export class AmbientMusicSystem {
         this.schedulerTimer = setInterval(() => this.schedulerTick(), 220);
 
         this.started = true;
+        this.update(0.5);
     }
 
     makeNoiseBuffer(seconds) {
@@ -299,9 +300,7 @@ export class AmbientMusicSystem {
     setVolume(v) {
         this.volume = Math.max(0, Math.min(1, v));
         if (this.started && this.nodes.master) {
-            this.nodes.master.gain.setTargetAtTime(
-                this.volume * this.duck, this.ctx.currentTime, 0.2
-            );
+            if(this.volume===0){this.nodes.master.gain.cancelScheduledValues(this.ctx.currentTime);this.nodes.master.gain.setValueAtTime(0,this.ctx.currentTime);}else this.nodes.master.gain.setTargetAtTime(this.volume*this.duck,this.ctx.currentTime,.2);
         }
     }
 

@@ -11,6 +11,7 @@
  */
 
 import { globalEventBus } from '../core/EventBus.js';
+import { Items } from '../data/items.js';
 
 export class EquipmentSystem {
     constructor(game) {
@@ -47,13 +48,14 @@ export class EquipmentSystem {
             return false;
         }
 
-        // Unequip current item in slot (returns to inventory)
+        if(this.equipped[slot]===itemId)return false;
+        // Free the incoming item's slot before returning the outgoing item.
+        this.game.inventorySystem.removeItemById(itemId,1);
         if (this.equipped[slot]) {
-            this.unequip(slot);
+            if(!this.unequip(slot)){this.game.inventorySystem.addItem(itemId,1);return false;}
         }
 
         // Remove from inventory, equip it
-        this.game.inventorySystem.removeItemById(itemId, 1);
         this.equipped[slot] = itemId;
 
         globalEventBus.emit('equipment:equipped', { slot, itemId, item });
@@ -70,8 +72,8 @@ export class EquipmentSystem {
         const itemId = this.equipped[slot];
         if (!itemId) return false;
 
+        if(!this.game.inventorySystem?.addItem(itemId,1))return false;
         this.equipped[slot] = null;
-        this.game.inventorySystem?.addItem(itemId, 1);
 
         globalEventBus.emit('equipment:unequipped', { slot, itemId });
         this.updateCharacterModel();
@@ -98,13 +100,7 @@ export class EquipmentSystem {
     }
 
     getItemDef(itemId) {
-        // Import dynamically to avoid circular deps
-        try {
-            const { Items } = require('../data/items.js');
-            return Items[itemId];
-        } catch {
-            return null;
-        }
+        return Items[itemId] || null;
     }
 
     /**
@@ -117,11 +113,12 @@ export class EquipmentSystem {
         // Map equipment to character visual fields
         const headItem = this.equipped.head ? this.getItemDef(this.equipped.head) : null;
         const backItem = this.equipped.back ? this.getItemDef(this.equipped.back) : null;
+        character.armor=this.equipped.body || 'none';
 
         // Hats: cap -> 'cap', military -> 'military_cap', exo -> 'helmet'
         if (headItem) {
             if (headItem.id === 'helmet_cap') character.hat = 'cap';
-            else if (headItem.id === 'helmet_military') character.hat = 'military_cap';
+            else if (headItem.id === 'helmet_military') character.hat = 'helmet';
             else if (headItem.id === 'helmet_exo') character.hat = 'helmet';
         } else {
             character.hat = 'none';

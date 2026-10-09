@@ -274,6 +274,9 @@ export class PsySystem {
         this.exposure = 0;
     }
 
+    serialize(){return {exposure:this.exposure,whisperTimer:this.whisperTimer,flickerTimer:this.flickerTimer,time:this.time};}
+    restore(data){this.clear();if(data){this.exposure=data.exposure;this.whisperTimer=data.whisperTimer;this.flickerTimer=data.flickerTimer;this.time=data.time;}}
+
     dispose() {
         this.clear();
         this.apparitionTexture?.dispose();

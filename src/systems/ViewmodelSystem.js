@@ -1,3 +1,4 @@
+import {motionScale} from '../core/settings/Accessibility.js';
 import * as THREE from 'three';
 import { normalizeCharacter } from '../entities/CharacterModel.js';
 
@@ -132,9 +133,10 @@ export class ViewmodelSystem {
         const bobYaw = Math.cos(bp * 0.5) * 0.02 * moving;
 
         // --- Breathing: subtle idle sway (BODYCAM-style) ---
-        const breathX = Math.sin(t * 1.4) * 0.0035;
-        const breathY = Math.cos(t * 1.1) * 0.003;
-        const breathR = Math.sin(t * 0.9) * 0.008;
+        const breathFactor=this.game.bodyMotionSystem?.breathHolding ? .15 : 1;
+        const breathX = Math.sin(t * 1.4) * 0.0035*breathFactor;
+        const breathY = Math.cos(t * 1.1) * 0.003*breathFactor;
+        const breathR = Math.sin(t * 0.9) * 0.008*breathFactor;
 
         // --- Mouse sway: heavy spring lag (weapon has inertia) ---
         const yaw = player?.cameraYaw || 0, pitch = player?.cameraPitch || 0;
@@ -173,18 +175,26 @@ export class ViewmodelSystem {
             ((reloading ? 1 : 0) - (this._reloadDip || 0)) * Math.min(1, dt * 7));
 
         // --- ADS dampening: aiming steadies the weapon ---
-        const ads = w?.isAiming ? 0.45 : 1.0;
+        const ads = w?.isAiming ? 0.45 : 1.0;const motion=motionScale(this.game.settings,'weaponMotion');
+        const running=player?.isSprinting && speed>0.5 && !w?.isAiming;
+        this._sprintDip=(this._sprintDip || 0)+((running?1:0)-(this._sprintDip || 0))*Math.min(1,dt*8);
 
+        // The overlay avoids depth clipping; retract it near actual geometry so
+        // the barrel does not visibly sit on top of a wall it should meet.
+        this._wallDirection ||=new THREE.Vector3();
+        let obstruction=0;
+        if(player?.camera&&this.game.physicsSystem?.world){player.camera.getWorldDirection(this._wallDirection);const distance=this.game.physicsSystem.clipCameraLean(player.camera.position,this._wallDirection,.8);obstruction=1-THREE.MathUtils.clamp((distance-.15)/.65,0,1);}
+        this._wallRetraction=THREE.MathUtils.lerp(this._wallRetraction||0,obstruction,1-Math.exp(-dt*18));
         // Compose final rig transform
         this.rig.position.set(
-            (bobX + breathX + (this._swayX || 0)) * ads,
-            (bobY + breathY + (this._swayY || 0) - this._reloadDip * 0.09) * ads,
-            rk * 0.09
+            (bobX + breathX + (this._swayX || 0)) * ads*motion,
+            ((bobY + breathY + (this._swayY || 0))*motion - this._reloadDip * 0.09 - this._sprintDip * 0.07) * ads,
+            rk * 0.09*motion+this._wallRetraction*.32
         );
         this.rig.rotation.set(
-            (rk * 0.35 + this._reloadDip * 0.55 + (this._swayRY || 0) * 1.4 + breathR * 0.5) * ads,
-            ((this._swayRX || 0) * 1.6 + bobYaw) * ads,
-            (this._reloadDip * 0.25 + bobRoll + (this._lean || 0) + breathR) * ads
+            ((rk * 0.35 + (this._swayRY || 0) * 1.4 + breathR * 0.5)*motion + this._reloadDip * 0.55) * ads+this._wallRetraction*.5,
+            ((this._swayRX || 0) * 1.6 + bobYaw) * ads*motion,
+            (this._reloadDip * 0.25 + (bobRoll + (this._lean || 0) + breathR)*motion) * ads
         );
     }
     /** Call on weapon fire to kick the viewmodel. */
@@ -205,7 +215,7 @@ export class ViewmodelSystem {
         }
     }
 
-    render(renderer) {
+    prepare(renderer) {
         const cam = this.game.player?.camera;
         if (!cam) return;
         // Mirror the main camera exactly
@@ -221,6 +231,10 @@ export class ViewmodelSystem {
             this.vmCamera.aspect = aspect;
             this.vmCamera.updateProjectionMatrix();
         }
+    }
+
+    render(renderer) {
+        this.prepare(renderer);
         const autoClear = renderer.autoClear;
         renderer.autoClear = false;
         renderer.clearDepth();
@@ -245,69 +259,41 @@ export const HATS = [
 
 export class HatFactory {
     static build(hatId, character = {}) {
-        const def = HATS.find(h => h.id === hatId) || HATS[0];
-        const color = character.hatColor || def.color;
-        const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.9 });
-        const g = new THREE.Group();
-
-        if (hatId === 'cap') {
-            const crown = new THREE.Mesh(new THREE.SphereGeometry(0.13, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2), mat);
-            crown.position.y = 0.02;
-            g.add(crown);
-            const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.15, 0.02, 16, 1, false, -Math.PI / 2.6, Math.PI / 1.3), mat);
-            brim.position.set(0, 0.02, -0.12);
-            brim.scale.set(1, 1, 1.6);
-            g.add(brim);
-            const button = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 8), mat);
-            button.position.y = 0.15;
-            g.add(button);
-        } else if (hatId === 'beanie') {
-            const dome = new THREE.Mesh(new THREE.SphereGeometry(0.135, 16, 12, 0, Math.PI * 2, 0, Math.PI / 1.7), mat);
-            dome.position.y = 0.01;
-            g.add(dome);
-            const rim = new THREE.Mesh(new THREE.TorusGeometry(0.125, 0.028, 8, 20), mat);
-            rim.rotation.x = Math.PI / 2;
-            rim.position.y = 0.0;
-            g.add(rim);
-        } else if (hatId === 'boonie') {
-            const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.1, 16), mat);
-            crown.position.y = 0.06;
-            g.add(crown);
-            const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.23, 0.02, 20), mat);
-            brim.position.y = 0.01;
-            g.add(brim);
-        } else if (hatId === 'ushanka') {
-            const crown = new THREE.Mesh(new THREE.SphereGeometry(0.135, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2), mat);
-            crown.position.y = 0.02;
-            crown.scale.y = 1.15;
-            g.add(crown);
-            const flapF = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.09, 0.03), mat);
-            flapF.position.set(0, -0.03, -0.13);
-            g.add(flapF);
-            const flapB = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.09, 0.03), mat);
-            flapB.position.set(0, -0.03, 0.13);
-            g.add(flapB);
-        } else if (hatId === 'helmet') {
-            const shell = new THREE.Mesh(new THREE.SphereGeometry(0.15, 18, 14, 0, Math.PI * 2, 0, Math.PI / 1.9), mat);
-            shell.position.y = 0.03;
-            g.add(shell);
-            const rim = new THREE.Mesh(new THREE.TorusGeometry(0.145, 0.018, 8, 22), mat);
-            rim.rotation.x = Math.PI / 2;
-            rim.position.y = 0.015;
-            g.add(rim);
-            // cover bands
-            const band = new THREE.Mesh(new THREE.TorusGeometry(0.152, 0.012, 6, 22), new THREE.MeshStandardMaterial({ color: 0x2c2f26, roughness: 1 }));
-            band.rotation.x = Math.PI / 2;
-            band.position.y = 0.09;
-            g.add(band);
-        } else { // hood
-            const hood = new THREE.Mesh(new THREE.SphereGeometry(0.155, 16, 12, 0, Math.PI * 2, 0, Math.PI / 1.6), mat);
-            hood.position.y = 0.02;
-            hood.scale.set(1, 1.1, 1.05);
-            g.add(hood);
-            const opening = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.025, 8, 20), mat);
-            opening.position.set(0, 0.0, -0.1);
-            g.add(opening);
+        const g=new THREE.Group();g.name='headwear';
+        if(!hatId||hatId==='none')return g;
+        if(hatId==='military_cap')hatId='cap';
+        const def=HATS.find(h=>h.id===hatId)||HATS[0];
+        const mat=new THREE.MeshStandardMaterial({color:character.hatColor??def.color,roughness:.94,side:THREE.DoubleSide});
+        const add=(geometry,position,scale=[1,1,1],material=mat)=>{
+            const m=new THREE.Mesh(geometry,material);m.position.set(...position);m.scale.set(...scale);
+            m.castShadow=m.receiveShadow=true;g.add(m);return m;
+        };
+        const dome=(radius,y,height=1)=>add(new THREE.SphereGeometry(radius,32,20,0,Math.PI*2,0,Math.PI/2),[0,y,.025],[1,height,1.12]);
+        const rim=(r,y,thickness)=>{const m=add(new THREE.TorusGeometry(r,thickness,8,32),[0,y,.025],[1,1.12,1]);m.rotation.x=Math.PI/2;};
+        if(hatId==='cap') {
+            dome(.097,.035,.95);rim(.094,.035,.006);
+            const shape=new THREE.Shape();shape.moveTo(-.084,.06);shape.quadraticCurveTo(-.105,.16,-.063,.203);
+            shape.quadraticCurveTo(0,.222,.063,.203);shape.quadraticCurveTo(.105,.16,.084,.06);shape.closePath();
+            const brim=add(new THREE.ExtrudeGeometry(shape,{depth:.006,bevelEnabled:true,bevelSize:.002,bevelThickness:.002,bevelSegments:2,steps:1}),[0,.035,0]);
+            brim.rotation.x=Math.PI/2;
+            add(new THREE.SphereGeometry(.006,10,8),[0,.131,.025]);
+        } else if(hatId==='beanie') {
+            dome(.101,.023,1.12);rim(.096,.032,.01);
+        } else if(hatId==='boonie') {
+            add(new THREE.CylinderGeometry(.084,.1,.075,32),[0,.077,.025],[1,1,1.12]);
+            add(new THREE.CylinderGeometry(.155,.16,.008,48),[0,.038,.025],[1,1,1.1]);
+        } else if(hatId==='helmet') {
+            dome(.108,.022,1.13);rim(.105,.022,.006);
+            const band=new THREE.MeshStandardMaterial({color:0x262a25,roughness:.98});
+            for(const side of [-1,1])add(new THREE.BoxGeometry(.012,.065,.012),[side*.093,-.009,.059],[1,1,1],band);
+        } else if(hatId==='ushanka') {
+            dome(.108,.02,1.08);
+            for(const side of [-1,1])add(new THREE.CapsuleGeometry(.025,.07,5,14),[side*.095,-.025,.021],[.55,1,1.6]);
+            add(new THREE.BoxGeometry(.15,.045,.022),[0,.035,.124]);
+        } else {
+            // Open front: the hood covers the back and sides without sealing the face.
+            const hood=add(new THREE.SphereGeometry(.115,32,20,Math.PI/2+.8,Math.PI*2-1.6,0,Math.PI*.76),[0,.025,.022],[1,1.18,1.1]);
+            hood.rotation.y=0;
         }
         return g;
     }

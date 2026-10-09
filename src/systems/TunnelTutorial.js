@@ -1,0 +1,24 @@
+import {globalEventBus} from '../core/EventBus.js';
+import {TUNNEL_ORIGIN} from '../world/TutorialTunnel.js';
+export function tutorialStage(distance){return distance<8?0:distance<18?1:distance<25?2:distance<34?3:distance<45?4:5;}
+export class TunnelTutorial {
+    constructor(game){this.game=game;this.active=false;this.completed=false;this.stage=-1;this.learned={};
+        this.offItem=globalEventBus.on('item:applied',({item})=>{if(this.active&&item.id==='bandage')this.learned.bandage=true;});
+        this.offLevel=globalEventBus.on('level:loaded',()=>{this.active=game.currentLevelName==='tutorial_tunnel';this.stage=-1;});
+        document.getElementById('tutorial-skip-btn')?.addEventListener('click',()=>{void this.finish();});
+    }
+    start(){this.game.inventorySystem?.clearInventory();this.game.weaponManager?.clearAll();if(this.game.player){this.game.player.equippedWeapon=null;if(Array.isArray(this.game.player.inventory))this.game.player.inventory.length=0;}this.active=true;this.completed=false;this.stage=-1;this.learned={};this.game.flashlightSystem?.turnOff();if(this.game.flashlightSystem)this.game.flashlightSystem.isOn=false;this.update(0);}
+    key(action){if(this.game.inputManager?.actionLabel)return this.game.inputManager.actionLabel(action);const code=this.game.inputManager?.bindings.get(action)?.[0]||action;return code.replace('Key','').replace('ControlLeft','Ctrl').replace('Mouse0','left mouse').replace('Mouse2','right mouse');}
+    practiceFirstAid(){if(!this.active||this.learned.practice)return;this.learned.practice=true;this.game.player.takeDamage(8,{type:'training'});this.game.uiManager?.showNotification('A small cut is bleeding. Open your pack and use a bandage. You can skip this exercise.','info',6000);}
+    update(){
+        const panel=document.getElementById('tutorial-note'),skip=document.getElementById('tutorial-skip-btn');if(panel)panel.hidden=!this.active;if(skip)skip.hidden=!this.active;if(!this.active)return;
+        const g=this.game,d=TUNNEL_ORIGIN.z-g.player.position.z;this.learned.flashlight ||=!!g.flashlightSystem?.isOn;this.learned.crouch ||=!!g.player.isCrouching;
+        if(d<48){g.dayNightCycle.ambientLight.intensity=.018;g.dayNightCycle.hemiLight.intensity=.025;g.dayNightCycle.sunLight.intensity=0;}
+        const stage=tutorialStage(d);if(stage!==this.stage){this.stage=stage;const notes=[`Search the emergency supplies beside the amber lamp for a flashlight. Use ${this.key('flashlight')} for your light; move toward the service signs.`,`The beam is too low to stand under. Crouch with ${this.key('crouch')}.`,`Search the supplies with ${this.key('interact')}. Open your pack with ${this.key('inventory')}. First-aid practice is optional.`,`The timber fence blocks the passage. Equip the pry bar from your pack and strike with ${this.key('fire')}. The second service room contains more tools and grenades.`,`Keep to the centre past the distortion. Probe it with ${this.key('throw_bolt')}; your detector uses ${this.key('toggle_detector')}. Check wounds and supplies before daylight. Quicksave with ${this.key('quicksave')}. You can leave training from Pause.`,`Follow the surface-access sign. You will continue outside the city.`];if(panel)panel.textContent='FIELD NOTE — '+notes[stage];}
+        if(d>65&&!this.finishing)void this.finish();
+    }
+    async finish(){if(this.finishing||!this.active)return;this.finishing=true;try{this.active=false;this.completed=true;this.game.flags.tutorialCompleted=true;await this.game.changeLevel('zone_outskirts');const g=this.game,cfg=g.worldManager.city,x=cfg?cfg.blocksX*(cfg.blockSize+cfg.roadWidth)/2+190:0;g.player.position.set(x,g.worldManager.getTerrainHeight(x,0)+.08,0);g.player.velocity.set(0,0,0);g.player.cameraYaw=Math.PI/2;g.player.updateCamera(0);this.update();g.resume();g.gameState='playing';await g.saveSystem.saveGame('autosave');}finally{this.finishing=false;}}
+    serialize(){return {version:1,active:this.active,completed:this.completed,learned:{...this.learned},containers:(this.game.worldManager.tutorialContainers||[]).map(c=>({items:c.items.map(i=>({...i})),searched:c.searched}))};}
+    restore(data){const active=[...(this.game.lootSystem?.containers.values()||[])];if(active.length)this.game.worldManager.tutorialContainers=(this.game.worldManager.tutorialContainers||[]).map(source=>active.find(c=>c.type===source.type&&c.mesh.position.distanceTo(source.mesh.position)<.05)||source);this.active=this.game.currentLevelName==='tutorial_tunnel';this.completed=!!data?.completed;this.learned={...(data?.learned||{})};this.stage=-1;for(let i=0;i<(data?.containers?.length||0);i++){const c=this.game.worldManager.tutorialContainers?.[i];if(c){c.items=data.containers[i].items.map(item=>({...item}));c.searched=!!data.containers[i].searched;}}this.update();}
+    dispose(){this.offItem?.();this.offLevel?.();}
+}

@@ -108,13 +108,14 @@ export class Quest {
      * @param {number} amount - Progress amount
      */
     updateObjective(objectiveId, amount = 1) {
+        if (this.state !== QuestState.ACTIVE) return false;
         const objective = this.objectives.find(o => o.id === objectiveId);
         if (!objective || objective.completed) return false;
         
         objective.current = Math.min(objective.current + amount, objective.target);
         
         if (objective.current >= objective.target) {
-            objective.completed = true;
+            objective.completed = true;globalEventBus.emit('quest:objective_completed',{questId:this.id,objectiveId});
             
             globalEventBus.emit(GameEvents.NOTIFICATION, {
                 message: `Objective completed: ${objective.description}`,
@@ -386,7 +387,7 @@ export class QuestSystem {
         
         // Experience
         if (rewards.experience) {
-            // player.addExperience(rewards.experience);
+            this.game.progressionSystem?.addExperience(rewards.experience);
             globalEventBus.emit(GameEvents.NOTIFICATION, {
                 message: `+${rewards.experience} XP`,
                 type: 'success'
@@ -395,7 +396,7 @@ export class QuestSystem {
         
         // Money
         if (rewards.money) {
-            // player.addMoney(rewards.money);
+            this.game.progressionSystem?.addMoney(rewards.money);
             globalEventBus.emit(GameEvents.NOTIFICATION, {
                 message: `+${rewards.money} RU`,
                 type: 'success'
@@ -412,7 +413,7 @@ export class QuestSystem {
         // Reputation
         if (rewards.reputation) {
             for (const [faction, amount] of Object.entries(rewards.reputation)) {
-                // player.addReputation(faction, amount);
+                this.game.factionSystem?.adjustRep(faction, amount, 'Quest reward');
             }
         }
     }
@@ -424,7 +425,7 @@ export class QuestSystem {
         const playerData = {
             level: this.game.player?.level || 1,
             completedQuests: Array.from(this.completedQuests),
-            reputation: {} // Would come from player/faction system
+            reputation: this.game.factionSystem?.reputation || {}
         };
         
         for (const quest of this.quests.values()) {
@@ -441,6 +442,7 @@ export class QuestSystem {
      * @param {Enemy} enemy - Killed enemy
      */
     onEnemyKilled(enemy) {
+        if (!enemy) return;
         // Check enemy type
         const enemyTypes = ['enemy'];
         if (enemy.hasTag('mutant')) enemyTypes.push('mutant');

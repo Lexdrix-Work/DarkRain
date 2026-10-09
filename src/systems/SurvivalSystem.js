@@ -1,3 +1,4 @@
+import {survivalPressure} from '../core/settings/Accessibility.js';
 import { globalEventBus, GameEvents } from '../core/EventBus.js';
 
 /**
@@ -46,7 +47,7 @@ export class SurvivalSystem {
     isInShelter() {
         // Check if player is inside a building/bunker
         // Simplified - would use collision/trigger volumes
-        return false;
+        return !!this.game.emissionSystem?.isSheltered(this.game.player?.position);
     }
 
     /**
@@ -81,6 +82,7 @@ export class SurvivalSystem {
         }
         
         if (item.stopsBleeding) {
+            player.stats.bleeding=0;
             this.removeStatusEffect(player, 'bleeding');
         }
         
@@ -104,7 +106,7 @@ export class SurvivalSystem {
         }
         
         // Some food might add radiation
-        if (item.radiationAmount) {
+        if (item.radiationAmount && !this.game.perkSystem?.getEffects().foodRadImmune) {
             player.addRadiation(item.radiationAmount);
         }
         
@@ -210,21 +212,22 @@ export class SurvivalSystem {
      * @param {number} deltaTime - Frame delta
      */
     updateHungerThirst(player, deltaTime) {
+        const pressure=survivalPressure(this.game.settings?.difficulty);
         // Increase hunger
         player.stats.hunger = Math.min(
             player.stats.maxHunger,
-            player.stats.hunger + this.hungerRate * deltaTime
+            player.stats.hunger + this.hungerRate * deltaTime*pressure
         );
         
         // Increase thirst
         player.stats.thirst = Math.min(
             player.stats.maxThirst,
-            player.stats.thirst + this.thirstRate * deltaTime
+            player.stats.thirst + this.thirstRate * deltaTime*pressure
         );
         
         // Critical hunger damage
         if (player.stats.hunger >= this.criticalHunger) {
-            player.stats.health -= 0.5 * deltaTime;
+            player.stats.health -= 0.5 * deltaTime*pressure;
             
             if (!this.hasStatusEffect(player, 'starving')) {
                 this.applyStatusEffect(player, 'starving', Infinity, {});
@@ -239,7 +242,7 @@ export class SurvivalSystem {
         
         // Critical thirst damage
         if (player.stats.thirst >= this.criticalThirst) {
-            player.stats.health -= 0.8 * deltaTime;
+            player.stats.health -= 0.8 * deltaTime*pressure;
             
             if (!this.hasStatusEffect(player, 'dehydrated')) {
                 this.applyStatusEffect(player, 'dehydrated', Infinity, {});
@@ -279,7 +282,7 @@ export class SurvivalSystem {
             
             // Heavy radiation - health damage
             if (radLevel > 0.5) {
-                const damage = (radLevel - 0.5) * 2 * deltaTime * (1 - radResistance);
+                const damage = (radLevel - 0.5) * 2 * deltaTime * (1 - radResistance)*survivalPressure(this.game.settings?.difficulty);
                 player.stats.health -= damage;
             }
             
@@ -305,7 +308,7 @@ export class SurvivalSystem {
     updateStatusEffects(deltaTime) {
         for (const [key, effect] of this.statusEffects.entries()) {
             // Skip infinite duration effects
-            if (effect.duration === Infinity) continue;
+            if (effect.duration === Infinity) {this.applyStatusEffectTick(effect,deltaTime);continue;}
             
             effect.remaining -= deltaTime;
             
@@ -359,6 +362,7 @@ export class SurvivalSystem {
     updateHealthRegen(player, deltaTime) {
         // Only regenerate if not hungry/thirsty and low radiation
         if (
+            !player.stats.bleeding &&
             player.stats.hunger < 50 &&
             player.stats.thirst < 50 &&
             player.stats.radiation < 30 &&

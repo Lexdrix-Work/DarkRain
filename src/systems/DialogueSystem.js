@@ -49,6 +49,7 @@ export class DialogueSystem {
      */
     startDialogue(dialogueId, speaker = null) {
         const dialogue = this.dialogues.get(dialogueId);
+        if (this.isActive) return false;
         if (!dialogue) {
             console.warn(`Dialogue not found: ${dialogueId}`);
             return false;
@@ -58,6 +59,8 @@ export class DialogueSystem {
         this.currentSpeaker = speaker;
         this.isActive = true;
         this.dialogueHistory = [];
+        this.wasPaused = this.game.isPaused;
+        this.game.isPaused = true;
         
         // Pause game
         if (this.game.inputManager) {
@@ -91,13 +94,13 @@ export class DialogueSystem {
         
         this.currentNode = { id: nodeId, ...node };
         // Keep the filtered options the UI displayed so selectOption indexes the same array
-        this.currentNode.availableOptions = this.filterOptions(node.options || []);
         this.dialogueHistory.push(nodeId);
         
         // Execute node actions
         if (node.actions) {
             this.executeActions(node.actions);
         }
+        this.currentNode.availableOptions = this.filterOptions(node.options || []);
         
         // Filter available options based on conditions
         const availableOptions = this.currentNode.availableOptions;
@@ -133,10 +136,12 @@ export class DialogueSystem {
     filterOptions(options) {
         return options.filter(option => {
             if (!option.condition) return true;
-            return this.evaluateCondition(option.condition);
+            return option.showLocked || this.evaluateCondition(option.condition);
         }).map((option, index) => ({
             ...option,
-            index
+            text: typeof option.text === 'function' ? option.text(this.game) : option.text,
+            index,
+            locked: !!option.condition && !this.evaluateCondition(option.condition)
         }));
     }
 
@@ -162,15 +167,19 @@ export class DialogueSystem {
                 return questSystem?.completedQuests.has(condition.questId);
                 
             case 'reputation':
-                // return player?.getReputation(condition.faction) >= condition.value;
-                return true;
+                return (this.game.factionSystem?.getRep(condition.faction) || 0) >= condition.value;
+            case 'skill':
+                return (this.game.progressionSystem?.getSkill(condition.skill) || 0) >= condition.value;
+            case 'flag':
+                return this.game.flags?.[condition.flag] === condition.value;
+            case 'all':
+                return condition.conditions.every(c => this.evaluateCondition(c));
                 
             case 'stat':
                 return (player?.stats?.[condition.stat] || 0) >= condition.value;
                 
             case 'money':
-                // return player?.money >= condition.amount;
-                return true;
+                return (player?.money || 0) >= condition.amount;
                 
             case 'custom':
                 // Custom condition evaluation
@@ -213,7 +222,7 @@ export class DialogueSystem {
                 break;
                 
             case 'giveMoney':
-                // this.game.player?.addMoney(action.amount);
+                this.game.progressionSystem?.addMoney(action.amount);
                 globalEventBus.emit(GameEvents.NOTIFICATION, {
                     message: `Received ${action.amount} RU`,
                     type: 'success'
@@ -221,7 +230,7 @@ export class DialogueSystem {
                 break;
                 
             case 'takeMoney':
-                // this.game.player?.removeMoney(action.amount);
+                this.game.progressionSystem?.spendMoney(action.amount);
                 break;
                 
             case 'startQuest':
@@ -243,7 +252,7 @@ export class DialogueSystem {
                 break;
                 
             case 'addReputation':
-                // this.game.player?.addReputation(action.faction, action.amount);
+                this.game.factionSystem?.adjustRep(action.faction, action.amount, 'Dialogue choice');
                 break;
                 
             case 'teleport':
@@ -289,7 +298,7 @@ export class DialogueSystem {
         if (!shownOptions) return;
         
         const option = shownOptions[optionIndex];
-        if (!option) return;
+        if (!option || option.locked || (option.condition && !this.evaluateCondition(option.condition))) return;
         
         // Execute option actions
         if (option.actions) {
@@ -320,6 +329,9 @@ export class DialogueSystem {
         this.currentDialogue = null;
         this.currentNode = null;
         this.currentSpeaker = null;
+        this.game.isPaused = !!this.wasPaused;
+        this.game.inputManager?.mouse?.buttons.clear();
+        this.game.inputManager?.keysJustPressed?.delete('Mouse0');
         
         // Resume game
         if (this.game.canvas) {
@@ -347,7 +359,7 @@ export class DialogueSystem {
 export const SampleDialogues = {
     trader_intro: {
         id: 'trader_intro',
-        speaker: 'Sidorovich',
+        speaker: 'Mara Voss',
         startNode: 'start',
         nodes: {
             start: {

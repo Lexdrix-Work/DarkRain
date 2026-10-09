@@ -71,7 +71,7 @@ const PERKS = {
     // === SOCIAL ===
     negotiator: {
         name: 'Negotiator',
-        description: '+25% better prices, +10 faction rep gain',
+        description: '25% cheaper checkpoint supplies, +10% reputation earned',
         level: 2,
         effects: { prices: 0.25, repGain: 0.10 },
     },
@@ -97,10 +97,10 @@ const PERKS = {
         effects: { weightReduction: 0.50 },
     },
     quick_draw: {
-        name: 'Quick Draw',
-        description: '+50% weapon swap speed, +25% reload speed',
+        name: 'Fast Hands',
+        description: '+25% reload speed',
         level: 2,
-        effects: { swapSpeed: 0.50, reloadSpeed: 0.25 },
+        effects: { reloadSpeed: 0.25 },
     },
     mysterious_stranger: {
         name: 'Mysterious Stranger',
@@ -150,6 +150,9 @@ export class PerkSystem {
             }
         }
 
+        for (const taken of this.perks) {
+            if (PERKS[taken]?.exclusive?.includes(perkId)) return {ok:false,reason:`Exclusive with ${PERKS[taken].name}`};
+        }
         return { ok: true };
     }
 
