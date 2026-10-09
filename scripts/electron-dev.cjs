@@ -40,8 +40,8 @@ async function main() {
     console.log('Starting Vite dev server...');
 
     const vite = spawn(
-        process.platform === 'win32' ? 'npx.cmd' : 'npx',
-        ['vite', '--port', String(PORT), '--strictPort', '--host', HOST],
+        process.execPath,
+        [path.join(root, 'node_modules', 'vite', 'bin', 'vite.js'), '--port', String(PORT), '--strictPort', '--host', HOST],
         { cwd: root, stdio: 'inherit', shell: false }
     );
 
@@ -67,8 +67,8 @@ async function main() {
     console.log(`Vite is up at http://${HOST}:${PORT} — launching Electron...`);
 
     const electron = spawn(
-        process.platform === 'win32' ? 'npx.cmd' : 'npx',
-        ['electron', '.', '--dev'],
+        require('electron'),
+        ['.', '--dev'],
         { cwd: root, stdio: 'inherit', shell: false }
     );
 

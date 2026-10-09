@@ -21,7 +21,7 @@ const directories = [
     'src/styles'
 ];
 
-console.log('Setting up Dark Rain: Pool of Darkness project structure...\n');
+console.log('Setting up Dark Rain project structure...\n');
 
 // Create directories and .gitkeep files
 directories.forEach(dir => {
