@@ -1,0 +1,81 @@
+{
+  "backend": "WebGL2",
+  "recoveryErrors": [],
+  "intact": {
+    "pieces": 63,
+    "awake": 0,
+    "loose": 0,
+    "joints": 95,
+    "failed": 0,
+    "mass": 304251.86880000023,
+    "revision": 0,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 0
+  },
+  "breach": {
+    "pieces": 74,
+    "awake": 0,
+    "loose": 1,
+    "joints": 137,
+    "failed": 13,
+    "mass": 304251.8688000003,
+    "revision": 15,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 0
+  },
+  "weak": {
+    "pieces": 106,
+    "awake": 40,
+    "loose": 48,
+    "joints": 112,
+    "failed": 107,
+    "mass": 304251.8688000002,
+    "revision": 129,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 0,
+    "topY": 1.3035776840332198
+  },
+  "collapse": {
+    "pieces": 121,
+    "awake": 106,
+    "loose": 121,
+    "joints": 13,
+    "failed": 250,
+    "mass": 304251.8688000002,
+    "revision": 303,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 44,
+    "minY": 0.07529357075691223
+  },
+  "restored": {
+    "saved": true,
+    "loaded": true,
+    "pieces": 121,
+    "awake": 106,
+    "loose": 121,
+    "joints": 13,
+    "failed": 250,
+    "mass": 304251.8688000002,
+    "revision": 303,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 44
+  },
+  "models": {
+    "saved": true,
+    "loaded": true,
+    "crateMass": 12,
+    "fragments": 12,
+    "beforeMass": 60.19330418109894,
+    "afterMass": 60.19330418109894
+  },
+  "menu": {
+    "state": "menu",
+    "visible": true
+  },
+  "errors": []
+}

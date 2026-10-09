@@ -1,0 +1,176 @@
+{
+  "backend": "WebGL2",
+  "recoveryErrors": [],
+  "menuBoot": {
+    "level": null,
+    "worldObjects": 0,
+    "worldInitialized": false,
+    "menu": true,
+    "timing": {
+      "rendererToMenuMs": 110.20000004768372,
+      "rendererToPlayableMs": null,
+      "entryToPlayableMs": null,
+      "phases": {
+        "rendererDevice": 7.700000047683716,
+        "characterAssets": 9.399999856948853
+      }
+    }
+  },
+  "entryTiming": {
+    "rendererToMenuMs": 110.20000004768372,
+    "rendererToPlayableMs": 1281.5999999046326,
+    "entryToPlayableMs": 608,
+    "phases": {
+      "rendererDevice": 7.700000047683716,
+      "characterAssets": 9.399999856948853,
+      "worldAssets": 71.40000009536743,
+      "worldLoad": 8.599999904632568,
+      "physics": 71.70000004768372,
+      "shaderWarmup": 4.699999809265137,
+      "firstView": 430.09999990463257
+    }
+  },
+  "tutorial": {
+    "saved": true,
+    "loaded": true,
+    "level": "tutorial_tunnel",
+    "active": true,
+    "practice": true,
+    "bleeding": 0.22857142857142856,
+    "broken": true,
+    "exitLevel": "zone_outskirts",
+    "exitX": 358,
+    "completed": true
+  },
+  "streaming": {
+    "backend": "worker",
+    "resident": 18,
+    "pending": 0,
+    "commitMs": 0,
+    "maxCommitMs": 0.5,
+    "overruns": 1,
+    "budgetMs": 0.4,
+    "trees": 420,
+    "scope": "decorative woodland",
+    "draws": 54
+  },
+  "memory": {
+    "geometryBytes": 243971714,
+    "textureBytes": 56824274,
+    "appPrivateBytes": 2862133248,
+    "workingSetBytes": 2593923072,
+    "saveCacheBytes": 1234,
+    "audioBytes": 6013440,
+    "pressure": "high",
+    "estimated": true,
+    "pooledCapacities": [
+      256,
+      1024
+    ],
+    "pooledActive": [
+      10,
+      100
+    ],
+    "bufferReused": true,
+    "structuralMaps": 2,
+    "processTypes": [
+      "Browser",
+      "GPU",
+      "Utility",
+      "Tab",
+      "Utility"
+    ],
+    "textureCacheBytes": 16777218,
+    "saveIndexBytes": 1234
+  },
+  "intact": {
+    "pieces": 63,
+    "awake": 0,
+    "loose": 0,
+    "joints": 95,
+    "failed": 0,
+    "mass": 304251.86880000023,
+    "revision": 0,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 0
+  },
+  "breach": {
+    "pieces": 74,
+    "awake": 0,
+    "loose": 1,
+    "joints": 137,
+    "failed": 13,
+    "mass": 304251.8688000003,
+    "revision": 15,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 0
+  },
+  "weak": {
+    "pieces": 112,
+    "awake": 47,
+    "loose": 54,
+    "joints": 111,
+    "failed": 121,
+    "mass": 304251.8688000002,
+    "revision": 147,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 1,
+    "topY": 1.0761812925338745
+  },
+  "collapse": {
+    "pieces": 127,
+    "awake": 117,
+    "loose": 127,
+    "joints": 11,
+    "failed": 265,
+    "mass": 304251.86880000023,
+    "revision": 322,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 44,
+    "minY": 0.06658937782049179
+  },
+  "restored": {
+    "saved": true,
+    "loaded": true,
+    "pieces": 127,
+    "awake": 117,
+    "loose": 127,
+    "joints": 11,
+    "failed": 265,
+    "mass": 304251.86880000023,
+    "revision": 322,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 44
+  },
+  "city": {
+    "buildings": 142,
+    "wallMeshes": 709,
+    "fittingOwners": 142,
+    "supports": 1,
+    "physicalFittings": 2,
+    "selectedId": "fitting:structure:-150.20,-156.54:merged:detail:decay-ivy-dark:1890",
+    "mass": 0.09244349598884583,
+    "colliders": 1,
+    "height": 0.0444902628660202,
+    "rayTarget": true
+  },
+  "models": {
+    "saved": true,
+    "loaded": true,
+    "cityFittings": 2,
+    "crateMass": 12,
+    "fragments": 24,
+    "beforeMass": 156.57991421222687,
+    "afterMass": 156.57991421222687
+  },
+  "menu": {
+    "state": "menu",
+    "visible": true
+  },
+  "errors": []
+}

@@ -1,0 +1,45 @@
+{
+  "menu": {
+    "creatorSelected": true,
+    "backToMenu": true,
+    "controllerStatus": "Xbox layout connected. Controller look active.",
+    "source": "gamepad"
+  },
+  "motion": {
+    "yawDelta": -0.01774475653767937,
+    "moveDistance": 0.09824718705669606,
+    "lean": 0.36770549254786977,
+    "breathHolding": true,
+    "staminaUsed": 0.6876000008583105
+  },
+  "ammoAfter": 6,
+  "controllerFire": true,
+  "quickTapFire": true,
+  "chordNoConflict": true,
+  "pauseFence": true,
+  "disconnectPaused": true,
+  "diagnostics": {
+    "source": "gamepad",
+    "controllerConnected": true,
+    "controllerLayout": "playstation",
+    "rawRequested": true,
+    "rawAvailable": null,
+    "mouseSmoothing": false,
+    "latencyMetric": "DOM event receipt / controller poll to shot logic and render submission; not photon latency",
+    "samples": [
+      {
+        "source": "gamepad",
+        "eventToShotMs": 3.5999999046325684,
+        "eventToSubmissionMs": 17.09999990463257,
+        "at": 2282.2999999523163
+      },
+      {
+        "source": "mouse",
+        "eventToShotMs": 22.5,
+        "eventToSubmissionMs": 209.89999985694885,
+        "at": 2381.7000000476837
+      }
+    ]
+  },
+  "backend": "WebGL2"
+}

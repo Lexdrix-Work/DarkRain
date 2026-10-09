@@ -1,0 +1,36 @@
+{
+  "roundtrip": {
+    "enemyId": "entity_1791532690733_fnienwnso",
+    "enemyHealth": 63,
+    "parties": 1,
+    "emissionElapsed": 111,
+    "flashlightBattery": 0,
+    "chunkCount": 3,
+    "manualSlots": 5,
+    "combatDeferred": true,
+    "backupAvailable": true,
+    "fixtureSaved": true
+  },
+  "death": {
+    "dropPackItems": 9,
+    "dropCheckpoint": true,
+    "dropRespawn": true,
+    "hardcoreCampaign": "531a4710-f1da-4af8-b6d3-e61ecf4d4c23",
+    "hardcoreEnded": true,
+    "oldSnapshotBlocked": true
+  },
+  "panel": {
+    "visible": true,
+    "buttonHitTest": true,
+    "rootClass": "menu visible",
+    "hit": "menu-button save-slot",
+    "rect": [
+      505,
+      316.25,
+      590,
+      43.5
+    ],
+    "activeMenu": "saves"
+  },
+  "backend": "WebGL2"
+}

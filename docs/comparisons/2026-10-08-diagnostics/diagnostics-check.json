@@ -1,0 +1,17 @@
+{
+  "stats": {
+    "fps": 99.95366386127877,
+    "avg": 10.00463576190519,
+    "p95": 10.100000143051147,
+    "p99": 10.599999904632568,
+    "cpuAvg": 2.764238414385461,
+    "count": 151,
+    "hitches": 0,
+    "totalHitches": 0,
+    "totalFrames": 151
+  },
+  "health": {
+    "state": "good",
+    "text": "Recent gameplay is running smoothly."
+  }
+}

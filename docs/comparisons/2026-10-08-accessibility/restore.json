@@ -1,0 +1,164 @@
+{
+  "preferences": {
+    "schema": 4,
+    "accessibilityReviewed": true,
+    "resolution": "1600x900",
+    "fullscreen": false,
+    "vsync": true,
+    "fov": 75,
+    "showFps": false,
+    "quality": "medium",
+    "autoQuality": true,
+    "renderScale": 100,
+    "renderDistance": 500,
+    "shadows": true,
+    "shadowSize": 1024,
+    "reflectionQuality": "medium",
+    "vegetationDetail": true,
+    "particleQuality": "medium",
+    "post": true,
+    "bloom": true,
+    "aa": true,
+    "grain": false,
+    "vignette": false,
+    "chroma": false,
+    "masterVolume": 100,
+    "musicVolume": 50,
+    "sfxVolume": 80,
+    "voiceVolume": 100,
+    "subtitles": true,
+    "dynamicRange": "wide",
+    "sensitivity": 50,
+    "rawInput": true,
+    "mouseCurve": "linear",
+    "mouseSmoothing": false,
+    "mouseSmoothingMs": 8,
+    "controllerEnabled": true,
+    "controllerLayout": "auto",
+    "controllerSensitivity": 180,
+    "controllerDeadzone": 12,
+    "controllerCurve": "precision",
+    "controllerAdsScale": 55,
+    "controllerAimAssist": 15,
+    "invertX": false,
+    "invertY": false,
+    "difficulty": "relaxed",
+    "hudOpacity": 100,
+    "cameraMotion": 0,
+    "weaponMotion": 0,
+    "lensEffects": false,
+    "anomalyPalette": "universal",
+    "highContrast": true,
+    "subtitleSize": 32,
+    "subtitleBackground": 100,
+    "visualAudioCues": true,
+    "monoAudio": true,
+    "damageNumbers": false,
+    "bindings": {
+      "moveForward": [
+        "KeyW",
+        "ArrowUp"
+      ],
+      "moveBackward": [
+        "KeyS",
+        "ArrowDown"
+      ],
+      "moveLeft": [
+        "KeyA",
+        "ArrowLeft"
+      ],
+      "moveRight": [
+        "KeyD",
+        "ArrowRight"
+      ],
+      "jump": [
+        "Space"
+      ],
+      "crouch": [
+        "KeyC",
+        "ControlLeft"
+      ],
+      "sprint": [
+        "ShiftLeft"
+      ],
+      "interact": [
+        "KeyE"
+      ],
+      "reload": [
+        "KeyR"
+      ],
+      "inventory": [
+        "Tab",
+        "KeyI"
+      ],
+      "flashlight": [
+        "KeyF"
+      ],
+      "throw_bolt": [
+        "KeyG"
+      ],
+      "toggle_detector": [
+        "KeyN"
+      ],
+      "map": [
+        "KeyM"
+      ],
+      "favorites": [
+        "KeyQ"
+      ],
+      "quicksave": [
+        "F5"
+      ],
+      "quickload": [
+        "F9"
+      ],
+      "fire": [
+        "Mouse0"
+      ],
+      "aim": [
+        "Mouse2"
+      ],
+      "steadyAim": [
+        "AltLeft"
+      ],
+      "leanLeft": [
+        "KeyZ"
+      ],
+      "leanRight": [
+        "KeyX"
+      ],
+      "nextWeapon": [
+        "WheelUp"
+      ],
+      "previousWeapon": [
+        "WheelDown"
+      ],
+      "slot1": [
+        "Digit1"
+      ],
+      "slot2": [
+        "Digit2"
+      ],
+      "slot3": [
+        "Digit3"
+      ],
+      "quick1": [
+        "Digit5"
+      ],
+      "quick2": [
+        "Digit6"
+      ],
+      "quick3": [
+        "Digit7"
+      ],
+      "quick4": [
+        "Digit8"
+      ],
+      "pause": [
+        "Escape"
+      ]
+    }
+  },
+  "firstLaunchDismissed": true,
+  "monoApplied": true
+}

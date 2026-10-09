@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "backend": "WebGL2",
+  "p95IntervalMs": 17.799999952316284,
+  "cpuMeanMs": 0.30622009227150365,
+  "samples": 209,
+  "recommended": "medium",
+  "confidence": "provisional",
+  "elapsedMs": 4327.900000095367
+}

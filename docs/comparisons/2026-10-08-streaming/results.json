@@ -1,0 +1,106 @@
+{
+  "backend": "WebGL2",
+  "recoveryErrors": [],
+  "streaming": {
+    "backend": "worker",
+    "resident": 20,
+    "pending": 0,
+    "commitMs": 0,
+    "maxCommitMs": 0.6000001430511475,
+    "overruns": 2,
+    "budgetMs": 0.4,
+    "trees": 420,
+    "scope": "decorative woodland",
+    "draws": 60
+  },
+  "intact": {
+    "pieces": 63,
+    "awake": 0,
+    "loose": 0,
+    "joints": 95,
+    "failed": 0,
+    "mass": 304251.86880000023,
+    "revision": 0,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 0
+  },
+  "breach": {
+    "pieces": 74,
+    "awake": 0,
+    "loose": 1,
+    "joints": 137,
+    "failed": 13,
+    "mass": 304251.8688000003,
+    "revision": 15,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 0
+  },
+  "weak": {
+    "pieces": 112,
+    "awake": 51,
+    "loose": 54,
+    "joints": 112,
+    "failed": 119,
+    "mass": 304251.86880000023,
+    "revision": 145,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 0,
+    "topY": 1.072724820387238
+  },
+  "collapse": {
+    "pieces": 127,
+    "awake": 125,
+    "loose": 127,
+    "joints": 11,
+    "failed": 264,
+    "mass": 304251.8688000001,
+    "revision": 321,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 41,
+    "minY": 0.06599681824445724
+  },
+  "restored": {
+    "saved": true,
+    "loaded": true,
+    "pieces": 127,
+    "awake": 125,
+    "loose": 127,
+    "joints": 11,
+    "failed": 264,
+    "mass": 304251.8688000001,
+    "revision": 321,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 41
+  },
+  "city": {
+    "buildings": 142,
+    "wallMeshes": 709,
+    "fittingOwners": 142,
+    "supports": 1,
+    "physicalFittings": 7,
+    "selectedId": "fitting:structure:-150.20,-156.54:merged:detail:decay-ivy-light:0",
+    "mass": 0.006500000134110451,
+    "colliders": 1,
+    "height": 3.563080310821533,
+    "rayTarget": true
+  },
+  "models": {
+    "saved": true,
+    "loaded": true,
+    "cityFittings": 7,
+    "crateMass": 12,
+    "fragments": 12,
+    "beforeMass": 60.19330418109894,
+    "afterMass": 60.19330418109894
+  },
+  "menu": {
+    "state": "menu",
+    "visible": true
+  },
+  "errors": []
+}

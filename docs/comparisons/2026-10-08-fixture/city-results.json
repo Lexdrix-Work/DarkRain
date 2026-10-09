@@ -1,0 +1,94 @@
+{
+  "backend": "WebGL2",
+  "recoveryErrors": [],
+  "intact": {
+    "pieces": 63,
+    "awake": 0,
+    "loose": 0,
+    "joints": 95,
+    "failed": 0,
+    "mass": 304251.86880000023,
+    "revision": 0,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 0
+  },
+  "breach": {
+    "pieces": 74,
+    "awake": 0,
+    "loose": 1,
+    "joints": 137,
+    "failed": 13,
+    "mass": 304251.8688000003,
+    "revision": 15,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 0
+  },
+  "weak": {
+    "pieces": 112,
+    "awake": 52,
+    "loose": 54,
+    "joints": 112,
+    "failed": 119,
+    "mass": 304251.86880000023,
+    "revision": 145,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 0,
+    "topY": 0.1502365707468705
+  },
+  "collapse": {
+    "pieces": 127,
+    "awake": 111,
+    "loose": 127,
+    "joints": 12,
+    "failed": 263,
+    "mass": 304251.86880000023,
+    "revision": 320,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 43,
+    "minY": 0.033698003739118576
+  },
+  "restored": {
+    "saved": true,
+    "loaded": true,
+    "pieces": 127,
+    "awake": 111,
+    "loose": 127,
+    "joints": 12,
+    "failed": 263,
+    "mass": 304251.86880000023,
+    "revision": 320,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 43
+  },
+  "city": {
+    "buildings": 142,
+    "wallMeshes": 709,
+    "fittingOwners": 142,
+    "supports": 1,
+    "physicalFittings": 2,
+    "selectedId": "fitting:structure:-150.20,-156.54:merged:detail:decay-ivy-dark:1890",
+    "mass": 0.09244349598884583,
+    "colliders": 1,
+    "height": 0.0444902628660202,
+    "rayTarget": true
+  },
+  "models": {
+    "saved": true,
+    "loaded": true,
+    "cityFittings": 2,
+    "crateMass": 12,
+    "fragments": 24,
+    "beforeMass": 156.57991421222687,
+    "afterMass": 156.57991421222687
+  },
+  "menu": {
+    "state": "menu",
+    "visible": true
+  },
+  "errors": []
+}

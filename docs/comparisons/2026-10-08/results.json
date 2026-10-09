@@ -1,0 +1,50 @@
+{
+  "capturedAt": "2026-10-08T08:38:16.310Z",
+  "elapsedMs": 71004,
+  "setup": {
+    "nodeFrame": 2196,
+    "eye": [
+      -148.9822903581755,
+      1.85,
+      -147.58650972461328
+    ],
+    "pane": [
+      -148.9822903581755,
+      1.6500000000000001,
+      -151.08650972461328
+    ],
+    "hit": "structure:-150.20,-156.54",
+    "target": "structure:-150.20,-156.54",
+    "visible": 1070,
+    "backend": "WebGPU",
+    "id": "structure:-150.20,-156.54",
+    "panes": 380,
+    "reflections": true,
+    "viewmodelComposite": true
+  },
+  "chipped": {
+    "pieces": 18,
+    "detached": 9,
+    "queued": 0,
+    "visibleChangeFraction": 0.004097334297957594
+  },
+  "collapse": {
+    "frame": 2673,
+    "broken": 355,
+    "settled": 642,
+    "falling": 63,
+    "queued": 0
+  },
+  "restored": {
+    "saved": true,
+    "loaded": true,
+    "settled": 642,
+    "falling": 63
+  },
+  "menu": {
+    "state": "menu",
+    "visible": true
+  },
+  "errors": [],
+  "warnings": 6
+}

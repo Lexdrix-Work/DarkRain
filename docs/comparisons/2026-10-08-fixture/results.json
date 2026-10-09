@@ -1,0 +1,73 @@
+{
+  "backend": "WebGL2",
+  "recoveryErrors": [],
+  "intact": {
+    "pieces": 63,
+    "awake": 0,
+    "loose": 0,
+    "joints": 95,
+    "failed": 0,
+    "mass": 304251.86880000023,
+    "revision": 0,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 0
+  },
+  "breach": {
+    "pieces": 74,
+    "awake": 0,
+    "loose": 1,
+    "joints": 137,
+    "failed": 13,
+    "mass": 304251.8688000003,
+    "revision": 15,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 0
+  },
+  "weak": {
+    "pieces": 103,
+    "awake": 37,
+    "loose": 45,
+    "joints": 112,
+    "failed": 101,
+    "mass": 304251.8688000001,
+    "revision": 121,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 0,
+    "topY": 1.1730193728130378
+  },
+  "collapse": {
+    "pieces": 118,
+    "awake": 108,
+    "loose": 118,
+    "joints": 12,
+    "failed": 245,
+    "mass": 304251.8688000001,
+    "revision": 296,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 43,
+    "minY": 0.07611735165119171
+  },
+  "restored": {
+    "saved": true,
+    "loaded": true,
+    "pieces": 118,
+    "awake": 108,
+    "loose": 118,
+    "joints": 12,
+    "failed": 245,
+    "mass": 304251.8688000001,
+    "revision": 296,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 43
+  },
+  "menu": {
+    "state": "menu",
+    "visible": true
+  },
+  "errors": []
+}

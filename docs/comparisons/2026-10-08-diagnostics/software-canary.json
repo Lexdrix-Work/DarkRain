@@ -1,0 +1,72 @@
+{
+  "schema": 1,
+  "capturedAt": "2026-10-08T23:49:17.322Z",
+  "electron": "44.7.0",
+  "platform": "win32",
+  "resolution": [
+    768,
+    432
+  ],
+  "renderer": "Three.js WebGLRenderer component canary",
+  "adapter": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+  "metric": "synchronous render completion plus physics/churn; not presentation intervals",
+  "pass": true,
+  "tier": "software",
+  "budget": {
+    "avg": 100,
+    "p95": 150,
+    "p99": 300,
+    "maxDrawCalls": 32,
+    "maxGeometries": 16,
+    "maxTextures": 8
+  },
+  "failures": [],
+  "scenes": [
+    {
+      "name": "courtyard",
+      "samples": 150,
+      "avg": 0.1926666529973348,
+      "p95": 0.2999999523162842,
+      "p99": 0.5,
+      "maxDrawCalls": 3,
+      "minDrawCalls": 3,
+      "minTriangles": 6156,
+      "maxGeometries": 1,
+      "maxTextures": 3,
+      "activeBodies": 0,
+      "nonBlank": true,
+      "remainingGeometries": 0
+    },
+    {
+      "name": "debris",
+      "samples": 150,
+      "avg": 0.7979999987284342,
+      "p95": 1,
+      "p99": 1.1000001430511475,
+      "maxDrawCalls": 3,
+      "minDrawCalls": 3,
+      "minTriangles": 3084,
+      "maxGeometries": 1,
+      "maxTextures": 3,
+      "activeBodies": 128,
+      "nonBlank": true,
+      "remainingGeometries": 0
+    },
+    {
+      "name": "chunk-churn",
+      "samples": 150,
+      "avg": 0.17600000222524007,
+      "p95": 0.39999985694885254,
+      "p99": 0.5,
+      "maxDrawCalls": 11,
+      "minDrawCalls": 11,
+      "minTriangles": 6252,
+      "maxGeometries": 9,
+      "maxTextures": 3,
+      "activeBodies": 0,
+      "nonBlank": true,
+      "remainingGeometries": 0
+    }
+  ],
+  "errors": []
+}

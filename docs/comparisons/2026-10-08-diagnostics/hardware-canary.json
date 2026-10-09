@@ -1,0 +1,72 @@
+{
+  "schema": 1,
+  "capturedAt": "2026-10-08T23:49:20.875Z",
+  "electron": "44.7.0",
+  "platform": "win32",
+  "resolution": [
+    768,
+    432
+  ],
+  "renderer": "Three.js WebGLRenderer component canary",
+  "adapter": "ANGLE (AMD, AMD Radeon RX 9060 XT (0x00007590) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+  "metric": "synchronous render completion plus physics/churn; not presentation intervals",
+  "pass": true,
+  "tier": "hardware",
+  "budget": {
+    "avg": 16.67,
+    "p95": 20,
+    "p99": 33.4,
+    "maxDrawCalls": 32,
+    "maxGeometries": 16,
+    "maxTextures": 8
+  },
+  "failures": [],
+  "scenes": [
+    {
+      "name": "courtyard",
+      "samples": 150,
+      "avg": 0.14266666253407798,
+      "p95": 0.20000004768371582,
+      "p99": 0.3000001907348633,
+      "maxDrawCalls": 3,
+      "minDrawCalls": 3,
+      "minTriangles": 6156,
+      "maxGeometries": 1,
+      "maxTextures": 3,
+      "activeBodies": 0,
+      "nonBlank": true,
+      "remainingGeometries": 0
+    },
+    {
+      "name": "debris",
+      "samples": 150,
+      "avg": 0.4859999942779541,
+      "p95": 0.7000000476837158,
+      "p99": 0.8999998569488525,
+      "maxDrawCalls": 3,
+      "minDrawCalls": 3,
+      "minTriangles": 3084,
+      "maxGeometries": 1,
+      "maxTextures": 3,
+      "activeBodies": 128,
+      "nonBlank": true,
+      "remainingGeometries": 0
+    },
+    {
+      "name": "chunk-churn",
+      "samples": 150,
+      "avg": 0.12266665458679199,
+      "p95": 0.20000004768371582,
+      "p99": 0.2999999523162842,
+      "maxDrawCalls": 11,
+      "minDrawCalls": 11,
+      "minTriangles": 6252,
+      "maxGeometries": 9,
+      "maxTextures": 3,
+      "activeBodies": 0,
+      "nonBlank": true,
+      "remainingGeometries": 0
+    }
+  ],
+  "errors": []
+}

@@ -1,0 +1,165 @@
+{
+  "backend": "WebGL2",
+  "recoveryErrors": [],
+  "menuBoot": {
+    "level": null,
+    "worldObjects": 0,
+    "worldInitialized": false,
+    "menu": true,
+    "timing": {
+      "rendererToMenuMs": 109,
+      "rendererToPlayableMs": null,
+      "entryToPlayableMs": null,
+      "phases": {
+        "rendererDevice": 6.799999952316284,
+        "characterAssets": 9.5
+      }
+    }
+  },
+  "entryTiming": {
+    "rendererToMenuMs": 109,
+    "rendererToPlayableMs": 17374.89999985695,
+    "entryToPlayableMs": 16667.200000047684,
+    "phases": {
+      "rendererDevice": 6.799999952316284,
+      "characterAssets": 9.5,
+      "worldAssets": 92.5,
+      "worldLoad": 1952.2999999523163,
+      "physics": 1153.5,
+      "shaderWarmup": 15.700000047683716,
+      "firstView": 12424
+    }
+  },
+  "tutorial": null,
+  "streaming": {
+    "backend": "worker",
+    "resident": 20,
+    "pending": 0,
+    "commitMs": 0,
+    "maxCommitMs": 0.7000000476837158,
+    "overruns": 2,
+    "budgetMs": 0.4,
+    "trees": 420,
+    "scope": "decorative woodland",
+    "draws": 60
+  },
+  "memory": {
+    "geometryBytes": 247104626,
+    "textureBytes": 48435666,
+    "appPrivateBytes": 2890637312,
+    "workingSetBytes": 2630172672,
+    "saveCacheBytes": 612,
+    "audioBytes": 6013440,
+    "pressure": "high",
+    "estimated": true,
+    "pooledCapacities": [
+      256,
+      1024
+    ],
+    "pooledActive": [
+      10,
+      100
+    ],
+    "bufferReused": true,
+    "structuralMaps": 2,
+    "processTypes": [
+      "Browser",
+      "GPU",
+      "Utility",
+      "Tab",
+      "Utility"
+    ],
+    "textureCacheBytes": 16777218,
+    "saveIndexBytes": 612
+  },
+  "intact": {
+    "pieces": 63,
+    "awake": 0,
+    "loose": 0,
+    "joints": 95,
+    "failed": 0,
+    "mass": 304251.86880000023,
+    "revision": 0,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 0
+  },
+  "breach": {
+    "pieces": 74,
+    "awake": 0,
+    "loose": 1,
+    "joints": 137,
+    "failed": 13,
+    "mass": 304251.8688000003,
+    "revision": 15,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 0
+  },
+  "weak": {
+    "pieces": 112,
+    "awake": 51,
+    "loose": 54,
+    "joints": 111,
+    "failed": 121,
+    "mass": 304251.86880000023,
+    "revision": 147,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 1,
+    "topY": 1.2730555534362793
+  },
+  "collapse": {
+    "pieces": 127,
+    "awake": 116,
+    "loose": 127,
+    "joints": 11,
+    "failed": 265,
+    "mass": 304251.86880000023,
+    "revision": 322,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 42,
+    "minY": 0.07611735165119171
+  },
+  "restored": {
+    "saved": true,
+    "loaded": true,
+    "pieces": 127,
+    "awake": 116,
+    "loose": 127,
+    "joints": 11,
+    "failed": 265,
+    "mass": 304251.86880000023,
+    "revision": 322,
+    "cap": 128,
+    "awakeTarget": 96,
+    "secondaryPending": 42
+  },
+  "city": {
+    "buildings": 142,
+    "wallMeshes": 709,
+    "fittingOwners": 142,
+    "supports": 1,
+    "physicalFittings": 2,
+    "selectedId": "fitting:structure:-150.20,-156.54:merged:detail:decay-ivy-dark:1890",
+    "mass": 0.09244349598884583,
+    "colliders": 1,
+    "height": 0.0444902628660202,
+    "rayTarget": true
+  },
+  "models": {
+    "saved": true,
+    "loaded": true,
+    "cityFittings": 2,
+    "crateMass": 12,
+    "fragments": 24,
+    "beforeMass": 156.57991421222687,
+    "afterMass": 156.57991421222687
+  },
+  "menu": {
+    "state": "menu",
+    "visible": true
+  },
+  "errors": []
+}

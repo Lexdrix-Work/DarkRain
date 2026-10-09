@@ -1,0 +1,153 @@
+{
+  "mix": {
+    "effect": 0.10000000149011612,
+    "voice": 0.3499999940395355,
+    "music": 0.125,
+    "ratio": 6,
+    "threshold": -24
+  },
+  "display": {
+    "width": 1280,
+    "height": 720,
+    "fullscreen": false,
+    "activeVsync": true,
+    "restartRequired": true
+  },
+  "settings": {
+    "schema": 2,
+    "resolution": "1280x720",
+    "fullscreen": false,
+    "vsync": false,
+    "fov": 90,
+    "showFps": false,
+    "quality": "high",
+    "autoQuality": true,
+    "renderScale": 100,
+    "renderDistance": 750,
+    "shadows": true,
+    "shadowSize": 4096,
+    "reflectionQuality": "low",
+    "vegetationDetail": false,
+    "particleQuality": "high",
+    "post": true,
+    "bloom": true,
+    "aa": true,
+    "grain": true,
+    "vignette": true,
+    "chroma": false,
+    "masterVolume": 50,
+    "musicVolume": 25,
+    "sfxVolume": 0,
+    "voiceVolume": 70,
+    "subtitles": false,
+    "dynamicRange": "night",
+    "sensitivity": 50,
+    "rawInput": true,
+    "invertX": true,
+    "invertY": true,
+    "difficulty": "harsh",
+    "hudOpacity": 0,
+    "damageNumbers": false,
+    "bindings": {
+      "moveForward": [
+        "KeyW",
+        "ArrowUp"
+      ],
+      "moveBackward": [
+        "KeyS",
+        "ArrowDown"
+      ],
+      "moveLeft": [
+        "KeyA",
+        "ArrowLeft"
+      ],
+      "moveRight": [
+        "KeyD",
+        "ArrowRight"
+      ],
+      "jump": [
+        "Space"
+      ],
+      "crouch": [
+        "KeyC",
+        "ControlLeft"
+      ],
+      "sprint": [
+        "ShiftLeft"
+      ],
+      "interact": [
+        "KeyE"
+      ],
+      "reload": [
+        "KeyR"
+      ],
+      "inventory": [
+        "Tab",
+        "KeyI"
+      ],
+      "flashlight": [
+        "KeyF"
+      ],
+      "throw_bolt": [
+        "KeyK"
+      ],
+      "toggle_detector": [
+        "KeyN"
+      ],
+      "map": [
+        "KeyM"
+      ],
+      "favorites": [
+        "KeyQ"
+      ],
+      "quicksave": [
+        "F5"
+      ],
+      "quickload": [
+        "F9"
+      ],
+      "fire": [
+        "Mouse0"
+      ],
+      "aim": [
+        "Mouse2"
+      ],
+      "steadyAim": [
+        "AltLeft"
+      ],
+      "slot1": [
+        "Digit1"
+      ],
+      "slot2": [
+        "Digit2"
+      ],
+      "slot3": [
+        "Digit3"
+      ],
+      "quick1": [
+        "Digit5"
+      ],
+      "quick2": [
+        "Digit6"
+      ],
+      "quick3": [
+        "Digit7"
+      ],
+      "quick4": [
+        "Digit8"
+      ],
+      "pause": [
+        "Escape"
+      ]
+    }
+  },
+  "fields": 33,
+  "categories": [
+    "Display",
+    "Graphics",
+    "Audio",
+    "Controls",
+    "Gameplay"
+  ],
+  "sceneObjects": 0
+}
