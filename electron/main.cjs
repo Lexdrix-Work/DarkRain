@@ -1,5 +1,5 @@
 /**
- * Dark Rain: Pool of Darkness — Electron main process
+ * Dark Rain — Electron main process
  *
  * Dev:      node scripts/electron-dev.cjs   (vite dev server + hot reload)
  * Prod:     npm run app                     (vite build, loads dist/index.html)
@@ -23,7 +23,7 @@ function createWindow() {
         minWidth: 1024,
         minHeight: 640,
         backgroundColor: '#0a0a0a',
-        title: 'Dark Rain: Pool of Darkness',
+        title: 'Dark Rain',
         autoHideMenuBar: true,
         webPreferences: {
             preload: path.join(__dirname, 'preload.cjs'),
