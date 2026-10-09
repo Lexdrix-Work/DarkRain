@@ -1,0 +1,3093 @@
+{
+  "format": "darkrain-structure",
+  "schemaVersion": 1,
+  "id": "example:wooden-shack",
+  "revision": 1,
+  "units": {
+    "length": "m",
+    "mass": "kg",
+    "force": "N",
+    "stress": "Pa",
+    "moment": "Nm"
+  },
+  "coordinateSpace": "building-local-y-up",
+  "materials": [
+    {
+      "id": "wood",
+      "densityKgM3": 550,
+      "youngPa": 11000000000,
+      "transverseYoungPa": 600000000,
+      "poisson": 0.3,
+      "compressivePa": 30000000,
+      "tensilePa": 70000000,
+      "shearPa": 7000000,
+      "fractureEnergyJm2": 450,
+      "grainAxis": [
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "id": "plywood",
+      "densityKgM3": 600,
+      "youngPa": 6000000000,
+      "poisson": 0.3,
+      "compressivePa": 20000000,
+      "tensilePa": 25000000,
+      "shearPa": 4000000,
+      "fractureEnergyJm2": 350
+    }
+  ],
+  "nodes": [
+    {
+      "id": "post0",
+      "kind": "column",
+      "material": "wood",
+      "positionM": [
+        -1.8,
+        1.2,
+        -1.4
+      ],
+      "dimensionsM": [
+        0.15,
+        2.4,
+        0.15
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "base",
+          "positionLocalM": [
+            0,
+            -1.2,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0225,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "rimN--post0",
+          "positionLocalM": [
+            0,
+            1.2,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0225,
+          "allowedJoints": [
+            "bolted"
+          ]
+        },
+        {
+          "id": "rimW--post0",
+          "positionLocalM": [
+            0,
+            1.2,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0225,
+          "allowedJoints": [
+            "bolted"
+          ]
+        },
+        {
+          "id": "wallN--post0",
+          "positionLocalM": [
+            0,
+            0,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0225,
+          "allowedJoints": [
+            "bolted"
+          ]
+        },
+        {
+          "id": "wallW--post0",
+          "positionLocalM": [
+            0,
+            0,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0225,
+          "allowedJoints": [
+            "bolted"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.0225,
+        "iyM4": 0.00004218749999999999,
+        "izM4": 0.00004218749999999999,
+        "jM4": 0.00008437499999999998,
+        "spanAxisLocal": [
+          0,
+          1,
+          0
+        ]
+      },
+      "index": 0,
+      "volumeM3": 0.054,
+      "massKg": 29.7,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        14.311687499999998,
+        0.111375,
+        14.311687499999998,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 70000000,
+        "shearPa": 7000000
+      },
+      "body": {
+        "shardId": "example:wooden-shack:post0",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -0.075,
+            -1.2,
+            -0.075,
+            -0.075,
+            -1.2,
+            0.075,
+            -0.075,
+            1.2,
+            -0.075,
+            -0.075,
+            1.2,
+            0.075,
+            0.075,
+            -1.2,
+            -0.075,
+            0.075,
+            -1.2,
+            0.075,
+            0.075,
+            1.2,
+            -0.075,
+            0.075,
+            1.2,
+            0.075
+          ]
+        }
+      }
+    },
+    {
+      "id": "post1",
+      "kind": "column",
+      "material": "wood",
+      "positionM": [
+        1.8,
+        1.2,
+        -1.4
+      ],
+      "dimensionsM": [
+        0.15,
+        2.4,
+        0.15
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "base",
+          "positionLocalM": [
+            0,
+            -1.2,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0225,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "rimN--post1",
+          "positionLocalM": [
+            0,
+            1.2,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0225,
+          "allowedJoints": [
+            "bolted"
+          ]
+        },
+        {
+          "id": "rimE--post1",
+          "positionLocalM": [
+            0,
+            1.2,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0225,
+          "allowedJoints": [
+            "bolted"
+          ]
+        },
+        {
+          "id": "wallN--post1",
+          "positionLocalM": [
+            0,
+            0,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0225,
+          "allowedJoints": [
+            "bolted"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.0225,
+        "iyM4": 0.00004218749999999999,
+        "izM4": 0.00004218749999999999,
+        "jM4": 0.00008437499999999998,
+        "spanAxisLocal": [
+          0,
+          1,
+          0
+        ]
+      },
+      "index": 1,
+      "volumeM3": 0.054,
+      "massKg": 29.7,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        14.311687499999998,
+        0.111375,
+        14.311687499999998,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 70000000,
+        "shearPa": 7000000
+      },
+      "body": {
+        "shardId": "example:wooden-shack:post1",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -0.075,
+            -1.2,
+            -0.075,
+            -0.075,
+            -1.2,
+            0.075,
+            -0.075,
+            1.2,
+            -0.075,
+            -0.075,
+            1.2,
+            0.075,
+            0.075,
+            -1.2,
+            -0.075,
+            0.075,
+            -1.2,
+            0.075,
+            0.075,
+            1.2,
+            -0.075,
+            0.075,
+            1.2,
+            0.075
+          ]
+        }
+      }
+    },
+    {
+      "id": "post2",
+      "kind": "column",
+      "material": "wood",
+      "positionM": [
+        -1.8,
+        1.2,
+        1.4
+      ],
+      "dimensionsM": [
+        0.15,
+        2.4,
+        0.15
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "base",
+          "positionLocalM": [
+            0,
+            -1.2,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0225,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "rimS--post2",
+          "positionLocalM": [
+            0,
+            1.2,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0225,
+          "allowedJoints": [
+            "bolted"
+          ]
+        },
+        {
+          "id": "rimW--post2",
+          "positionLocalM": [
+            0,
+            1.2,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0225,
+          "allowedJoints": [
+            "bolted"
+          ]
+        },
+        {
+          "id": "wallS--post2",
+          "positionLocalM": [
+            0,
+            0,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0225,
+          "allowedJoints": [
+            "bolted"
+          ]
+        },
+        {
+          "id": "wallW--post2",
+          "positionLocalM": [
+            0,
+            0,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0225,
+          "allowedJoints": [
+            "bolted"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.0225,
+        "iyM4": 0.00004218749999999999,
+        "izM4": 0.00004218749999999999,
+        "jM4": 0.00008437499999999998,
+        "spanAxisLocal": [
+          0,
+          1,
+          0
+        ]
+      },
+      "index": 2,
+      "volumeM3": 0.054,
+      "massKg": 29.7,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        14.311687499999998,
+        0.111375,
+        14.311687499999998,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 70000000,
+        "shearPa": 7000000
+      },
+      "body": {
+        "shardId": "example:wooden-shack:post2",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -0.075,
+            -1.2,
+            -0.075,
+            -0.075,
+            -1.2,
+            0.075,
+            -0.075,
+            1.2,
+            -0.075,
+            -0.075,
+            1.2,
+            0.075,
+            0.075,
+            -1.2,
+            -0.075,
+            0.075,
+            -1.2,
+            0.075,
+            0.075,
+            1.2,
+            -0.075,
+            0.075,
+            1.2,
+            0.075
+          ]
+        }
+      }
+    },
+    {
+      "id": "post3",
+      "kind": "column",
+      "material": "wood",
+      "positionM": [
+        1.8,
+        1.2,
+        1.4
+      ],
+      "dimensionsM": [
+        0.15,
+        2.4,
+        0.15
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "base",
+          "positionLocalM": [
+            0,
+            -1.2,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0225,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "rimS--post3",
+          "positionLocalM": [
+            0,
+            1.2,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0225,
+          "allowedJoints": [
+            "bolted"
+          ]
+        },
+        {
+          "id": "rimE--post3",
+          "positionLocalM": [
+            0,
+            1.2,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0225,
+          "allowedJoints": [
+            "bolted"
+          ]
+        },
+        {
+          "id": "wallS--post3",
+          "positionLocalM": [
+            0,
+            0,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0225,
+          "allowedJoints": [
+            "bolted"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.0225,
+        "iyM4": 0.00004218749999999999,
+        "izM4": 0.00004218749999999999,
+        "jM4": 0.00008437499999999998,
+        "spanAxisLocal": [
+          0,
+          1,
+          0
+        ]
+      },
+      "index": 3,
+      "volumeM3": 0.054,
+      "massKg": 29.7,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        14.311687499999998,
+        0.111375,
+        14.311687499999998,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 70000000,
+        "shearPa": 7000000
+      },
+      "body": {
+        "shardId": "example:wooden-shack:post3",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -0.075,
+            -1.2,
+            -0.075,
+            -0.075,
+            -1.2,
+            0.075,
+            -0.075,
+            1.2,
+            -0.075,
+            -0.075,
+            1.2,
+            0.075,
+            0.075,
+            -1.2,
+            -0.075,
+            0.075,
+            -1.2,
+            0.075,
+            0.075,
+            1.2,
+            -0.075,
+            0.075,
+            1.2,
+            0.075
+          ]
+        }
+      }
+    },
+    {
+      "id": "rafter0",
+      "kind": "beam",
+      "material": "wood",
+      "positionM": [
+        0,
+        2.5,
+        -0.45
+      ],
+      "dimensionsM": [
+        3.6,
+        0.24,
+        0.08
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "rafter0--rimW",
+          "positionLocalM": [
+            -1.8,
+            0,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0192,
+          "allowedJoints": [
+            "bolted"
+          ]
+        },
+        {
+          "id": "rafter0--rimE",
+          "positionLocalM": [
+            1.8,
+            0,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0192,
+          "allowedJoints": [
+            "bolted"
+          ]
+        },
+        {
+          "id": "roof--rafter0",
+          "positionLocalM": [
+            0,
+            0.1200000000000001,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0192,
+          "allowedJoints": [
+            "bolted"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.0192,
+        "iyM4": 0.00009215999999999998,
+        "izM4": 0.000010240000000000002,
+        "jM4": 0.0001024,
+        "spanAxisLocal": [
+          1,
+          0,
+          0
+        ]
+      },
+      "index": 4,
+      "volumeM3": 0.06912,
+      "massKg": 38.016,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        0.20275200000000002,
+        41.0775552,
+        41.2397568,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 70000000,
+        "shearPa": 7000000
+      },
+      "body": {
+        "shardId": "example:wooden-shack:rafter0",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -1.8,
+            -0.12,
+            -0.04,
+            -1.8,
+            -0.12,
+            0.04,
+            -1.8,
+            0.12,
+            -0.04,
+            -1.8,
+            0.12,
+            0.04,
+            1.8,
+            -0.12,
+            -0.04,
+            1.8,
+            -0.12,
+            0.04,
+            1.8,
+            0.12,
+            -0.04,
+            1.8,
+            0.12,
+            0.04
+          ]
+        }
+      }
+    },
+    {
+      "id": "rafter1",
+      "kind": "beam",
+      "material": "wood",
+      "positionM": [
+        0,
+        2.5,
+        0.45
+      ],
+      "dimensionsM": [
+        3.6,
+        0.24,
+        0.08
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "rafter1--rimW",
+          "positionLocalM": [
+            -1.8,
+            0,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0192,
+          "allowedJoints": [
+            "bolted"
+          ]
+        },
+        {
+          "id": "rafter1--rimE",
+          "positionLocalM": [
+            1.8,
+            0,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0192,
+          "allowedJoints": [
+            "bolted"
+          ]
+        },
+        {
+          "id": "roof--rafter1",
+          "positionLocalM": [
+            0,
+            0.1200000000000001,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0192,
+          "allowedJoints": [
+            "bolted"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.0192,
+        "iyM4": 0.00009215999999999998,
+        "izM4": 0.000010240000000000002,
+        "jM4": 0.0001024,
+        "spanAxisLocal": [
+          1,
+          0,
+          0
+        ]
+      },
+      "index": 5,
+      "volumeM3": 0.06912,
+      "massKg": 38.016,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        0.20275200000000002,
+        41.0775552,
+        41.2397568,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 70000000,
+        "shearPa": 7000000
+      },
+      "body": {
+        "shardId": "example:wooden-shack:rafter1",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -1.8,
+            -0.12,
+            -0.04,
+            -1.8,
+            -0.12,
+            0.04,
+            -1.8,
+            0.12,
+            -0.04,
+            -1.8,
+            0.12,
+            0.04,
+            1.8,
+            -0.12,
+            -0.04,
+            1.8,
+            -0.12,
+            0.04,
+            1.8,
+            0.12,
+            -0.04,
+            1.8,
+            0.12,
+            0.04
+          ]
+        }
+      }
+    },
+    {
+      "id": "rimE",
+      "kind": "beam",
+      "material": "wood",
+      "positionM": [
+        1.8,
+        2.4,
+        0
+      ],
+      "dimensionsM": [
+        0.15,
+        0.2,
+        2.8
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "rimE--post1",
+          "positionLocalM": [
+            0,
+            0,
+            -1.4
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.03,
+          "allowedJoints": [
+            "bolted"
+          ]
+        },
+        {
+          "id": "rimE--post3",
+          "positionLocalM": [
+            0,
+            0,
+            1.4
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.03,
+          "allowedJoints": [
+            "bolted"
+          ]
+        },
+        {
+          "id": "rafter0--rimE",
+          "positionLocalM": [
+            0,
+            0.10000000000000009,
+            -0.45
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.03,
+          "allowedJoints": [
+            "bolted"
+          ]
+        },
+        {
+          "id": "rafter1--rimE",
+          "positionLocalM": [
+            0,
+            0.10000000000000009,
+            0.45
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.03,
+          "allowedJoints": [
+            "bolted"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.03,
+        "iyM4": 0.00010000000000000003,
+        "izM4": 0.00005624999999999999,
+        "jM4": 0.00015625000000000003,
+        "spanAxisLocal": [
+          0,
+          0,
+          1
+        ]
+      },
+      "index": 6,
+      "volumeM3": 0.08399999999999999,
+      "massKg": 46.199999999999996,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        30.337999999999994,
+        30.270624999999995,
+        0.24062499999999998,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 70000000,
+        "shearPa": 7000000
+      },
+      "body": {
+        "shardId": "example:wooden-shack:rimE",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -0.075,
+            -0.1,
+            -1.4,
+            -0.075,
+            -0.1,
+            1.4,
+            -0.075,
+            0.1,
+            -1.4,
+            -0.075,
+            0.1,
+            1.4,
+            0.075,
+            -0.1,
+            -1.4,
+            0.075,
+            -0.1,
+            1.4,
+            0.075,
+            0.1,
+            -1.4,
+            0.075,
+            0.1,
+            1.4
+          ]
+        }
+      }
+    },
+    {
+      "id": "rimN",
+      "kind": "beam",
+      "material": "wood",
+      "positionM": [
+        0,
+        2.4,
+        -1.4
+      ],
+      "dimensionsM": [
+        3.6,
+        0.2,
+        0.15
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "rimN--post0",
+          "positionLocalM": [
+            -1.8,
+            0,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.03,
+          "allowedJoints": [
+            "bolted"
+          ]
+        },
+        {
+          "id": "rimN--post1",
+          "positionLocalM": [
+            1.8,
+            0,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.03,
+          "allowedJoints": [
+            "bolted"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.03,
+        "iyM4": 0.00010000000000000003,
+        "izM4": 0.00005624999999999999,
+        "jM4": 0.00015625000000000003,
+        "spanAxisLocal": [
+          1,
+          0,
+          0
+        ]
+      },
+      "index": 7,
+      "volumeM3": 0.10800000000000001,
+      "massKg": 59.400000000000006,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        0.309375,
+        64.26337500000001,
+        64.35000000000001,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 70000000,
+        "shearPa": 7000000
+      },
+      "body": {
+        "shardId": "example:wooden-shack:rimN",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -1.8,
+            -0.1,
+            -0.075,
+            -1.8,
+            -0.1,
+            0.075,
+            -1.8,
+            0.1,
+            -0.075,
+            -1.8,
+            0.1,
+            0.075,
+            1.8,
+            -0.1,
+            -0.075,
+            1.8,
+            -0.1,
+            0.075,
+            1.8,
+            0.1,
+            -0.075,
+            1.8,
+            0.1,
+            0.075
+          ]
+        }
+      }
+    },
+    {
+      "id": "rimS",
+      "kind": "beam",
+      "material": "wood",
+      "positionM": [
+        0,
+        2.4,
+        1.4
+      ],
+      "dimensionsM": [
+        3.6,
+        0.2,
+        0.15
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "rimS--post2",
+          "positionLocalM": [
+            -1.8,
+            0,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.03,
+          "allowedJoints": [
+            "bolted"
+          ]
+        },
+        {
+          "id": "rimS--post3",
+          "positionLocalM": [
+            1.8,
+            0,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.03,
+          "allowedJoints": [
+            "bolted"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.03,
+        "iyM4": 0.00010000000000000003,
+        "izM4": 0.00005624999999999999,
+        "jM4": 0.00015625000000000003,
+        "spanAxisLocal": [
+          1,
+          0,
+          0
+        ]
+      },
+      "index": 8,
+      "volumeM3": 0.10800000000000001,
+      "massKg": 59.400000000000006,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        0.309375,
+        64.26337500000001,
+        64.35000000000001,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 70000000,
+        "shearPa": 7000000
+      },
+      "body": {
+        "shardId": "example:wooden-shack:rimS",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -1.8,
+            -0.1,
+            -0.075,
+            -1.8,
+            -0.1,
+            0.075,
+            -1.8,
+            0.1,
+            -0.075,
+            -1.8,
+            0.1,
+            0.075,
+            1.8,
+            -0.1,
+            -0.075,
+            1.8,
+            -0.1,
+            0.075,
+            1.8,
+            0.1,
+            -0.075,
+            1.8,
+            0.1,
+            0.075
+          ]
+        }
+      }
+    },
+    {
+      "id": "rimW",
+      "kind": "beam",
+      "material": "wood",
+      "positionM": [
+        -1.8,
+        2.4,
+        0
+      ],
+      "dimensionsM": [
+        0.15,
+        0.2,
+        2.8
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "rimW--post0",
+          "positionLocalM": [
+            0,
+            0,
+            -1.4
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.03,
+          "allowedJoints": [
+            "bolted"
+          ]
+        },
+        {
+          "id": "rimW--post2",
+          "positionLocalM": [
+            0,
+            0,
+            1.4
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.03,
+          "allowedJoints": [
+            "bolted"
+          ]
+        },
+        {
+          "id": "rafter0--rimW",
+          "positionLocalM": [
+            0,
+            0.10000000000000009,
+            -0.45
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.03,
+          "allowedJoints": [
+            "bolted"
+          ]
+        },
+        {
+          "id": "rafter1--rimW",
+          "positionLocalM": [
+            0,
+            0.10000000000000009,
+            0.45
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.03,
+          "allowedJoints": [
+            "bolted"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.03,
+        "iyM4": 0.00010000000000000003,
+        "izM4": 0.00005624999999999999,
+        "jM4": 0.00015625000000000003,
+        "spanAxisLocal": [
+          0,
+          0,
+          1
+        ]
+      },
+      "index": 9,
+      "volumeM3": 0.08399999999999999,
+      "massKg": 46.199999999999996,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        30.337999999999994,
+        30.270624999999995,
+        0.24062499999999998,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 70000000,
+        "shearPa": 7000000
+      },
+      "body": {
+        "shardId": "example:wooden-shack:rimW",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -0.075,
+            -0.1,
+            -1.4,
+            -0.075,
+            -0.1,
+            1.4,
+            -0.075,
+            0.1,
+            -1.4,
+            -0.075,
+            0.1,
+            1.4,
+            0.075,
+            -0.1,
+            -1.4,
+            0.075,
+            -0.1,
+            1.4,
+            0.075,
+            0.1,
+            -1.4,
+            0.075,
+            0.1,
+            1.4
+          ]
+        }
+      }
+    },
+    {
+      "id": "roof",
+      "kind": "slab",
+      "material": "plywood",
+      "positionM": [
+        0,
+        2.65,
+        0
+      ],
+      "dimensionsM": [
+        3.9,
+        0.06,
+        3.1
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "roof--rafter0",
+          "positionLocalM": [
+            0,
+            -0.029999999999999805,
+            -0.45
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.186,
+          "allowedJoints": [
+            "bolted"
+          ]
+        },
+        {
+          "id": "roof--rafter1",
+          "positionLocalM": [
+            0,
+            -0.029999999999999805,
+            0.45
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.186,
+          "allowedJoints": [
+            "bolted"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.186,
+        "iyM4": 0.000055799999999999994,
+        "izM4": 0.14895500000000003,
+        "jM4": 0.14901080000000003,
+        "spanAxisLocal": [
+          1,
+          0,
+          0
+        ]
+      },
+      "index": 10,
+      "volumeM3": 0.7253999999999999,
+      "massKg": 435.23999999999995,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        348.685272,
+        900.2213999999999,
+        551.7972719999999,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 20000000,
+        "tensilePa": 25000000,
+        "shearPa": 4000000
+      },
+      "body": {
+        "shardId": "example:wooden-shack:roof",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -1.95,
+            -0.03,
+            -1.55,
+            -1.95,
+            -0.03,
+            1.55,
+            -1.95,
+            0.03,
+            -1.55,
+            -1.95,
+            0.03,
+            1.55,
+            1.95,
+            -0.03,
+            -1.55,
+            1.95,
+            -0.03,
+            1.55,
+            1.95,
+            0.03,
+            -1.55,
+            1.95,
+            0.03,
+            1.55
+          ]
+        }
+      }
+    },
+    {
+      "id": "wallN",
+      "kind": "wall",
+      "material": "plywood",
+      "positionM": [
+        0,
+        1.2,
+        -1.4
+      ],
+      "dimensionsM": [
+        3.6,
+        2.4,
+        0.018
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "wallN--post0",
+          "positionLocalM": [
+            -1.8,
+            0,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0648,
+          "allowedJoints": [
+            "bolted"
+          ]
+        },
+        {
+          "id": "wallN--post1",
+          "positionLocalM": [
+            1.8,
+            0,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0648,
+          "allowedJoints": [
+            "bolted"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.0648,
+        "iyM4": 0.069984,
+        "izM4": 0.0000017495999999999995,
+        "jM4": 0.0699857496,
+        "spanAxisLocal": [
+          0,
+          1,
+          0
+        ]
+      },
+      "index": 11,
+      "volumeM3": 0.15552,
+      "massKg": 93.312,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        44.79227942399999,
+        100.779479424,
+        145.56672,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 20000000,
+        "tensilePa": 25000000,
+        "shearPa": 4000000
+      },
+      "body": {
+        "shardId": "example:wooden-shack:wallN",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -1.8,
+            -1.2,
+            -0.009,
+            -1.8,
+            -1.2,
+            0.009,
+            -1.8,
+            1.2,
+            -0.009,
+            -1.8,
+            1.2,
+            0.009,
+            1.8,
+            -1.2,
+            -0.009,
+            1.8,
+            -1.2,
+            0.009,
+            1.8,
+            1.2,
+            -0.009,
+            1.8,
+            1.2,
+            0.009
+          ]
+        }
+      }
+    },
+    {
+      "id": "wallS",
+      "kind": "wall",
+      "material": "plywood",
+      "positionM": [
+        0,
+        1.2,
+        1.4
+      ],
+      "dimensionsM": [
+        3.6,
+        2.4,
+        0.018
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "wallS--post2",
+          "positionLocalM": [
+            -1.8,
+            0,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0648,
+          "allowedJoints": [
+            "bolted"
+          ]
+        },
+        {
+          "id": "wallS--post3",
+          "positionLocalM": [
+            1.8,
+            0,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.0648,
+          "allowedJoints": [
+            "bolted"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.0648,
+        "iyM4": 0.069984,
+        "izM4": 0.0000017495999999999995,
+        "jM4": 0.0699857496,
+        "spanAxisLocal": [
+          0,
+          1,
+          0
+        ]
+      },
+      "index": 12,
+      "volumeM3": 0.15552,
+      "massKg": 93.312,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        44.79227942399999,
+        100.779479424,
+        145.56672,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 20000000,
+        "tensilePa": 25000000,
+        "shearPa": 4000000
+      },
+      "body": {
+        "shardId": "example:wooden-shack:wallS",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -1.8,
+            -1.2,
+            -0.009,
+            -1.8,
+            -1.2,
+            0.009,
+            -1.8,
+            1.2,
+            -0.009,
+            -1.8,
+            1.2,
+            0.009,
+            1.8,
+            -1.2,
+            -0.009,
+            1.8,
+            -1.2,
+            0.009,
+            1.8,
+            1.2,
+            -0.009,
+            1.8,
+            1.2,
+            0.009
+          ]
+        }
+      }
+    },
+    {
+      "id": "wallW",
+      "kind": "wall",
+      "material": "plywood",
+      "positionM": [
+        -1.8,
+        1.2,
+        0
+      ],
+      "dimensionsM": [
+        0.018,
+        2.4,
+        2.8
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "wallW--post0",
+          "positionLocalM": [
+            0,
+            0,
+            -1.4
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.05039999999999999,
+          "allowedJoints": [
+            "bolted"
+          ]
+        },
+        {
+          "id": "wallW--post2",
+          "positionLocalM": [
+            0,
+            0,
+            1.4
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.05039999999999999,
+          "allowedJoints": [
+            "bolted"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.05039999999999999,
+        "iyM4": 0.0000013607999999999995,
+        "izM4": 0.03292799999999999,
+        "jM4": 0.03292936079999999,
+        "spanAxisLocal": [
+          0,
+          1,
+          0
+        ]
+      },
+      "index": 13,
+      "volumeM3": 0.12095999999999998,
+      "massKg": 72.576,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        82.25279999999998,
+        47.418279551999994,
+        34.838439552,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 20000000,
+        "tensilePa": 25000000,
+        "shearPa": 4000000
+      },
+      "body": {
+        "shardId": "example:wooden-shack:wallW",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -0.009,
+            -1.2,
+            -1.4,
+            -0.009,
+            -1.2,
+            1.4,
+            -0.009,
+            1.2,
+            -1.4,
+            -0.009,
+            1.2,
+            1.4,
+            0.009,
+            -1.2,
+            -1.4,
+            0.009,
+            -1.2,
+            1.4,
+            0.009,
+            1.2,
+            -1.4,
+            0.009,
+            1.2,
+            1.4
+          ]
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "rafter0--rimE",
+      "kind": "bolted",
+      "a": {
+        "member": "rafter0",
+        "port": "rafter0--rimE"
+      },
+      "b": {
+        "member": "rimE",
+        "port": "rafter0--rimE"
+      },
+      "normalStiffnessNm": 8000000,
+      "tangentStiffnessNm": 3000000,
+      "rotationStiffnessNmRad": 4000,
+      "compressionCapacityN": 150000,
+      "tensionCapacityN": 30000,
+      "shearCapacityN": 25000,
+      "momentCapacityNm": 3000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 0,
+      "nodeA": 4,
+      "nodeB": 6,
+      "connectionPointM": [
+        1.8,
+        2.5,
+        -0.45
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "rafter0--rimW",
+      "kind": "bolted",
+      "a": {
+        "member": "rafter0",
+        "port": "rafter0--rimW"
+      },
+      "b": {
+        "member": "rimW",
+        "port": "rafter0--rimW"
+      },
+      "normalStiffnessNm": 8000000,
+      "tangentStiffnessNm": 3000000,
+      "rotationStiffnessNmRad": 4000,
+      "compressionCapacityN": 150000,
+      "tensionCapacityN": 30000,
+      "shearCapacityN": 25000,
+      "momentCapacityNm": 3000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 1,
+      "nodeA": 4,
+      "nodeB": 9,
+      "connectionPointM": [
+        -1.8,
+        2.5,
+        -0.45
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "rafter1--rimE",
+      "kind": "bolted",
+      "a": {
+        "member": "rafter1",
+        "port": "rafter1--rimE"
+      },
+      "b": {
+        "member": "rimE",
+        "port": "rafter1--rimE"
+      },
+      "normalStiffnessNm": 8000000,
+      "tangentStiffnessNm": 3000000,
+      "rotationStiffnessNmRad": 4000,
+      "compressionCapacityN": 150000,
+      "tensionCapacityN": 30000,
+      "shearCapacityN": 25000,
+      "momentCapacityNm": 3000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 2,
+      "nodeA": 5,
+      "nodeB": 6,
+      "connectionPointM": [
+        1.8,
+        2.5,
+        0.45
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "rafter1--rimW",
+      "kind": "bolted",
+      "a": {
+        "member": "rafter1",
+        "port": "rafter1--rimW"
+      },
+      "b": {
+        "member": "rimW",
+        "port": "rafter1--rimW"
+      },
+      "normalStiffnessNm": 8000000,
+      "tangentStiffnessNm": 3000000,
+      "rotationStiffnessNmRad": 4000,
+      "compressionCapacityN": 150000,
+      "tensionCapacityN": 30000,
+      "shearCapacityN": 25000,
+      "momentCapacityNm": 3000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 3,
+      "nodeA": 5,
+      "nodeB": 9,
+      "connectionPointM": [
+        -1.8,
+        2.5,
+        0.45
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "rimE--post1",
+      "kind": "bolted",
+      "a": {
+        "member": "rimE",
+        "port": "rimE--post1"
+      },
+      "b": {
+        "member": "post1",
+        "port": "rimE--post1"
+      },
+      "normalStiffnessNm": 8000000,
+      "tangentStiffnessNm": 3000000,
+      "rotationStiffnessNmRad": 4000,
+      "compressionCapacityN": 150000,
+      "tensionCapacityN": 30000,
+      "shearCapacityN": 25000,
+      "momentCapacityNm": 3000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 4,
+      "nodeA": 6,
+      "nodeB": 1,
+      "connectionPointM": [
+        1.8,
+        2.4,
+        -1.4
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "rimE--post3",
+      "kind": "bolted",
+      "a": {
+        "member": "rimE",
+        "port": "rimE--post3"
+      },
+      "b": {
+        "member": "post3",
+        "port": "rimE--post3"
+      },
+      "normalStiffnessNm": 8000000,
+      "tangentStiffnessNm": 3000000,
+      "rotationStiffnessNmRad": 4000,
+      "compressionCapacityN": 150000,
+      "tensionCapacityN": 30000,
+      "shearCapacityN": 25000,
+      "momentCapacityNm": 3000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 5,
+      "nodeA": 6,
+      "nodeB": 3,
+      "connectionPointM": [
+        1.8,
+        2.4,
+        1.4
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "rimN--post0",
+      "kind": "bolted",
+      "a": {
+        "member": "rimN",
+        "port": "rimN--post0"
+      },
+      "b": {
+        "member": "post0",
+        "port": "rimN--post0"
+      },
+      "normalStiffnessNm": 8000000,
+      "tangentStiffnessNm": 3000000,
+      "rotationStiffnessNmRad": 4000,
+      "compressionCapacityN": 150000,
+      "tensionCapacityN": 30000,
+      "shearCapacityN": 25000,
+      "momentCapacityNm": 3000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 6,
+      "nodeA": 7,
+      "nodeB": 0,
+      "connectionPointM": [
+        -1.8,
+        2.4,
+        -1.4
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "rimN--post1",
+      "kind": "bolted",
+      "a": {
+        "member": "rimN",
+        "port": "rimN--post1"
+      },
+      "b": {
+        "member": "post1",
+        "port": "rimN--post1"
+      },
+      "normalStiffnessNm": 8000000,
+      "tangentStiffnessNm": 3000000,
+      "rotationStiffnessNmRad": 4000,
+      "compressionCapacityN": 150000,
+      "tensionCapacityN": 30000,
+      "shearCapacityN": 25000,
+      "momentCapacityNm": 3000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 7,
+      "nodeA": 7,
+      "nodeB": 1,
+      "connectionPointM": [
+        1.8,
+        2.4,
+        -1.4
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "rimS--post2",
+      "kind": "bolted",
+      "a": {
+        "member": "rimS",
+        "port": "rimS--post2"
+      },
+      "b": {
+        "member": "post2",
+        "port": "rimS--post2"
+      },
+      "normalStiffnessNm": 8000000,
+      "tangentStiffnessNm": 3000000,
+      "rotationStiffnessNmRad": 4000,
+      "compressionCapacityN": 150000,
+      "tensionCapacityN": 30000,
+      "shearCapacityN": 25000,
+      "momentCapacityNm": 3000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 8,
+      "nodeA": 8,
+      "nodeB": 2,
+      "connectionPointM": [
+        -1.8,
+        2.4,
+        1.4
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "rimS--post3",
+      "kind": "bolted",
+      "a": {
+        "member": "rimS",
+        "port": "rimS--post3"
+      },
+      "b": {
+        "member": "post3",
+        "port": "rimS--post3"
+      },
+      "normalStiffnessNm": 8000000,
+      "tangentStiffnessNm": 3000000,
+      "rotationStiffnessNmRad": 4000,
+      "compressionCapacityN": 150000,
+      "tensionCapacityN": 30000,
+      "shearCapacityN": 25000,
+      "momentCapacityNm": 3000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 9,
+      "nodeA": 8,
+      "nodeB": 3,
+      "connectionPointM": [
+        1.8,
+        2.4,
+        1.4
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "rimW--post0",
+      "kind": "bolted",
+      "a": {
+        "member": "rimW",
+        "port": "rimW--post0"
+      },
+      "b": {
+        "member": "post0",
+        "port": "rimW--post0"
+      },
+      "normalStiffnessNm": 8000000,
+      "tangentStiffnessNm": 3000000,
+      "rotationStiffnessNmRad": 4000,
+      "compressionCapacityN": 150000,
+      "tensionCapacityN": 30000,
+      "shearCapacityN": 25000,
+      "momentCapacityNm": 3000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 10,
+      "nodeA": 9,
+      "nodeB": 0,
+      "connectionPointM": [
+        -1.8,
+        2.4,
+        -1.4
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "rimW--post2",
+      "kind": "bolted",
+      "a": {
+        "member": "rimW",
+        "port": "rimW--post2"
+      },
+      "b": {
+        "member": "post2",
+        "port": "rimW--post2"
+      },
+      "normalStiffnessNm": 8000000,
+      "tangentStiffnessNm": 3000000,
+      "rotationStiffnessNmRad": 4000,
+      "compressionCapacityN": 150000,
+      "tensionCapacityN": 30000,
+      "shearCapacityN": 25000,
+      "momentCapacityNm": 3000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 11,
+      "nodeA": 9,
+      "nodeB": 2,
+      "connectionPointM": [
+        -1.8,
+        2.4,
+        1.4
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "roof--rafter0",
+      "kind": "bolted",
+      "a": {
+        "member": "roof",
+        "port": "roof--rafter0"
+      },
+      "b": {
+        "member": "rafter0",
+        "port": "roof--rafter0"
+      },
+      "normalStiffnessNm": 8000000,
+      "tangentStiffnessNm": 3000000,
+      "rotationStiffnessNmRad": 4000,
+      "compressionCapacityN": 150000,
+      "tensionCapacityN": 30000,
+      "shearCapacityN": 25000,
+      "momentCapacityNm": 3000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 12,
+      "nodeA": 10,
+      "nodeB": 4,
+      "connectionPointM": [
+        0,
+        2.62,
+        -0.45
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "roof--rafter1",
+      "kind": "bolted",
+      "a": {
+        "member": "roof",
+        "port": "roof--rafter1"
+      },
+      "b": {
+        "member": "rafter1",
+        "port": "roof--rafter1"
+      },
+      "normalStiffnessNm": 8000000,
+      "tangentStiffnessNm": 3000000,
+      "rotationStiffnessNmRad": 4000,
+      "compressionCapacityN": 150000,
+      "tensionCapacityN": 30000,
+      "shearCapacityN": 25000,
+      "momentCapacityNm": 3000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 13,
+      "nodeA": 10,
+      "nodeB": 5,
+      "connectionPointM": [
+        0,
+        2.62,
+        0.45
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "wallN--post0",
+      "kind": "bolted",
+      "a": {
+        "member": "wallN",
+        "port": "wallN--post0"
+      },
+      "b": {
+        "member": "post0",
+        "port": "wallN--post0"
+      },
+      "normalStiffnessNm": 8000000,
+      "tangentStiffnessNm": 3000000,
+      "rotationStiffnessNmRad": 4000,
+      "compressionCapacityN": 150000,
+      "tensionCapacityN": 30000,
+      "shearCapacityN": 25000,
+      "momentCapacityNm": 3000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 14,
+      "nodeA": 11,
+      "nodeB": 0,
+      "connectionPointM": [
+        -1.8,
+        1.2,
+        -1.4
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "wallN--post1",
+      "kind": "bolted",
+      "a": {
+        "member": "wallN",
+        "port": "wallN--post1"
+      },
+      "b": {
+        "member": "post1",
+        "port": "wallN--post1"
+      },
+      "normalStiffnessNm": 8000000,
+      "tangentStiffnessNm": 3000000,
+      "rotationStiffnessNmRad": 4000,
+      "compressionCapacityN": 150000,
+      "tensionCapacityN": 30000,
+      "shearCapacityN": 25000,
+      "momentCapacityNm": 3000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 15,
+      "nodeA": 11,
+      "nodeB": 1,
+      "connectionPointM": [
+        1.8,
+        1.2,
+        -1.4
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "wallS--post2",
+      "kind": "bolted",
+      "a": {
+        "member": "wallS",
+        "port": "wallS--post2"
+      },
+      "b": {
+        "member": "post2",
+        "port": "wallS--post2"
+      },
+      "normalStiffnessNm": 8000000,
+      "tangentStiffnessNm": 3000000,
+      "rotationStiffnessNmRad": 4000,
+      "compressionCapacityN": 150000,
+      "tensionCapacityN": 30000,
+      "shearCapacityN": 25000,
+      "momentCapacityNm": 3000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 16,
+      "nodeA": 12,
+      "nodeB": 2,
+      "connectionPointM": [
+        -1.8,
+        1.2,
+        1.4
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "wallS--post3",
+      "kind": "bolted",
+      "a": {
+        "member": "wallS",
+        "port": "wallS--post3"
+      },
+      "b": {
+        "member": "post3",
+        "port": "wallS--post3"
+      },
+      "normalStiffnessNm": 8000000,
+      "tangentStiffnessNm": 3000000,
+      "rotationStiffnessNmRad": 4000,
+      "compressionCapacityN": 150000,
+      "tensionCapacityN": 30000,
+      "shearCapacityN": 25000,
+      "momentCapacityNm": 3000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 17,
+      "nodeA": 12,
+      "nodeB": 3,
+      "connectionPointM": [
+        1.8,
+        1.2,
+        1.4
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "wallW--post0",
+      "kind": "bolted",
+      "a": {
+        "member": "wallW",
+        "port": "wallW--post0"
+      },
+      "b": {
+        "member": "post0",
+        "port": "wallW--post0"
+      },
+      "normalStiffnessNm": 8000000,
+      "tangentStiffnessNm": 3000000,
+      "rotationStiffnessNmRad": 4000,
+      "compressionCapacityN": 150000,
+      "tensionCapacityN": 30000,
+      "shearCapacityN": 25000,
+      "momentCapacityNm": 3000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 18,
+      "nodeA": 13,
+      "nodeB": 0,
+      "connectionPointM": [
+        -1.8,
+        1.2,
+        -1.4
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "wallW--post2",
+      "kind": "bolted",
+      "a": {
+        "member": "wallW",
+        "port": "wallW--post2"
+      },
+      "b": {
+        "member": "post2",
+        "port": "wallW--post2"
+      },
+      "normalStiffnessNm": 8000000,
+      "tangentStiffnessNm": 3000000,
+      "rotationStiffnessNmRad": 4000,
+      "compressionCapacityN": 150000,
+      "tensionCapacityN": 30000,
+      "shearCapacityN": 25000,
+      "momentCapacityNm": 3000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 19,
+      "nodeA": 13,
+      "nodeB": 2,
+      "connectionPointM": [
+        -1.8,
+        1.2,
+        1.4
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    }
+  ],
+  "supports": [
+    {
+      "id": "foundation:post0",
+      "member": "post0",
+      "port": "base",
+      "supportVolumeId": "terrain:post0",
+      "kind": "embedded",
+      "areaM2": 0.0225,
+      "friction": 0.7,
+      "constrainedDofs": 63,
+      "contactToleranceM": 0.02
+    },
+    {
+      "id": "foundation:post1",
+      "member": "post1",
+      "port": "base",
+      "supportVolumeId": "terrain:post1",
+      "kind": "embedded",
+      "areaM2": 0.0225,
+      "friction": 0.7,
+      "constrainedDofs": 63,
+      "contactToleranceM": 0.02
+    },
+    {
+      "id": "foundation:post2",
+      "member": "post2",
+      "port": "base",
+      "supportVolumeId": "terrain:post2",
+      "kind": "embedded",
+      "areaM2": 0.0225,
+      "friction": 0.7,
+      "constrainedDofs": 63,
+      "contactToleranceM": 0.02
+    },
+    {
+      "id": "foundation:post3",
+      "member": "post3",
+      "port": "base",
+      "supportVolumeId": "terrain:post3",
+      "kind": "embedded",
+      "areaM2": 0.0225,
+      "friction": 0.7,
+      "constrainedDofs": 63,
+      "contactToleranceM": 0.02
+    }
+  ],
+  "adjacency": {
+    "offsets": [
+      0,
+      4,
+      7,
+      11,
+      14,
+      17,
+      20,
+      24,
+      26,
+      28,
+      32,
+      34,
+      36,
+      38,
+      40
+    ],
+    "edgeIndices": [
+      6,
+      10,
+      14,
+      18,
+      4,
+      7,
+      15,
+      8,
+      11,
+      16,
+      19,
+      5,
+      9,
+      17,
+      0,
+      1,
+      12,
+      2,
+      3,
+      13,
+      0,
+      2,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      1,
+      3,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ]
+  }
+}

@@ -1,5 +1,9 @@
+import { addWound, updateWounds, armorDamage } from '../systems/Wounds.js';
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { Entity } from './Entity.js';
+import { HumanAnimationController } from '../systems/HumanAnimationSystem.js';
+import { buildAnatomicalActor } from './AnatomicalActor.js';
 import { globalEventBus, GameEvents } from '../core/EventBus.js';
 
 /**
@@ -17,7 +21,7 @@ function buildHumanoid(opts = {}) {
     const mat = (c, r = 0.85) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: 0.05 });
 
     const part = (w, h, d, material, x, y, z) => {
-        const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+        const mesh = new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 2, Math.min(w,d)*0.2), material);
         mesh.position.set(x, y, z);
         mesh.castShadow = true;
         group.add(mesh);
@@ -27,7 +31,7 @@ function buildHumanoid(opts = {}) {
     const limb = (w, h, d, material, px, py, pz) => {
         const pivot = new THREE.Group();
         pivot.position.set(px, py, pz);
-        const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+        const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(Math.min(w,d)*0.45,Math.max(0.01,h-Math.min(w,d)*0.9),3,10), material);
         mesh.position.y = -h / 2;
         mesh.castShadow = true;
         pivot.add(mesh);
@@ -45,11 +49,11 @@ function buildHumanoid(opts = {}) {
     part(0.22, 0.12, 0.34, mat(0x1a1a1c, 0.9), 0.14, 0.06, 0.04);
 
     // Torso (leans forward with hunch)
-    const torso = part(0.56, 0.68, 0.32, topMat, 0, 1.32 - hunch * 0.15, -hunch * 0.08);
+    const torso = part(0.48, 0.62, 0.28, topMat, 0, 1.19 - hunch * 0.15, -hunch * 0.08);
     torso.rotation.x = hunch * 0.45;
 
     // Shoulder pivots (move forward/down with hunch)
-    const shY = 1.58 - hunch * 0.28, shZ = hunch * 0.12;
+    const shY = 1.43 - hunch * 0.28, shZ = hunch * 0.12;
     limbs.armL = limb(0.16, armLen, 0.18, topMat, -0.37, shY, shZ);
     limbs.armR = limb(0.16, armLen, 0.18, topMat, 0.37, shY, shZ);
     // Hands
@@ -59,16 +63,18 @@ function buildHumanoid(opts = {}) {
     const handR = handL.clone(); limbs.armR.add(handR);
 
     // Head (pushed forward with hunch)
-    const headY = 1.82 - hunch * 0.35, headZ = hunch * 0.22;
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.19, 10, 8), skinMat);
+    const headY = 1.64 - hunch * 0.35, headZ = hunch * 0.22;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.145, 16, 12), skinMat);
+    head.scale.set(0.87,1.08,0.92);
     head.position.set(0, headY, headZ);
     head.castShadow = true;
+    head.userData.hitRegion = 'head';
     group.add(head);
     // Glowing eyes on +Z face
     const eyeMat = new THREE.MeshBasicMaterial({ color: eyeColor });
     for (const sx of [-1, 1]) {
-        const eye = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 6), eyeMat);
-        eye.position.set(sx * 0.075, headY + 0.02, headZ + 0.155);
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(0.009, 8, 6), eyeMat);
+        eye.position.set(sx * 0.045, headY + 0.02, headZ + 0.126);
         group.add(eye);
     }
 
@@ -208,16 +214,25 @@ export class Enemy extends Entity {
             return;
         }
         if (!this.isActive) return;
+        updateWounds(this,deltaTime);
+        if(this.health<=0)return;
 
         // AI THROTTLE: perception and decisions at 10Hz (cheap trick, no visual loss)
         // Movement and animation stay at full framerate for smoothness
         this._aiTimer = (this._aiTimer || 0) + deltaTime;
         if (this._aiTimer >= 0.1) {
             this.updatePerception(this._aiTimer);
+            this.velocity.x = 0; this.velocity.z = 0;
+            this._moveGoal = null;
             this.updateAI(this._aiTimer);
             this.updateCombat(this._aiTimer);
+            if(this.alifeGoal&&!this.target&&this.alertLevel<30){
+                if(this.position.distanceToSquared(this.alifeGoal)>2.25){this.moveTowards(this.alifeGoal,this.moveSpeed,this._aiTimer);this.animationState='walk';}
+                else this.animationState='idle';
+            }
             this._aiTimer = 0;
         }
+        this.advanceMovement(deltaTime);
         this.updateMovement(deltaTime);
         this.updateWalkAnimation(deltaTime);
         this.updateDeathAnimation(deltaTime);
@@ -235,7 +250,7 @@ export class Enemy extends Entity {
             .subVectors(player.position, this.position)
             .normalize();
 
-        const forward = _tmpV2.set(0, 0, -1)
+        const forward = _tmpV2.set(0, 0, 1)
             .applyEuler(this.rotation);
         
         const angle = forward.angleTo(directionToPlayer);
@@ -243,26 +258,47 @@ export class Enemy extends Entity {
         // Check line of sight
         let canSeePlayer = false;
         if (distanceToPlayer <= this.sightRange && angle <= this.sightAngle) {
-            // Simplified LOS check - in real implementation, use raycasting
-            canSeePlayer = true;
+            canSeePlayer = this.hasSightTo(player);
         }
         
+        this.canSeeTarget = canSeePlayer;
+        this.heardTimer = Math.max(0, (this.heardTimer || 0) - deltaTime);
         // Update alert level
         if (canSeePlayer) {
             this.alertLevel = Math.min(this.maxAlertLevel, this.alertLevel + 50 * deltaTime);
             this.lastKnownTargetPosition.copy(player.position);
             this.target = player;
         } else {
-            this.alertLevel = Math.max(0, this.alertLevel - 10 * deltaTime);
+            this.alertLevel = Math.max(this.heardTimer > 0 ? 35 : 0, Math.min(79, this.alertLevel - 10 * deltaTime));
+            this.target = null;
             if (this.alertLevel === 0) {
                 this.target = null;
             }
         }
         
-        // Check for sounds (placeholder for sound system integration)
-        // if (soundNearby && distanceToSound <= this.hearingRange) {
-        //     this.alertLevel = Math.min(this.maxAlertLevel, this.alertLevel + 20);
-        // }
+    }
+
+    hasSightTo(target) {
+        if (!target) return false;
+        const from = this.position.clone().add(new THREE.Vector3(0, 1.45, 0));
+        const to = target.position.clone().add(new THREE.Vector3(0, 1.25, 0));
+        return this.game?.worldManager?.hasLineOfSight(from, to) ?? true;
+    }
+
+    hearNoise(position, radius) {
+        if (this.alive === false || this.aiState === AIState.DEAD) return false;
+        const distance = this.position.distanceTo(position);
+        if (distance > Math.min(radius, this.hearingRange * 3)) return false;
+        // Cover muffles the report. Hearing gives a location, never a live target.
+        const occluded = !(this.game?.worldManager?.hasLineOfSight(
+            this.position.clone().add(new THREE.Vector3(0, 1.4, 0)),
+            position.clone().add(new THREE.Vector3(0, 1.4, 0))) ?? true);
+        if (occluded && distance > radius * 0.45) return false;
+        this.lastKnownTargetPosition.copy(position);
+        this.heardTimer = occluded ? 3 : 6;
+        this.alertLevel = Math.max(this.alertLevel, 55);
+        this.changeState(AIState.ALERT);
+        return true;
     }
 
     updateAI(deltaTime) {
@@ -473,11 +509,30 @@ export class Enemy extends Entity {
         this.velocity.x = direction.x * speed;
         this.velocity.z = direction.z * speed;
         
-        // Apply movement
-        this.position.addScaledVector(this.velocity, deltaTime);
+        this._moveGoal = targetPosition.clone();
+    }
+
+    advanceMovement(deltaTime) {
+        if (!this._moveGoal) return;
+        const remaining = this.position.clone().sub(this._moveGoal).setY(0).length();
+        const speed = Math.hypot(this.velocity.x, this.velocity.z);
+        deltaTime = Math.min(deltaTime, remaining / Math.max(speed, 0.001));
+        const spots = this.game?.worldManager?.buildingSpots || [];
+        const free = (x, z) => !spots.some(s => Math.abs(x - s.x) < s.width / 2 + 0.3 && Math.abs(z - s.z) < s.depth / 2 + 0.3);
+        const nextX = this.position.x + this.velocity.x * deltaTime;
+        const nextZ = this.position.z + this.velocity.z * deltaTime;
+        // Slide along solid footprints instead of walking through storefronts.
+        const physics=this.game?.physicsSystem;
+        if(physics?.moveActor?.(this,this.velocity.x*deltaTime,this.velocity.z*deltaTime)){
+            // Actual current colliders include breaches and settled rubble.
+        }else if (free(nextX, nextZ)) { this.position.x = nextX; this.position.z = nextZ; }
+        else {
+            if (free(nextX, this.position.z)) this.position.x = nextX;
+            if (free(this.position.x, nextZ)) this.position.z = nextZ;
+        }
         
         // Face movement direction
-        this.lookAtTarget(targetPosition, deltaTime);
+        this.lookAtTarget(this._moveGoal, deltaTime);
     }
 
     lookAtTarget(targetPosition, deltaTime) {
@@ -500,6 +555,7 @@ export class Enemy extends Entity {
     }
 
     updateWalkAnimation(deltaTime) {
+        if(this.humanAnimations) {this.humanAnimations.update(deltaTime);return;}
         if (!this.limbs) return;
         // Attack swipe overrides walk cycle
         if (this._attackAnim !== undefined && this._attackAnim < 1) {
@@ -603,7 +659,7 @@ export class Enemy extends Entity {
     }
 
     performAttack() {
-        if (!this.target || !this.canAttack) return;
+        if (!this.target || !this.canAttack || !this.hasSightTo(this.target)) return;
 
         // Attack animation: arms raise then swipe
         this._attackAnim = 0;
@@ -622,9 +678,12 @@ export class Enemy extends Entity {
     }
 
     takeDamage(amount, source) {
+        if (this.alive === false || this.aiState === AIState.DEAD) return;
         // Apply armor reduction
-        const actualDamage = Math.max(1, amount - this.armor);
+        const actualDamage = armorDamage(amount,this.armor);
         this.health -= actualDamage;
+        if(source===this.game?.player)globalEventBus.emit('combat:confirmed-damage',{amount:actualDamage});
+        addWound(this,actualDamage,source);
         
         // Increase alert level
         this.alertLevel = this.maxAlertLevel;
@@ -633,26 +692,17 @@ export class Enemy extends Entity {
             this.lastKnownTargetPosition.copy(source.position);
         }
         
-        // Visual feedback - flash all child materials red (mesh may be a Group)
-        if (this.mesh) {
-            const mats = [];
-            this.mesh.traverse((child) => {
-                if (child.isMesh && child.material && child.material.color) {
-                    mats.push({ mat: child.material, color: child.material.color.clone() });
-                    child.material.color.setHex(0xff2222);
-                }
-            });
-            setTimeout(() => {
-                for (const { mat, color } of mats) mat.color.copy(color);
-            }, 100);
-        }
-        
         if (this.health <= 0) {
             this.die();
         }
     }
 
+    destroy() {this.humanAnimations?.dispose();super.destroy();}
+
     die() {
+        if(this.aiState===AIState.DEAD)return;
+        if(this.game?.effectsSystem?.blood){const p=this.position.clone();p.y=this.game.worldManager.getTerrainHeight(p.x,p.z);this.game.effectsSystem.blood.stain(p,new THREE.Vector3(0,1,0),.55);}
+        this.humanAnimations?.dispose();
         this.aiState = AIState.DEAD;
         // Keep isActive true so update() runs the death animation;
         // deactivated in updateDeathAnimation when the fall completes.
@@ -715,8 +765,9 @@ export class Enemy extends Entity {
 
     serialize() {
         return {
-            ...super.serialize(),
+            ...super.serialize(),enemyType:this instanceof PackHound?'packhound':this instanceof Lurker?'lurker':this instanceof HumanEnemy?'human':this instanceof Mutant?'mutant':'enemy',faction:this.faction||null,targetPlayer:this.target===this.game?.player,
             health: this.health,
+            bleeding:this.bleeding||0,
             maxHealth: this.maxHealth,
             aiState: this.aiState,
             alertLevel: this.alertLevel,
@@ -728,6 +779,7 @@ export class Enemy extends Entity {
     deserialize(data) {
         super.deserialize(data);
         this.health = data.health;
+        this.bleeding=data.bleeding||0;
         this.maxHealth = data.maxHealth;
         this.aiState = data.aiState;
         this.alertLevel = data.alertLevel;
@@ -793,9 +845,16 @@ export class HumanEnemy extends Enemy {
         this.accuracy = options.accuracy || 0.7;
     }
 
+    createMesh() {
+        const {group,limbs} = buildAnatomicalActor({weapon:true,hat:'cap',skinTone:0x9a8266});
+        this.limbs = limbs;this.walkPhase = 0;this.setMesh(group);
+        this.humanAnimations = new HumanAnimationController(this);
+    }
+
     performAttack() {
-        if (!this.target || !this.canAttack) return;
+        if (!this.target || !this.canAttack || !this.hasSightTo(this.target)) return;
         
+        this.humanAnimations?.fire();
         this.canAttack = false;
         this.attackCooldown = 1 / this.attackRate;
         
@@ -807,8 +866,8 @@ export class HumanEnemy extends Enemy {
         }
         
         // Muzzle flash effect
-        globalEventBus.emit('weapon:enemy_fire', {
-            position: this.position.clone(),
+        globalEventBus.emit('effect:muzzleFlash', {
+            position: this.mesh.animationRig?.weapon?.localToWorld(new THREE.Vector3(0,0,.55))||this.position.clone(),
             direction: new THREE.Vector3().subVectors(this.target.position, this.position).normalize()
         });
     }
@@ -937,7 +996,7 @@ export class PackHound extends Enemy {
     }
 
     performAttack() {
-        if (!this.target || !this.canAttack) return;
+        if (!this.target || !this.canAttack || !this.hasSightTo(this.target)) return;
         this.canAttack = false;
         this.attackCooldown = 1 / this.attackRate;
         // Lunge bite
@@ -947,7 +1006,7 @@ export class PackHound extends Enemy {
         if (this.target.takeDamage) {
             this.target.takeDamage(this.damage, this);
         }
-        globalEventBus.emit('audio:play', { sound: 'mutant_growl', volume: 0.5 });
+        globalEventBus.emit('audio:play', { sound: 'mutant_growl', volume: 0.5,position:this.position });
     }
 }
 
@@ -1023,7 +1082,7 @@ export class Lurker extends Enemy {
                 if (this.target && this.distanceTo(this.target) < 8) {
                     this.ambushBonus = true;
                     this.runSpeed = 11;
-                    globalEventBus.emit('audio:play', { sound: 'mutant_growl', volume: 0.8 });
+                    globalEventBus.emit('audio:play', { sound: 'mutant_growl', volume: 0.8,position:this.position });
                 }
             }
         }
@@ -1034,7 +1093,7 @@ export class Lurker extends Enemy {
     }
 
     performAttack() {
-        if (!this.target || !this.canAttack) return;
+        if (!this.target || !this.canAttack || !this.hasSightTo(this.target)) return;
         this.canAttack = false;
         this.attackCooldown = 1 / this.attackRate;
         let dmg = this.damage;
@@ -1046,6 +1105,6 @@ export class Lurker extends Enemy {
         if (this.target.takeDamage) {
             this.target.takeDamage(dmg, this);
         }
-        globalEventBus.emit('audio:play', { sound: 'anomaly_zap', volume: 0.4 });
+        globalEventBus.emit('audio:play', { sound: 'anomaly_zap', volume: 0.4,position:this.position });
     }
 }

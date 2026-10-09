@@ -1,10 +1,12 @@
+import {resolutionStep} from '../render/ResolutionPolicy.js';
+import {cityDestructionCoverage} from './diagnostics/CityDestructionAudit.js';
+import {motionScale} from './settings/Accessibility.js';
+import {MemorySystem} from './memory/MemorySystem.js';
+import { shouldRenderWorld } from './FramePolicy.js';
+import { createModernRenderer, createBodycamPipeline } from '../render/ModernRenderer.ts';
+import { installNodeMaterialBridge } from '../render/NodeMaterialBridge.js';
+import { updateShadowMaps,flushShadowInvalidation } from '../systems/ShadowUpdates.js';
 import * as THREE from 'three';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 
 import { EventBus, globalEventBus, GameEvents } from './EventBus.js';
 import { InputManager } from './InputManager.js';
@@ -20,7 +22,6 @@ import { FlashlightSystem } from '../systems/FlashlightSystem.js';
 import { PowerupSystem } from '../systems/PowerupSystem.js';
 import { EquipmentSystem } from '../systems/EquipmentSystem.js';
 import { PerfOverlay } from '../systems/PerfOverlay.js';
-import { DynamicResolution } from '../systems/DynamicResolution.js';
 import { FactionSystem } from '../systems/FactionSystem.js';
 import { PerkSystem } from '../systems/PerkSystem.js';
 
@@ -32,16 +33,18 @@ const LEVEL_CONFIGS = {
         name: 'Zone Outskirts',
         // City generation configuration
         city: {
-            blocksX: 12,
-            blocksZ: 12,
-            blockSize: 30,
-            roadWidth: 6,
+            blocksX: 6,
+            blocksZ: 6,
+            blockSize: 44,
+            roadWidth: 12,
             buildingSpacing: 8,
             maxFloors: 8,
             streetLightEvery: 1,
             district: 'outskirts',
-            ruinLevel: 0.55,
-            terrainAmplitude: 11
+            architecture: 'atlanta',
+            ruinLevel: 0.22,
+            terrainAmplitude: 3,
+            terrainFlatRadius: 300
         },
         spawnPoints: {
             player: [[0, 1, 10]],
@@ -62,7 +65,7 @@ const LEVEL_CONFIGS = {
         enemies: [
             { type: 'human', name: 'Bandit Scout', position: [45, 0, 45] },
             { type: 'human', name: 'Bandit', position: [-45, 0, 30] },
-            { type: 'mutant', name: 'Bloodsucker', position: [70, 0, -50] }
+            { type: 'mutant', name: 'Hollow', position: [70, 0, -50] }
         ],
         staticObjects: [
             { 
@@ -88,7 +91,7 @@ const LEVEL_CONFIGS = {
     },
     
     'pripyat_downtown': {
-        name: 'Pripyat Downtown',
+        name: 'Ashwater Downtown',
         city: {
             blocksX: 14,
             blocksZ: 14,
@@ -112,8 +115,8 @@ const LEVEL_CONFIGS = {
             loot: []
         },
         enemies: [
-            { type: 'mutant', name: 'Bloodsucker', position: [60, 0, 60] },
-            { type: 'mutant', name: 'Bloodsucker', position: [-60, 0, -60] }
+            { type: 'mutant', name: 'Hollow', position: [60, 0, 60] },
+            { type: 'mutant', name: 'Hollow', position: [-60, 0, -60] }
         ],
         staticObjects: [],
         anomalyFields: [
@@ -191,8 +194,8 @@ const LEVEL_CONFIGS = {
             ]
         },
         enemies: [
-            { type: 'mutant', name: 'Bloodsucker', position: [70, 0, 70] },
-            { type: 'mutant', name: 'Bloodsucker', position: [-70, 0, -70] },
+            { type: 'mutant', name: 'Hollow', position: [70, 0, 70] },
+            { type: 'mutant', name: 'Hollow', position: [-70, 0, -70] },
             { type: 'human', name: 'Bandit Leader', position: [50, 0, 0] },
             { type: 'human', name: 'Bandit', position: [55, 0, 5] },
             { type: 'human', name: 'Bandit', position: [55, 0, -5] }
@@ -209,6 +212,7 @@ const LEVEL_CONFIGS = {
     },
     
     // Fallback terrain-only level
+    'tutorial_tunnel': {name:'Outer service tunnel',tutorialTunnel:true,anomalyFields:[{type:'electrical',center:[1201.6,.5,1160],radius:.6,count:1}],spawnPoints:{player:[[1200,.08,1200]],enemy:[],loot:[]},weather:'clear',time:{hour:13,minute:0}},
     'wilderness': {
         name: 'Wilderness',
         terrain: {
@@ -283,7 +287,7 @@ export class Game {
         this.currentLevelName = null;
         
         // Timing
-        this.clock = new THREE.Clock();
+        this.clock = new THREE.Timer();
         this.deltaTime = 0;
         this.fixedTimeStep = 1 / 60;
         this.accumulator = 0;
@@ -330,7 +334,7 @@ export class Game {
         
         try {
             // Setup renderer
-            this.setupRenderer();
+            if(this.startup)await this.startup.measure('rendererDevice',()=>this.setupRenderer());else await this.setupRenderer();
             
             // Setup scene
             this.setupScene();
@@ -339,7 +343,7 @@ export class Game {
             this.setupPostProcessing();
             
             // Initialize managers
-            this.inputManager = new InputManager(globalEventBus, this.canvas); // Pass canvas to InputManager
+            this.inputManager = new InputManager(globalEventBus, this.canvas);this.inputManager.game=this; // Pass canvas to InputManager
             this.assetManager = new AssetManager();
             
             // Setup asset loading callbacks
@@ -363,9 +367,10 @@ export class Game {
             
             // Initialize world manager
             this.worldManager = new WorldManager(this);
+            this.memorySystem=new MemorySystem(this);
             
             // Ensure WorldManager is initialized (if it has async init)
-            if (this.worldManager.init && typeof this.worldManager.init === 'function') {
+            if (!this._deferInitialWorld && this.worldManager.init && typeof this.worldManager.init === 'function') {
                 if (!this.worldManager._initialized) {
                     await this.worldManager.init();
                 }
@@ -398,7 +403,6 @@ export class Game {
             this.powerupSystem = new PowerupSystem(this);
             this.equipmentSystem = new EquipmentSystem(this);
             this.perfOverlay = new PerfOverlay(this);
-            this.dynamicResolution = new DynamicResolution(this);
             this.factionSystem = new FactionSystem(this);
             this.perkSystem = new PerkSystem(this);
             
@@ -410,7 +414,7 @@ export class Game {
             this.uiManager.updateLoadingProgress(50, 'Loading level...');
             
             // Load initial level
-            await this.loadLevel('zone_outskirts');
+            if(!this._deferInitialWorld)await this.loadLevel('zone_outskirts');
             
             // Setup event listeners
             this.setupEventListeners();
@@ -420,7 +424,7 @@ export class Game {
             this.isLoading = false;
             
             // Start game
-            this.start();
+            if(!this._bootInitializing)this.start();
             
             console.log('Game initialized successfully');
             
@@ -434,19 +438,15 @@ export class Game {
     /**
      * Setup Three.js renderer
      */
-    setupRenderer() {
-        this.renderer = new THREE.WebGLRenderer({
-            canvas: this.canvas,
-            antialias: true,
-            powerPreference: 'high-performance'
-        });
-        
+    async setupRenderer() {
+        this.renderer = await createModernRenderer(this.canvas);
+        installNodeMaterialBridge(this.renderer);
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         // Cap at 1.5: on high-DPI screens the difference vs 2.0 is imperceptible
         // but it cuts fragment shader cost by ~44%
         this.renderer.shadowMap.enabled = this.settings.shadows;
-        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.shadowMap.type = THREE.PCFShadowMap;
         // Static scene: don't re-render shadow maps every frame
         // (flashlight shadow updates on movement via needsUpdate)
         this.renderer.shadowMap.autoUpdate = false;
@@ -466,7 +466,7 @@ export class Game {
         this.scene.background = new THREE.Color(0x87ceeb);
         
         // Add fog for atmosphere
-        this.scene.fog = new THREE.Fog(0x87ceeb, 100, 500);
+        this.scene.fog = null;
         
         // Temporary camera until player is initialized
         this.camera = new THREE.PerspectiveCamera(
@@ -480,10 +480,11 @@ export class Game {
     /**
      * Quality tier baselines. User-facing toggles/sliders override these.
      */
+    auditCityDestruction(){return cityDestructionCoverage(this.worldManager,this.physicsSystem);}
     static qualityTiers() {
         return {
             low:    { pixelRatioCap: 1.0, shadowSize: 0,    bloom: false, aa: false, grain: false, renderDistance: 300,  rain: 6000 },
-            medium: { pixelRatioCap: 1.5, shadowSize: 1024, bloom: true,  aa: false, grain: true,  renderDistance: 500,  rain: 10000 },
+            medium: { pixelRatioCap: 1.5, shadowSize: 1024, bloom: true,  aa: true, grain: true,  renderDistance: 500,  rain: 10000 },
             high:   { pixelRatioCap: 2.0, shadowSize: 2048, bloom: true,  aa: true,  grain: true,  renderDistance: 750,  rain: 15000 },
             ultra:  { pixelRatioCap: 3.0, shadowSize: 4096, bloom: true,  aa: true,  grain: true,  renderDistance: 1000, rain: 20000 }
         };
@@ -501,79 +502,9 @@ export class Game {
      * Disposes the previous chain so toggling effects never leaks targets.
      */
     buildComposer() {
-        const s = this.settings;
-        const tier = (Game.qualityTiers()[s.quality] || Game.qualityTiers().medium);
-
-        // Dispose the old chain first
-        if (this.composer) {
-            for (const pass of this.composer.passes) {
-                pass.dispose?.();
-            }
-            this.composer.dispose?.();
-            this.composer = null;
-        }
-        this.gradePass = null;
-        this.grainPass = null;
-        this.fxaaPass = null;
-
-        const usePost = s.postProcessing !== false;
-        if (!usePost) return; // direct rendering, no composer
-
-        this.composer = new EffectComposer(this.renderer);
-
-        // 1. Scene render
-        this.composer.addPass(new RenderPass(this.scene, this.camera));
-
-        // 2. Bloom for emissives, muzzle flash, anomaly glow
-        const wantBloom = s.bloom && tier.bloom;
-        if (wantBloom) {
-            const bloomPass = new UnrealBloomPass(
-                new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2),
-                s.quality === 'ultra' ? 0.38 : 0.3,  // strength
-                0.5,   // radius
-                0.82   // threshold
-            );
-            this.composer.addPass(bloomPass);
-        }
-
-        // 3. Color grade: vignette / saturation / contrast / brightness / lift
-        const gradePass = new ShaderPass(Game.gradeShader());
-        gradePass.uniforms.vignetteAmount.value = s.vignette ? 0.32 : 0.0;
-        gradePass.uniforms.saturation.value = 0.92;
-        gradePass.uniforms.contrast.value = 1.08;
-        gradePass.uniforms.lift.value = 0.015;
-        this.composer.addPass(gradePass);
-        this.gradePass = gradePass;
-
-        // 4. Animated film grain (separate pass, subtle)
-        if (s.filmGrain && tier.grain) {
-            const grainPass = new ShaderPass(Game.grainShader());
-            grainPass.uniforms.amount.value = 0.028;
-            this.composer.addPass(grainPass);
-            this.grainPass = grainPass;
-        }
-
-        // 5. Chromatic aberration (optional, very subtle)
-        if (s.chroma) {
-            const chromaPass = new ShaderPass(Game.chromaShader());
-            chromaPass.uniforms.amount.value = 0.0012;
-            this.composer.addPass(chromaPass);
-        }
-
-        // 6. FXAA in linear space before output transform (quality-gated)
-        if (s.antiAliasing && tier.aa) {
-            const fxaaPass = new ShaderPass(FXAAShader);
-            this._updateFxaaResolution(fxaaPass);
-            this.composer.addPass(fxaaPass);
-            this.fxaaPass = fxaaPass;
-        }
-
-        // 7. Output: tone mapping + sRGB. Must stay last — without this the
-        // composer writes raw linear HDR to the canvas and everything
-        // renders near-black.
-        this.composer.addPass(new OutputPass());
-
-        this._syncComposerSize();
+        this.composer?.dispose?.();
+        this.gradePass=null;this.grainPass=null;this.fxaaPass=null;
+        this.composer=createBodycamPipeline(this);
     }
 
     /**
@@ -587,153 +518,6 @@ export class Game {
         if (this.fxaaPass) this._updateFxaaResolution(this.fxaaPass);
     }
 
-    _updateFxaaResolution(fxaaPass) {
-        const pr = this.renderer.getPixelRatio();
-        const res = fxaaPass.material.uniforms.resolution;
-        res.value.set(1 / (window.innerWidth * pr), 1 / (window.innerHeight * pr));
-    }
-
-    /**
-     * Filmic color-grade shader: vignette, saturation, contrast, lift, brightness
-     */
-    static gradeShader() {
-        return {
-            uniforms: {
-                tDiffuse: { value: null },
-                vignetteAmount: { value: 0.32 },
-                saturation: { value: 0.92 },
-                contrast: { value: 1.08 },
-                brightness: { value: 0.0 },
-                lift: { value: 0.015 }
-            },
-            vertexShader: /* glsl */`
-                varying vec2 vUv;
-                void main() {
-                    vUv = uv;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                }
-            `,
-            fragmentShader: /* glsl */`
-                uniform sampler2D tDiffuse;
-                uniform float vignetteAmount;
-                uniform float saturation;
-                uniform float contrast;
-                uniform float brightness;
-                uniform float lift;
-                varying vec2 vUv;
-
-                // Filmic-ish soft vignette with smooth falloff
-                float vignette(vec2 uv, float amount) {
-                    vec2 d = (uv - 0.5) * vec2(1.15, 1.0);
-                    float v = smoothstep(0.95, 0.35, dot(d, d) * amount * 2.2);
-                    return mix(1.0, v, clamp(amount * 2.4, 0.0, 1.0));
-                }
-
-                void main() {
-                    vec4 color = texture2D(tDiffuse, vUv);
-
-                    // Lift blacks slightly for a filmic toe
-                    color.rgb = color.rgb * (1.0 - lift) + lift;
-
-                    // Saturation (luma-weighted)
-                    float gray = dot(color.rgb, vec3(0.299, 0.587, 0.114));
-                    color.rgb = mix(vec3(gray), color.rgb, saturation);
-
-                    // Contrast around mid-gray
-                    color.rgb = (color.rgb - 0.5) * contrast + 0.5;
-
-                    // Brightness
-                    color.rgb += brightness;
-
-                    // Vignette
-                    color.rgb *= vignette(vUv, vignetteAmount);
-
-                    gl_FragColor = color;
-                }
-            `
-        };
-    }
-
-    /**
-     * Animated film grain shader (hash without texture lookups)
-     */
-    static grainShader() {
-        return {
-            uniforms: {
-                tDiffuse: { value: null },
-                time: { value: 0 },
-                amount: { value: 0.028 }
-            },
-            vertexShader: /* glsl */`
-                varying vec2 vUv;
-                void main() {
-                    vUv = uv;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                }
-            `,
-            fragmentShader: /* glsl */`
-                uniform sampler2D tDiffuse;
-                uniform float time;
-                uniform float amount;
-                varying vec2 vUv;
-
-                float hash(vec2 p) {
-                    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
-                    p3 += dot(p3, p3.yzx + 33.33);
-                    return fract((p3.x + p3.y) * p3.z);
-                }
-
-                void main() {
-                    vec4 color = texture2D(tDiffuse, vUv);
-                    // Two decorrelated samples: finer, less "crawly" grain
-                    float g = hash(vUv * vec2(1920.0, 1080.0) + fract(time) * 271.0) - 0.5;
-                    float g2 = hash(vUv * vec2(1280.0, 720.0) - fract(time * 1.7) * 173.0) - 0.5;
-                    float luma = dot(color.rgb, vec3(0.299, 0.587, 0.114));
-                    // Grain is stronger in shadows, gentler in highlights
-                    float mask = mix(1.0, 0.35, smoothstep(0.0, 0.9, luma));
-                    color.rgb += (g * 0.7 + g2 * 0.3) * amount * mask;
-                    gl_FragColor = color;
-                }
-            `
-        };
-    }
-
-    /**
-     * Subtle radial chromatic aberration
-     */
-    static chromaShader() {
-        return {
-            uniforms: {
-                tDiffuse: { value: null },
-                amount: { value: 0.0012 }
-            },
-            vertexShader: /* glsl */`
-                varying vec2 vUv;
-                void main() {
-                    vUv = uv;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                }
-            `,
-            fragmentShader: /* glsl */`
-                uniform sampler2D tDiffuse;
-                uniform float amount;
-                varying vec2 vUv;
-                void main() {
-                    vec2 dir = vUv - 0.5;
-                    float r2 = dot(dir, dir);
-                    vec2 off = dir * r2 * amount * 8.0;
-                    float r = texture2D(tDiffuse, vUv - off).r;
-                    float g = texture2D(tDiffuse, vUv).g;
-                    float b = texture2D(tDiffuse, vUv + off).b;
-                    gl_FragColor = vec4(r, g, b, 1.0);
-                }
-            `
-        };
-    }
-
-    /**
-     * Load game assets
-     */
     async loadAssets() {
         this.uiManager?.updateLoadingProgress(0, 'Loading assets...');
         
@@ -798,7 +582,8 @@ export class Game {
             // Spawn anomaly fields
             if (levelData.anomalyFields && this.anomalySystem) {
                 for (const field of levelData.anomalyFields) {
-                    this.anomalySystem.spawnAnomalyField(
+                    if(levelData.tutorialTunnel)this.anomalySystem.createAnomaly(field.type,{position:field.center,radius:.45,damage:8});
+                    else this.anomalySystem.spawnAnomalyField(
                         new THREE.Vector3(field.center[0], field.center[1], field.center[2]),
                         field.radius,
                         field.type,
@@ -819,7 +604,7 @@ export class Game {
             if (this.compassSystem) {
                 this.compassSystem.populateLevel(levelData);
             }
-            if (this.lootSystem) {
+            if (this.lootSystem && !levelData.tutorialTunnel) {
                 this.uiManager?.updateLoadingProgress(88, 'Hiding loot...');
                 this.lootSystem.populateLevel(levelData);
             }
@@ -860,6 +645,7 @@ export class Game {
             console.log(`Level "${levelData.name}" loaded successfully`);
             
         } catch (error) {
+            if(error?.name==='AbortError')return;
             console.error('Error loading level:', error);
             this.uiManager?.updateLoadingProgress(0, `Error: ${error.message}`);
             
@@ -876,6 +662,7 @@ export class Game {
      * @param {string} levelName - Level identifier
      */
     async changeLevel(levelName) {
+        this.saveSystem?.captureDistrict();const emissionState=this.emissionSystem?.serialize(),worldTime=this.dayNightCycle?.currentTime;
         this.isLoading = true;
         this.uiManager?.showLoadingScreen(true);
         
@@ -894,7 +681,8 @@ export class Game {
         this.emissionSystem?.reset();
         
         // Load new level
-        await this.loadLevel(levelName);
+        await this.loadLevel(levelName);this.saveSystem?.restoreDistrict(levelName);this.emissionSystem?.restore(emissionState);if(this.dayNightCycle&&worldTime!==undefined)this.dayNightCycle.currentTime=worldTime;if(this.session)this.session.respawn={level:levelName,position:this.player.position.toArray()};this.saveSystem?.requestAutosave('level-transition');
+        if(this.warmWorldGraphics)await this.warmWorldGraphics();
         
         this.uiManager?.showLoadingScreen(false);
         this.isLoading = false;
@@ -939,12 +727,12 @@ export class Game {
         });
         
         // Save/Load
-        globalEventBus.on(GameEvents.SAVE_GAME, () => {
-            this.saveGame();
+        globalEventBus.on(GameEvents.SAVE_GAME, (data) => {
+            if (!this.saveSystem) this.saveGame(data?.slot);
         });
         
-        globalEventBus.on(GameEvents.LOAD_GAME, () => {
-            this.loadGame();
+        globalEventBus.on(GameEvents.LOAD_GAME, (data) => {
+            if (!this.saveSystem) this.loadGame(data?.slot);
         });
         
         // Level change requests
@@ -976,9 +764,10 @@ export class Game {
      * Start the game loop
      */
     start() {
+        if(this.isRunning)return;
         this.isRunning = true;
-        this.clock.start();
-        this.gameLoop();
+        this.clock.reset();
+        requestAnimationFrame(()=>this.gameLoop());
         
         console.log('Game loop started');
     }
@@ -1032,10 +821,15 @@ export class Game {
         requestAnimationFrame(() => this.gameLoop());
         
         // Calculate delta time
+        this.clock.update();
         this.deltaTime = Math.min(this.clock.getDelta(), 0.1); // Cap at 100ms
         
         // FPS counter + frame-time EMA (feeds the overlay and auto-quality)
         const frameStart = performance.now();
+        const frameInterval = this._lastFrameStart === undefined ? 1000 / 60 : frameStart - this._lastFrameStart;
+        this._lastFrameStart = frameStart;
+        this.perfOverlay?.beginFrame(frameStart);
+        const inputStart=performance.now();this.inputManager?.sampleFrame(this.deltaTime,frameStart);this.perfOverlay?.systemTimes.set('Input',performance.now()-inputStart);
         this.frameCount++;
         if (frameStart - this.lastFpsUpdate >= 1000) {
             this.fps = this.frameCount;
@@ -1054,7 +848,11 @@ export class Game {
             this.inputManager.isActionJustPressed('pause')) {
             const ui = this.uiManager;
             const openMenu = ui?.activeMenu;
-            if (openMenu && openMenu !== 'pause' && openMenu !== 'settings') {
+            if(ui.elements?.confirmDialog?.getClientRects().length){ui.hideConfirm();}
+            else if(openMenu==='photo'){this.photoMode.close();}
+            else if(openMenu==='statistics'){this.photoMode.closeStatistics();}
+            else if(openMenu==='saves'){ui.saveMenu.close();}
+            else if (openMenu && openMenu !== 'pause' && openMenu !== 'settings') {
                 // Esc first closes whatever is open (inventory, map, loot...)
                 ui.closeMenu(openMenu);
             } else if (openMenu === 'settings') {
@@ -1067,21 +865,30 @@ export class Game {
             }
         }
         
+        this.photoMode?.update(this.deltaTime);
+        if(this.gameState==='playing'&&!this.isLoading&&this.inputManager?.isActionJustPressed('screenshot'))void this.photoMode?.capture();
         // Update game if not paused
-        if (!this.isPaused && !this.isLoading) {
-            this.update(this.deltaTime);
-            this.fixedUpdate(this.deltaTime);
+        if (!this.isPaused && !this.isLoading && this.gameState === 'playing') {
+            if(this.perfOverlay)this.perfOverlay.updateSystem('Simulation',this,this.deltaTime);else this.update(this.deltaTime);
+            if (this.perfOverlay) this.perfOverlay.timeSystem('FixedSimulation', () => this.fixedUpdate(this.deltaTime));
+            else this.fixedUpdate(this.deltaTime);
         }
         
+        // Music continues through the menu, death screen, and paused gameplay.
+        if(this.perfOverlay)this.perfOverlay.updateSystem('Audio',this.audioManager,this.deltaTime);else this.audioManager?.update(this.deltaTime);
         // Always render
-        this.render();
+        if (this.perfOverlay) this.perfOverlay.timeSystem('Render', () => this.render());
+        else this.render();
 
         // Frame-time EMA + auto-quality governor
-        const frameMs = performance.now() - frameStart;
+        const frameMs = frameInterval;
         const aq = this._autoQuality;
         aq.emaMs += (frameMs - aq.emaMs) * 0.06;
+        aq.emaSubmissionMs=(aq.emaSubmissionMs??0)+(performance.now()-frameStart-(aq.emaSubmissionMs??0))*.06;
         aq.emaFps += ((1000 / Math.max(frameMs, 0.01)) - aq.emaFps) * 0.06;
         this._tickAutoQuality(frameStart);
+        this.inputManager?.recordSubmission();
+        this.perfOverlay?.endFrame();
         
         // Clear input state for next frame
         if (this.inputManager) {
@@ -1091,11 +898,12 @@ export class Game {
 
     /**
      * Auto-quality governor: holds frame rate by easing the render scale
-     * between 0.6 and the user's chosen render scale. Only acts when the
+     * between 0.5 and the user's chosen render scale. Only acts when the
      * user enabled "Auto Quality" in settings.
      */
     _tickAutoQuality(now) {
         const aq = this._autoQuality;
+        if(this.isLoading||this.isPaused||this.gameState!=='playing'){aq.lastCheck=now;return;}
         if (!this.settings.autoQuality) {
             // Governor off: track the user's scale directly
             if (aq.effRenderScale !== this.settings.renderScale) {
@@ -1107,22 +915,9 @@ export class Game {
         if (now - aq.lastCheck < 2000) return;
         aq.lastCheck = now;
 
-        const target = this.settings.renderScale;
-        const fps = aq.emaFps;
-        if (fps < 45 && aq.effRenderScale > 0.6) {
-            aq.effRenderScale = Math.max(0.6, aq.effRenderScale - 0.1);
-            aq.goodStreak = 0;
-            this._applyRenderScale();
-        } else if (fps > 57 && aq.effRenderScale < target) {
-            aq.goodStreak++;
-            if (aq.goodStreak >= 3) {
-                aq.goodStreak = 0;
-                aq.effRenderScale = Math.min(target, aq.effRenderScale + 0.05);
-                this._applyRenderScale();
-            }
-        } else if (fps >= 45) {
-            aq.goodStreak = 0;
-        }
+        const next=resolutionStep(aq.effRenderScale,this.settings.renderScale,aq.emaMs,aq.emaSubmissionMs??Infinity,aq.goodStreak);
+        aq.goodStreak=next.goodStreak;
+        if(next.scale!==aq.effRenderScale){aq.effRenderScale=next.scale;this._applyRenderScale();}
     }
 
     /**
@@ -1140,40 +935,30 @@ export class Game {
      * @param {number} deltaTime - Time since last frame
      */
     update(deltaTime) {
+        if(this.perfOverlay)this.perfOverlay.updateSystem('Memory',this.memorySystem);else this.memorySystem?.update();
         // Update player
-        this.perfOverlay?.beginFrame();
-        this.player?.update(deltaTime);
+        if (this.perfOverlay) this.perfOverlay.timeSystem('Player', () => this.player?.update(deltaTime));
+        else this.player?.update(deltaTime);
         
         // Update world
-        this.worldManager?.update(deltaTime);
+        if (this.perfOverlay) this.perfOverlay.timeSystem('World', () => this.worldManager?.update(deltaTime));
+        else this.worldManager?.update(deltaTime);
         
         // Update systems
         this.weatherSystem?.update(deltaTime);
         this.dayNightCycle?.update(deltaTime);
         this.anomalySystem?.update(deltaTime);
         this.powerupSystem?.update(deltaTime);
-        this.audioManager?.update(deltaTime);
+        // Audio is updated by the frame loop, including menus and pause.
         this.flashlightSystem?.update(deltaTime);
-        // Update shadow maps only when player moves (static scene optimization)
-        if (this.player && this.renderer.shadowMap.enabled) {
-            const pos = this.player.position;
-            if (!this._lastShadowPos) {
-                this._lastShadowPos = pos.clone();
-                this.renderer.shadowMap.needsUpdate = true;
-            } else if (pos.distanceToSquared(this._lastShadowPos) > 1.0) {
-                this._lastShadowPos.copy(pos);
-                this.renderer.shadowMap.needsUpdate = true;
-            }
-        }
-        
+        updateShadowMaps(this,deltaTime);
+
         // Update UI
         this.uiManager?.update(deltaTime);
-        this.perfOverlay?.endFrame();
-        this.dynamicResolution?.update(deltaTime);
         this.factionSystem?.update(deltaTime);
 
         // First-person overlay (weapon viewmodel, arms, hat brim)
-        this.viewmodelSystem?.update(deltaTime);
+        if(this.perfOverlay)this.perfOverlay.updateSystem('Viewmodel',this.viewmodelSystem,deltaTime);else this.viewmodelSystem?.update(deltaTime);
 
         // Loot containers (bobbing, prompt refresh)
         this.lootSystem?.update(deltaTime);
@@ -1212,14 +997,23 @@ export class Game {
     /**
      * Render the scene
      */
-    render() {
+    render(force=false) {
+        flushShadowInvalidation(this);
+        if(!force&&!shouldRenderWorld(this))return;
+        const photo=this.photoMode?.active;const appliedShake=!photo&&this.shakeIntensity>0?motionScale(this.settings):0;
+        // Keep totals across the world, post-processing and viewmodel passes.
+        this.renderer.info.autoReset = false;
+        this.renderer.info.reset();
+        this.reflectionSystem?.update();
+        this.viewmodelSystem?.prepare(this.renderer);
         // Update camera from player
-        if (this.player?.camera) {
+        if (photo)this.camera=this.photoMode.camera;
+        if (!photo&&this.player?.camera) {
             this.camera = this.player.camera;
             
             // Apply camera shake
             if (this.shakeIntensity > 0) {
-                this.camera.position.add(this.shakeOffset);
+                this.camera.position.addScaledVector(this.shakeOffset,appliedShake);
             }
             
             // Update composer camera reference
@@ -1231,7 +1025,7 @@ export class Game {
         // Render with post-processing or standard
         // If composer fails, fall back to direct rendering (never black screen)
         try {
-            if (this.composer && this.settings.postProcessing) {
+            if (this.composer) {
                 if (this.grainPass?.uniforms?.time) {
                     this.grainPass.uniforms.time.value = performance.now() * 0.001;
                 }
@@ -1251,7 +1045,8 @@ export class Game {
         // First-person overlay (weapon viewmodel, arms, hat brim): separate
         // scene + camera rendered after the main pass with depth cleared, so
         // the viewmodel can never clip through walls.
-        this.viewmodelSystem?.render(this.renderer);
+        if(!photo&&!this.composer?.hasViewmodel)this.viewmodelSystem?.render(this.renderer);
+        if(this.player?.camera&&appliedShake)this.camera.position.addScaledVector(this.shakeOffset,-appliedShake);
     }
 
     /**
@@ -1260,6 +1055,7 @@ export class Game {
      * @param {number} duration - Shake duration in seconds
      */
     cameraShake(intensity, duration) {
+        if(motionScale(this.settings)===0){this.shakeIntensity=0;this.shakeDuration=0;this.shakeOffset.set(0,0,0);return;}
         this.shakeIntensity = intensity;
         this.shakeDuration = duration;
     }
@@ -1269,6 +1065,7 @@ export class Game {
      * @param {number} deltaTime - Frame delta
      */
     updateCameraShake(deltaTime) {
+        if(motionScale(this.settings)===0){this.shakeIntensity=0;this.shakeDuration=0;this.shakeOffset.set(0,0,0);return;}
         if (this.shakeDuration > 0) {
             this.shakeDuration -= deltaTime;
             
@@ -1316,10 +1113,11 @@ export class Game {
         const s = this.settings;
         const tiers = Game.qualityTiers();
         const prevQuality = s.quality;
-        const prevFlags = [s.postProcessing, s.bloom, s.antiAliasing, s.filmGrain, s.vignette, s.chroma].join('|');
+        const prevFlags = [s.postProcessing, s.bloom, s.antiAliasing, s.filmGrain, s.vignette, s.chroma,s.ambientOcclusion,s.lensDirt,s.rollingShutter].join('|');
 
         if (settings.quality && tiers[settings.quality]) s.quality = settings.quality;
         const tier = tiers[s.quality];
+        for(const key of ['reflectionQuality','vegetationDetail','particleQuality','shadowSize'])if(settings[key]!==undefined)s[key]=settings[key];
 
         if (settings.renderScale !== undefined) {
             s.renderScale = Math.min(1, Math.max(0.5, settings.renderScale));
@@ -1333,6 +1131,7 @@ export class Game {
         if (settings.filmGrain !== undefined) s.filmGrain = !!settings.filmGrain;
         if (settings.vignette !== undefined) s.vignette = !!settings.vignette;
         if (settings.chroma !== undefined) s.chroma = !!settings.chroma;
+        for(const key of ['ambientOcclusion','lensDirt','rollingShutter'])if(settings[key]!==undefined)s[key]=!!settings[key];
         if (settings.autoQuality !== undefined) s.autoQuality = !!settings.autoQuality;
 
         // Pixel ratio: tier cap x effective render scale
@@ -1342,8 +1141,8 @@ export class Game {
         this.renderer.shadowMap.enabled = s.shadows;
         this.renderer.shadowMap.type = s.quality === 'low' ? THREE.BasicShadowMap
             : s.quality === 'medium' ? THREE.PCFShadowMap
-            : THREE.PCFSoftShadowMap;
-        this._applyShadowSize(s.shadows ? tier.shadowSize : 0);
+            : THREE.PCFShadowMap;
+        this._applyShadowSize(s.shadows ? (s.shadowSize||tier.shadowSize||1024) : 0);
 
         // FOV
         if (settings.fov && this.camera) {
@@ -1364,7 +1163,7 @@ export class Game {
         }
 
         // Rebuild the composer when the pass set may have changed
-        const nextFlags = [s.postProcessing, s.bloom, s.antiAliasing, s.filmGrain, s.vignette, s.chroma].join('|');
+        const nextFlags = [s.postProcessing, s.bloom, s.antiAliasing, s.filmGrain, s.vignette, s.chroma,s.ambientOcclusion,s.lensDirt,s.rollingShutter].join('|');
         if (s.quality !== prevQuality || nextFlags !== prevFlags) {
             this.buildComposer();
         } else if (this.gradePass && settings.vignette !== undefined) {
@@ -1378,7 +1177,7 @@ export class Game {
         // Materials may need a refresh when the shadow type changes
         if (this.scene) {
             this.scene.traverse((obj) => {
-                if (obj.material) obj.material.needsUpdate = true;
+                if (obj.material) for(const mat of Array.isArray(obj.material)?obj.material:[obj.material]) {mat.needsUpdate=true;if(mat.userData?.reliefScale)mat.userData.reliefScale.value=['high','ultra'].includes(s.quality)?(mat.userData.reliefAmount||.018):0;}
             });
         }
     }
@@ -1393,9 +1192,11 @@ export class Game {
             if (!light?.shadow) continue;
             if (px <= 0) {
                 light.castShadow = false;
+                light.userData.shadowEnabled = false;
                 continue;
             }
-            light.castShadow = true;
+            light.userData.shadowEnabled = true;
+            light.castShadow = light === (dn.sunLight.intensity > 0.02 ? dn.sunLight : dn.moonLight);
             if (light.shadow.mapSize.x !== px) {
                 light.shadow.mapSize.set(px, px);
                 if (light.shadow.map) {
@@ -1404,6 +1205,12 @@ export class Game {
                 }
             }
         }
+        if(this.flashlightSystem?.spotLight) {
+            this.flashlightSystem.spotLight.castShadow=px>0&&this.flashlightSystem.isOn;
+            this.flashlightSystem.spotLight.shadow.mapSize.set(Math.min(px||1024,2048),Math.min(px||1024,2048));
+            this.flashlightSystem.spotLight.shadow.map?.dispose();this.flashlightSystem.spotLight.shadow.map=null;
+        }
+        this.renderer.shadowMap.needsUpdate=true;
     }
 
     /**
@@ -1531,7 +1338,9 @@ export class Game {
         this.stop();
         
         // Dispose systems
-        this.worldManager?.dispose();
+        this.inputManager?.dispose();
+        this.perfOverlay?.dispose();
+        this.memorySystem?.dispose();this.worldManager?.dispose();
         this.weatherSystem?.dispose();
         this.dayNightCycle?.dispose();
         this.audioManager?.dispose();

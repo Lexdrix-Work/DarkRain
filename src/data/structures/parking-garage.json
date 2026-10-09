@@ -1,0 +1,4223 @@
+{
+  "format": "darkrain-structure",
+  "schemaVersion": 1,
+  "id": "example:parking-garage",
+  "revision": 1,
+  "units": {
+    "length": "m",
+    "mass": "kg",
+    "force": "N",
+    "stress": "Pa",
+    "moment": "Nm"
+  },
+  "coordinateSpace": "building-local-y-up",
+  "materials": [
+    {
+      "id": "reinforced-concrete",
+      "densityKgM3": 2450,
+      "youngPa": 25000000000,
+      "poisson": 0.2,
+      "compressivePa": 30000000,
+      "tensilePa": 2500000,
+      "shearPa": 3500000,
+      "fractureEnergyJm2": 120
+    }
+  ],
+  "nodes": [
+    {
+      "id": "beam0E",
+      "kind": "beam",
+      "material": "reinforced-concrete",
+      "positionM": [
+        3,
+        2.7,
+        0
+      ],
+      "dimensionsM": [
+        0.4,
+        0.6,
+        6
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "beam0E--column0_1",
+          "positionLocalM": [
+            0,
+            0.2999999999999998,
+            -3
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.24,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "beam0E--column0_3",
+          "positionLocalM": [
+            0,
+            0.2999999999999998,
+            3
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.24,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "slab0--beam0E",
+          "positionLocalM": [
+            0,
+            0.2999999999999998,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.24,
+          "allowedJoints": [
+            "embedded"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.24,
+        "iyM4": 0.007199999999999999,
+        "izM4": 0.003200000000000001,
+        "jM4": 0.0104,
+        "spanAxisLocal": [
+          0,
+          0,
+          1
+        ]
+      },
+      "reinforcement": {
+        "steelAreaM2": 0.004,
+        "yieldPa": 450000000,
+        "embedLengthM": 0.7,
+        "bondPerimeterM": 0.3,
+        "bondPa": 2000000
+      },
+      "index": 0,
+      "volumeM3": 1.44,
+      "massKg": 3528,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        10689.84,
+        10631.039999999999,
+        152.88000000000002,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 2500000,
+        "shearPa": 3500000
+      },
+      "body": {
+        "shardId": "example:parking-garage:beam0E",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -0.2,
+            -0.3,
+            -3,
+            -0.2,
+            -0.3,
+            3,
+            -0.2,
+            0.3,
+            -3,
+            -0.2,
+            0.3,
+            3,
+            0.2,
+            -0.3,
+            -3,
+            0.2,
+            -0.3,
+            3,
+            0.2,
+            0.3,
+            -3,
+            0.2,
+            0.3,
+            3
+          ]
+        }
+      }
+    },
+    {
+      "id": "beam0N",
+      "kind": "beam",
+      "material": "reinforced-concrete",
+      "positionM": [
+        0,
+        2.7,
+        -3
+      ],
+      "dimensionsM": [
+        6,
+        0.6,
+        0.4
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "beam0N--column0_0",
+          "positionLocalM": [
+            -3,
+            0.2999999999999998,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.24,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "beam0N--column0_1",
+          "positionLocalM": [
+            3,
+            0.2999999999999998,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.24,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "slab0--beam0N",
+          "positionLocalM": [
+            0,
+            0.2999999999999998,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.24,
+          "allowedJoints": [
+            "embedded"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.24,
+        "iyM4": 0.007199999999999999,
+        "izM4": 0.003200000000000001,
+        "jM4": 0.0104,
+        "spanAxisLocal": [
+          1,
+          0,
+          0
+        ]
+      },
+      "reinforcement": {
+        "steelAreaM2": 0.004,
+        "yieldPa": 450000000,
+        "embedLengthM": 0.7,
+        "bondPerimeterM": 0.3,
+        "bondPa": 2000000
+      },
+      "index": 1,
+      "volumeM3": 1.44,
+      "massKg": 3528,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        152.88000000000002,
+        10631.039999999999,
+        10689.84,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 2500000,
+        "shearPa": 3500000
+      },
+      "body": {
+        "shardId": "example:parking-garage:beam0N",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -3,
+            -0.3,
+            -0.2,
+            -3,
+            -0.3,
+            0.2,
+            -3,
+            0.3,
+            -0.2,
+            -3,
+            0.3,
+            0.2,
+            3,
+            -0.3,
+            -0.2,
+            3,
+            -0.3,
+            0.2,
+            3,
+            0.3,
+            -0.2,
+            3,
+            0.3,
+            0.2
+          ]
+        }
+      }
+    },
+    {
+      "id": "beam0S",
+      "kind": "beam",
+      "material": "reinforced-concrete",
+      "positionM": [
+        0,
+        2.7,
+        3
+      ],
+      "dimensionsM": [
+        6,
+        0.6,
+        0.4
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "beam0S--column0_2",
+          "positionLocalM": [
+            -3,
+            0.2999999999999998,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.24,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "beam0S--column0_3",
+          "positionLocalM": [
+            3,
+            0.2999999999999998,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.24,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "slab0--beam0S",
+          "positionLocalM": [
+            0,
+            0.2999999999999998,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.24,
+          "allowedJoints": [
+            "embedded"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.24,
+        "iyM4": 0.007199999999999999,
+        "izM4": 0.003200000000000001,
+        "jM4": 0.0104,
+        "spanAxisLocal": [
+          1,
+          0,
+          0
+        ]
+      },
+      "reinforcement": {
+        "steelAreaM2": 0.004,
+        "yieldPa": 450000000,
+        "embedLengthM": 0.7,
+        "bondPerimeterM": 0.3,
+        "bondPa": 2000000
+      },
+      "index": 2,
+      "volumeM3": 1.44,
+      "massKg": 3528,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        152.88000000000002,
+        10631.039999999999,
+        10689.84,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 2500000,
+        "shearPa": 3500000
+      },
+      "body": {
+        "shardId": "example:parking-garage:beam0S",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -3,
+            -0.3,
+            -0.2,
+            -3,
+            -0.3,
+            0.2,
+            -3,
+            0.3,
+            -0.2,
+            -3,
+            0.3,
+            0.2,
+            3,
+            -0.3,
+            -0.2,
+            3,
+            -0.3,
+            0.2,
+            3,
+            0.3,
+            -0.2,
+            3,
+            0.3,
+            0.2
+          ]
+        }
+      }
+    },
+    {
+      "id": "beam0W",
+      "kind": "beam",
+      "material": "reinforced-concrete",
+      "positionM": [
+        -3,
+        2.7,
+        0
+      ],
+      "dimensionsM": [
+        0.4,
+        0.6,
+        6
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "beam0W--column0_0",
+          "positionLocalM": [
+            0,
+            0.2999999999999998,
+            -3
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.24,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "beam0W--column0_2",
+          "positionLocalM": [
+            0,
+            0.2999999999999998,
+            3
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.24,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "slab0--beam0W",
+          "positionLocalM": [
+            0,
+            0.2999999999999998,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.24,
+          "allowedJoints": [
+            "embedded"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.24,
+        "iyM4": 0.007199999999999999,
+        "izM4": 0.003200000000000001,
+        "jM4": 0.0104,
+        "spanAxisLocal": [
+          0,
+          0,
+          1
+        ]
+      },
+      "reinforcement": {
+        "steelAreaM2": 0.004,
+        "yieldPa": 450000000,
+        "embedLengthM": 0.7,
+        "bondPerimeterM": 0.3,
+        "bondPa": 2000000
+      },
+      "index": 3,
+      "volumeM3": 1.44,
+      "massKg": 3528,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        10689.84,
+        10631.039999999999,
+        152.88000000000002,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 2500000,
+        "shearPa": 3500000
+      },
+      "body": {
+        "shardId": "example:parking-garage:beam0W",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -0.2,
+            -0.3,
+            -3,
+            -0.2,
+            -0.3,
+            3,
+            -0.2,
+            0.3,
+            -3,
+            -0.2,
+            0.3,
+            3,
+            0.2,
+            -0.3,
+            -3,
+            0.2,
+            -0.3,
+            3,
+            0.2,
+            0.3,
+            -3,
+            0.2,
+            0.3,
+            3
+          ]
+        }
+      }
+    },
+    {
+      "id": "beam1E",
+      "kind": "beam",
+      "material": "reinforced-concrete",
+      "positionM": [
+        3,
+        5.7,
+        0
+      ],
+      "dimensionsM": [
+        0.4,
+        0.6,
+        6
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "beam1E--column1_1",
+          "positionLocalM": [
+            0,
+            0.2999999999999998,
+            -3
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.24,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "beam1E--column1_3",
+          "positionLocalM": [
+            0,
+            0.2999999999999998,
+            3
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.24,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "slab1--beam1E",
+          "positionLocalM": [
+            0,
+            0.2999999999999998,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.24,
+          "allowedJoints": [
+            "embedded"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.24,
+        "iyM4": 0.007199999999999999,
+        "izM4": 0.003200000000000001,
+        "jM4": 0.0104,
+        "spanAxisLocal": [
+          0,
+          0,
+          1
+        ]
+      },
+      "reinforcement": {
+        "steelAreaM2": 0.004,
+        "yieldPa": 450000000,
+        "embedLengthM": 0.7,
+        "bondPerimeterM": 0.3,
+        "bondPa": 2000000
+      },
+      "index": 4,
+      "volumeM3": 1.44,
+      "massKg": 3528,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        10689.84,
+        10631.039999999999,
+        152.88000000000002,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 2500000,
+        "shearPa": 3500000
+      },
+      "body": {
+        "shardId": "example:parking-garage:beam1E",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -0.2,
+            -0.3,
+            -3,
+            -0.2,
+            -0.3,
+            3,
+            -0.2,
+            0.3,
+            -3,
+            -0.2,
+            0.3,
+            3,
+            0.2,
+            -0.3,
+            -3,
+            0.2,
+            -0.3,
+            3,
+            0.2,
+            0.3,
+            -3,
+            0.2,
+            0.3,
+            3
+          ]
+        }
+      }
+    },
+    {
+      "id": "beam1N",
+      "kind": "beam",
+      "material": "reinforced-concrete",
+      "positionM": [
+        0,
+        5.7,
+        -3
+      ],
+      "dimensionsM": [
+        6,
+        0.6,
+        0.4
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "beam1N--column1_0",
+          "positionLocalM": [
+            -3,
+            0.2999999999999998,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.24,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "beam1N--column1_1",
+          "positionLocalM": [
+            3,
+            0.2999999999999998,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.24,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "slab1--beam1N",
+          "positionLocalM": [
+            0,
+            0.2999999999999998,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.24,
+          "allowedJoints": [
+            "embedded"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.24,
+        "iyM4": 0.007199999999999999,
+        "izM4": 0.003200000000000001,
+        "jM4": 0.0104,
+        "spanAxisLocal": [
+          1,
+          0,
+          0
+        ]
+      },
+      "reinforcement": {
+        "steelAreaM2": 0.004,
+        "yieldPa": 450000000,
+        "embedLengthM": 0.7,
+        "bondPerimeterM": 0.3,
+        "bondPa": 2000000
+      },
+      "index": 5,
+      "volumeM3": 1.44,
+      "massKg": 3528,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        152.88000000000002,
+        10631.039999999999,
+        10689.84,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 2500000,
+        "shearPa": 3500000
+      },
+      "body": {
+        "shardId": "example:parking-garage:beam1N",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -3,
+            -0.3,
+            -0.2,
+            -3,
+            -0.3,
+            0.2,
+            -3,
+            0.3,
+            -0.2,
+            -3,
+            0.3,
+            0.2,
+            3,
+            -0.3,
+            -0.2,
+            3,
+            -0.3,
+            0.2,
+            3,
+            0.3,
+            -0.2,
+            3,
+            0.3,
+            0.2
+          ]
+        }
+      }
+    },
+    {
+      "id": "beam1S",
+      "kind": "beam",
+      "material": "reinforced-concrete",
+      "positionM": [
+        0,
+        5.7,
+        3
+      ],
+      "dimensionsM": [
+        6,
+        0.6,
+        0.4
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "beam1S--column1_2",
+          "positionLocalM": [
+            -3,
+            0.2999999999999998,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.24,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "beam1S--column1_3",
+          "positionLocalM": [
+            3,
+            0.2999999999999998,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.24,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "slab1--beam1S",
+          "positionLocalM": [
+            0,
+            0.2999999999999998,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.24,
+          "allowedJoints": [
+            "embedded"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.24,
+        "iyM4": 0.007199999999999999,
+        "izM4": 0.003200000000000001,
+        "jM4": 0.0104,
+        "spanAxisLocal": [
+          1,
+          0,
+          0
+        ]
+      },
+      "reinforcement": {
+        "steelAreaM2": 0.004,
+        "yieldPa": 450000000,
+        "embedLengthM": 0.7,
+        "bondPerimeterM": 0.3,
+        "bondPa": 2000000
+      },
+      "index": 6,
+      "volumeM3": 1.44,
+      "massKg": 3528,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        152.88000000000002,
+        10631.039999999999,
+        10689.84,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 2500000,
+        "shearPa": 3500000
+      },
+      "body": {
+        "shardId": "example:parking-garage:beam1S",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -3,
+            -0.3,
+            -0.2,
+            -3,
+            -0.3,
+            0.2,
+            -3,
+            0.3,
+            -0.2,
+            -3,
+            0.3,
+            0.2,
+            3,
+            -0.3,
+            -0.2,
+            3,
+            -0.3,
+            0.2,
+            3,
+            0.3,
+            -0.2,
+            3,
+            0.3,
+            0.2
+          ]
+        }
+      }
+    },
+    {
+      "id": "beam1W",
+      "kind": "beam",
+      "material": "reinforced-concrete",
+      "positionM": [
+        -3,
+        5.7,
+        0
+      ],
+      "dimensionsM": [
+        0.4,
+        0.6,
+        6
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "beam1W--column1_0",
+          "positionLocalM": [
+            0,
+            0.2999999999999998,
+            -3
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.24,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "beam1W--column1_2",
+          "positionLocalM": [
+            0,
+            0.2999999999999998,
+            3
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.24,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "slab1--beam1W",
+          "positionLocalM": [
+            0,
+            0.2999999999999998,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.24,
+          "allowedJoints": [
+            "embedded"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.24,
+        "iyM4": 0.007199999999999999,
+        "izM4": 0.003200000000000001,
+        "jM4": 0.0104,
+        "spanAxisLocal": [
+          0,
+          0,
+          1
+        ]
+      },
+      "reinforcement": {
+        "steelAreaM2": 0.004,
+        "yieldPa": 450000000,
+        "embedLengthM": 0.7,
+        "bondPerimeterM": 0.3,
+        "bondPa": 2000000
+      },
+      "index": 7,
+      "volumeM3": 1.44,
+      "massKg": 3528,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        10689.84,
+        10631.039999999999,
+        152.88000000000002,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 2500000,
+        "shearPa": 3500000
+      },
+      "body": {
+        "shardId": "example:parking-garage:beam1W",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -0.2,
+            -0.3,
+            -3,
+            -0.2,
+            -0.3,
+            3,
+            -0.2,
+            0.3,
+            -3,
+            -0.2,
+            0.3,
+            3,
+            0.2,
+            -0.3,
+            -3,
+            0.2,
+            -0.3,
+            3,
+            0.2,
+            0.3,
+            -3,
+            0.2,
+            0.3,
+            3
+          ]
+        }
+      }
+    },
+    {
+      "id": "column0_0",
+      "kind": "column",
+      "material": "reinforced-concrete",
+      "positionM": [
+        -3,
+        1.5,
+        -3
+      ],
+      "dimensionsM": [
+        0.45,
+        3,
+        0.45
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "base",
+          "positionLocalM": [
+            0,
+            -1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "beam0N--column0_0",
+          "positionLocalM": [
+            0,
+            1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "beam0W--column0_0",
+          "positionLocalM": [
+            0,
+            1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "column1_0--column0_0",
+          "positionLocalM": [
+            0,
+            1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.2025,
+        "iyM4": 0.0034171875000000005,
+        "izM4": 0.0034171875000000005,
+        "jM4": 0.006834375000000001,
+        "spanAxisLocal": [
+          0,
+          1,
+          0
+        ]
+      },
+      "reinforcement": {
+        "steelAreaM2": 0.004,
+        "yieldPa": 450000000,
+        "embedLengthM": 0.7,
+        "bondPerimeterM": 0.3,
+        "bondPa": 2000000
+      },
+      "index": 8,
+      "volumeM3": 0.6075,
+      "massKg": 1488.375,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        1141.397578125,
+        50.23265625,
+        1141.397578125,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 2500000,
+        "shearPa": 3500000
+      },
+      "body": {
+        "shardId": "example:parking-garage:column0_0",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -0.225,
+            -1.5,
+            -0.225,
+            -0.225,
+            -1.5,
+            0.225,
+            -0.225,
+            1.5,
+            -0.225,
+            -0.225,
+            1.5,
+            0.225,
+            0.225,
+            -1.5,
+            -0.225,
+            0.225,
+            -1.5,
+            0.225,
+            0.225,
+            1.5,
+            -0.225,
+            0.225,
+            1.5,
+            0.225
+          ]
+        }
+      }
+    },
+    {
+      "id": "column0_1",
+      "kind": "column",
+      "material": "reinforced-concrete",
+      "positionM": [
+        3,
+        1.5,
+        -3
+      ],
+      "dimensionsM": [
+        0.45,
+        3,
+        0.45
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "base",
+          "positionLocalM": [
+            0,
+            -1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "beam0N--column0_1",
+          "positionLocalM": [
+            0,
+            1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "beam0E--column0_1",
+          "positionLocalM": [
+            0,
+            1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "column1_1--column0_1",
+          "positionLocalM": [
+            0,
+            1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.2025,
+        "iyM4": 0.0034171875000000005,
+        "izM4": 0.0034171875000000005,
+        "jM4": 0.006834375000000001,
+        "spanAxisLocal": [
+          0,
+          1,
+          0
+        ]
+      },
+      "reinforcement": {
+        "steelAreaM2": 0.004,
+        "yieldPa": 450000000,
+        "embedLengthM": 0.7,
+        "bondPerimeterM": 0.3,
+        "bondPa": 2000000
+      },
+      "index": 9,
+      "volumeM3": 0.6075,
+      "massKg": 1488.375,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        1141.397578125,
+        50.23265625,
+        1141.397578125,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 2500000,
+        "shearPa": 3500000
+      },
+      "body": {
+        "shardId": "example:parking-garage:column0_1",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -0.225,
+            -1.5,
+            -0.225,
+            -0.225,
+            -1.5,
+            0.225,
+            -0.225,
+            1.5,
+            -0.225,
+            -0.225,
+            1.5,
+            0.225,
+            0.225,
+            -1.5,
+            -0.225,
+            0.225,
+            -1.5,
+            0.225,
+            0.225,
+            1.5,
+            -0.225,
+            0.225,
+            1.5,
+            0.225
+          ]
+        }
+      }
+    },
+    {
+      "id": "column0_2",
+      "kind": "column",
+      "material": "reinforced-concrete",
+      "positionM": [
+        -3,
+        1.5,
+        3
+      ],
+      "dimensionsM": [
+        0.45,
+        3,
+        0.45
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "base",
+          "positionLocalM": [
+            0,
+            -1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "beam0S--column0_2",
+          "positionLocalM": [
+            0,
+            1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "beam0W--column0_2",
+          "positionLocalM": [
+            0,
+            1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "column1_2--column0_2",
+          "positionLocalM": [
+            0,
+            1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.2025,
+        "iyM4": 0.0034171875000000005,
+        "izM4": 0.0034171875000000005,
+        "jM4": 0.006834375000000001,
+        "spanAxisLocal": [
+          0,
+          1,
+          0
+        ]
+      },
+      "reinforcement": {
+        "steelAreaM2": 0.004,
+        "yieldPa": 450000000,
+        "embedLengthM": 0.7,
+        "bondPerimeterM": 0.3,
+        "bondPa": 2000000
+      },
+      "index": 10,
+      "volumeM3": 0.6075,
+      "massKg": 1488.375,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        1141.397578125,
+        50.23265625,
+        1141.397578125,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 2500000,
+        "shearPa": 3500000
+      },
+      "body": {
+        "shardId": "example:parking-garage:column0_2",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -0.225,
+            -1.5,
+            -0.225,
+            -0.225,
+            -1.5,
+            0.225,
+            -0.225,
+            1.5,
+            -0.225,
+            -0.225,
+            1.5,
+            0.225,
+            0.225,
+            -1.5,
+            -0.225,
+            0.225,
+            -1.5,
+            0.225,
+            0.225,
+            1.5,
+            -0.225,
+            0.225,
+            1.5,
+            0.225
+          ]
+        }
+      }
+    },
+    {
+      "id": "column0_3",
+      "kind": "column",
+      "material": "reinforced-concrete",
+      "positionM": [
+        3,
+        1.5,
+        3
+      ],
+      "dimensionsM": [
+        0.45,
+        3,
+        0.45
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "base",
+          "positionLocalM": [
+            0,
+            -1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "beam0S--column0_3",
+          "positionLocalM": [
+            0,
+            1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "beam0E--column0_3",
+          "positionLocalM": [
+            0,
+            1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "column1_3--column0_3",
+          "positionLocalM": [
+            0,
+            1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.2025,
+        "iyM4": 0.0034171875000000005,
+        "izM4": 0.0034171875000000005,
+        "jM4": 0.006834375000000001,
+        "spanAxisLocal": [
+          0,
+          1,
+          0
+        ]
+      },
+      "reinforcement": {
+        "steelAreaM2": 0.004,
+        "yieldPa": 450000000,
+        "embedLengthM": 0.7,
+        "bondPerimeterM": 0.3,
+        "bondPa": 2000000
+      },
+      "index": 11,
+      "volumeM3": 0.6075,
+      "massKg": 1488.375,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        1141.397578125,
+        50.23265625,
+        1141.397578125,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 2500000,
+        "shearPa": 3500000
+      },
+      "body": {
+        "shardId": "example:parking-garage:column0_3",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -0.225,
+            -1.5,
+            -0.225,
+            -0.225,
+            -1.5,
+            0.225,
+            -0.225,
+            1.5,
+            -0.225,
+            -0.225,
+            1.5,
+            0.225,
+            0.225,
+            -1.5,
+            -0.225,
+            0.225,
+            -1.5,
+            0.225,
+            0.225,
+            1.5,
+            -0.225,
+            0.225,
+            1.5,
+            0.225
+          ]
+        }
+      }
+    },
+    {
+      "id": "column1_0",
+      "kind": "column",
+      "material": "reinforced-concrete",
+      "positionM": [
+        -3,
+        4.5,
+        -3
+      ],
+      "dimensionsM": [
+        0.45,
+        3,
+        0.45
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "column1_0--column0_0",
+          "positionLocalM": [
+            0,
+            -1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "beam1N--column1_0",
+          "positionLocalM": [
+            0,
+            1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "beam1W--column1_0",
+          "positionLocalM": [
+            0,
+            1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.2025,
+        "iyM4": 0.0034171875000000005,
+        "izM4": 0.0034171875000000005,
+        "jM4": 0.006834375000000001,
+        "spanAxisLocal": [
+          0,
+          1,
+          0
+        ]
+      },
+      "reinforcement": {
+        "steelAreaM2": 0.004,
+        "yieldPa": 450000000,
+        "embedLengthM": 0.7,
+        "bondPerimeterM": 0.3,
+        "bondPa": 2000000
+      },
+      "index": 12,
+      "volumeM3": 0.6075,
+      "massKg": 1488.375,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        1141.397578125,
+        50.23265625,
+        1141.397578125,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 2500000,
+        "shearPa": 3500000
+      },
+      "body": {
+        "shardId": "example:parking-garage:column1_0",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -0.225,
+            -1.5,
+            -0.225,
+            -0.225,
+            -1.5,
+            0.225,
+            -0.225,
+            1.5,
+            -0.225,
+            -0.225,
+            1.5,
+            0.225,
+            0.225,
+            -1.5,
+            -0.225,
+            0.225,
+            -1.5,
+            0.225,
+            0.225,
+            1.5,
+            -0.225,
+            0.225,
+            1.5,
+            0.225
+          ]
+        }
+      }
+    },
+    {
+      "id": "column1_1",
+      "kind": "column",
+      "material": "reinforced-concrete",
+      "positionM": [
+        3,
+        4.5,
+        -3
+      ],
+      "dimensionsM": [
+        0.45,
+        3,
+        0.45
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "column1_1--column0_1",
+          "positionLocalM": [
+            0,
+            -1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "beam1N--column1_1",
+          "positionLocalM": [
+            0,
+            1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "beam1E--column1_1",
+          "positionLocalM": [
+            0,
+            1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.2025,
+        "iyM4": 0.0034171875000000005,
+        "izM4": 0.0034171875000000005,
+        "jM4": 0.006834375000000001,
+        "spanAxisLocal": [
+          0,
+          1,
+          0
+        ]
+      },
+      "reinforcement": {
+        "steelAreaM2": 0.004,
+        "yieldPa": 450000000,
+        "embedLengthM": 0.7,
+        "bondPerimeterM": 0.3,
+        "bondPa": 2000000
+      },
+      "index": 13,
+      "volumeM3": 0.6075,
+      "massKg": 1488.375,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        1141.397578125,
+        50.23265625,
+        1141.397578125,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 2500000,
+        "shearPa": 3500000
+      },
+      "body": {
+        "shardId": "example:parking-garage:column1_1",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -0.225,
+            -1.5,
+            -0.225,
+            -0.225,
+            -1.5,
+            0.225,
+            -0.225,
+            1.5,
+            -0.225,
+            -0.225,
+            1.5,
+            0.225,
+            0.225,
+            -1.5,
+            -0.225,
+            0.225,
+            -1.5,
+            0.225,
+            0.225,
+            1.5,
+            -0.225,
+            0.225,
+            1.5,
+            0.225
+          ]
+        }
+      }
+    },
+    {
+      "id": "column1_2",
+      "kind": "column",
+      "material": "reinforced-concrete",
+      "positionM": [
+        -3,
+        4.5,
+        3
+      ],
+      "dimensionsM": [
+        0.45,
+        3,
+        0.45
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "column1_2--column0_2",
+          "positionLocalM": [
+            0,
+            -1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "beam1S--column1_2",
+          "positionLocalM": [
+            0,
+            1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "beam1W--column1_2",
+          "positionLocalM": [
+            0,
+            1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.2025,
+        "iyM4": 0.0034171875000000005,
+        "izM4": 0.0034171875000000005,
+        "jM4": 0.006834375000000001,
+        "spanAxisLocal": [
+          0,
+          1,
+          0
+        ]
+      },
+      "reinforcement": {
+        "steelAreaM2": 0.004,
+        "yieldPa": 450000000,
+        "embedLengthM": 0.7,
+        "bondPerimeterM": 0.3,
+        "bondPa": 2000000
+      },
+      "index": 14,
+      "volumeM3": 0.6075,
+      "massKg": 1488.375,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        1141.397578125,
+        50.23265625,
+        1141.397578125,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 2500000,
+        "shearPa": 3500000
+      },
+      "body": {
+        "shardId": "example:parking-garage:column1_2",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -0.225,
+            -1.5,
+            -0.225,
+            -0.225,
+            -1.5,
+            0.225,
+            -0.225,
+            1.5,
+            -0.225,
+            -0.225,
+            1.5,
+            0.225,
+            0.225,
+            -1.5,
+            -0.225,
+            0.225,
+            -1.5,
+            0.225,
+            0.225,
+            1.5,
+            -0.225,
+            0.225,
+            1.5,
+            0.225
+          ]
+        }
+      }
+    },
+    {
+      "id": "column1_3",
+      "kind": "column",
+      "material": "reinforced-concrete",
+      "positionM": [
+        3,
+        4.5,
+        3
+      ],
+      "dimensionsM": [
+        0.45,
+        3,
+        0.45
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "column1_3--column0_3",
+          "positionLocalM": [
+            0,
+            -1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "beam1S--column1_3",
+          "positionLocalM": [
+            0,
+            1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "beam1E--column1_3",
+          "positionLocalM": [
+            0,
+            1.5,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 0.2025,
+          "allowedJoints": [
+            "embedded"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 0.2025,
+        "iyM4": 0.0034171875000000005,
+        "izM4": 0.0034171875000000005,
+        "jM4": 0.006834375000000001,
+        "spanAxisLocal": [
+          0,
+          1,
+          0
+        ]
+      },
+      "reinforcement": {
+        "steelAreaM2": 0.004,
+        "yieldPa": 450000000,
+        "embedLengthM": 0.7,
+        "bondPerimeterM": 0.3,
+        "bondPa": 2000000
+      },
+      "index": 15,
+      "volumeM3": 0.6075,
+      "massKg": 1488.375,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        1141.397578125,
+        50.23265625,
+        1141.397578125,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 2500000,
+        "shearPa": 3500000
+      },
+      "body": {
+        "shardId": "example:parking-garage:column1_3",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -0.225,
+            -1.5,
+            -0.225,
+            -0.225,
+            -1.5,
+            0.225,
+            -0.225,
+            1.5,
+            -0.225,
+            -0.225,
+            1.5,
+            0.225,
+            0.225,
+            -1.5,
+            -0.225,
+            0.225,
+            -1.5,
+            0.225,
+            0.225,
+            1.5,
+            -0.225,
+            0.225,
+            1.5,
+            0.225
+          ]
+        }
+      }
+    },
+    {
+      "id": "slab0",
+      "kind": "slab",
+      "material": "reinforced-concrete",
+      "positionM": [
+        0,
+        3.15,
+        0
+      ],
+      "dimensionsM": [
+        6.6,
+        0.3,
+        6.6
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "slab0--beam0N",
+          "positionLocalM": [
+            0,
+            -0.1499999999999999,
+            -3
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 1.9799999999999998,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "slab0--beam0S",
+          "positionLocalM": [
+            0,
+            -0.1499999999999999,
+            3
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 1.9799999999999998,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "slab0--beam0W",
+          "positionLocalM": [
+            -3,
+            -0.1499999999999999,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 1.9799999999999998,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "slab0--beam0E",
+          "positionLocalM": [
+            3,
+            -0.1499999999999999,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 1.9799999999999998,
+          "allowedJoints": [
+            "embedded"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 1.9799999999999998,
+        "iyM4": 0.014849999999999997,
+        "izM4": 7.187399999999999,
+        "jM4": 7.202249999999999,
+        "spanAxisLocal": [
+          1,
+          0,
+          0
+        ]
+      },
+      "reinforcement": {
+        "steelAreaM2": 0.004,
+        "yieldPa": 450000000,
+        "embedLengthM": 0.7,
+        "bondPerimeterM": 0.3,
+        "bondPa": 2000000
+      },
+      "index": 16,
+      "volumeM3": 13.067999999999998,
+      "massKg": 32016.599999999995,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        116460.38249999996,
+        232440.51599999995,
+        116460.38249999996,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 2500000,
+        "shearPa": 3500000
+      },
+      "body": {
+        "shardId": "example:parking-garage:slab0",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -3.3,
+            -0.15,
+            -3.3,
+            -3.3,
+            -0.15,
+            3.3,
+            -3.3,
+            0.15,
+            -3.3,
+            -3.3,
+            0.15,
+            3.3,
+            3.3,
+            -0.15,
+            -3.3,
+            3.3,
+            -0.15,
+            3.3,
+            3.3,
+            0.15,
+            -3.3,
+            3.3,
+            0.15,
+            3.3
+          ]
+        }
+      }
+    },
+    {
+      "id": "slab1",
+      "kind": "slab",
+      "material": "reinforced-concrete",
+      "positionM": [
+        0,
+        6.15,
+        0
+      ],
+      "dimensionsM": [
+        6.6,
+        0.3,
+        6.6
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ports": [
+        {
+          "id": "slab1--beam1N",
+          "positionLocalM": [
+            0,
+            -0.15000000000000036,
+            -3
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 1.9799999999999998,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "slab1--beam1S",
+          "positionLocalM": [
+            0,
+            -0.15000000000000036,
+            3
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 1.9799999999999998,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "slab1--beam1W",
+          "positionLocalM": [
+            -3,
+            -0.15000000000000036,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 1.9799999999999998,
+          "allowedJoints": [
+            "embedded"
+          ]
+        },
+        {
+          "id": "slab1--beam1E",
+          "positionLocalM": [
+            3,
+            -0.15000000000000036,
+            0
+          ],
+          "normalLocal": [
+            0,
+            1,
+            0
+          ],
+          "tangentLocal": [
+            1,
+            0,
+            0
+          ],
+          "contactAreaM2": 1.9799999999999998,
+          "allowedJoints": [
+            "embedded"
+          ]
+        }
+      ],
+      "section": {
+        "areaM2": 1.9799999999999998,
+        "iyM4": 0.014849999999999997,
+        "izM4": 7.187399999999999,
+        "jM4": 7.202249999999999,
+        "spanAxisLocal": [
+          1,
+          0,
+          0
+        ]
+      },
+      "reinforcement": {
+        "steelAreaM2": 0.004,
+        "yieldPa": 450000000,
+        "embedLengthM": 0.7,
+        "bondPerimeterM": 0.3,
+        "bondPa": 2000000
+      },
+      "index": 17,
+      "volumeM3": 13.067999999999998,
+      "massKg": 32016.599999999995,
+      "centerOfMassLocalM": [
+        0,
+        0,
+        0
+      ],
+      "inertiaKgM2": [
+        116460.38249999996,
+        232440.51599999995,
+        116460.38249999996,
+        0,
+        0,
+        0
+      ],
+      "strength": {
+        "compressivePa": 30000000,
+        "tensilePa": 2500000,
+        "shearPa": 3500000
+      },
+      "body": {
+        "shardId": "example:parking-garage:slab1",
+        "initialType": "fixed",
+        "collider": {
+          "kind": "convexHull",
+          "verticesLocalM": [
+            -3.3,
+            -0.15,
+            -3.3,
+            -3.3,
+            -0.15,
+            3.3,
+            -3.3,
+            0.15,
+            -3.3,
+            -3.3,
+            0.15,
+            3.3,
+            3.3,
+            -0.15,
+            -3.3,
+            3.3,
+            -0.15,
+            3.3,
+            3.3,
+            0.15,
+            -3.3,
+            3.3,
+            0.15,
+            3.3
+          ]
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "beam0E--column0_1",
+      "kind": "embedded",
+      "a": {
+        "member": "beam0E",
+        "port": "beam0E--column0_1"
+      },
+      "b": {
+        "member": "column0_1",
+        "port": "beam0E--column0_1"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 0,
+      "nodeA": 0,
+      "nodeB": 9,
+      "connectionPointM": [
+        3,
+        3,
+        -3
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "beam0E--column0_3",
+      "kind": "embedded",
+      "a": {
+        "member": "beam0E",
+        "port": "beam0E--column0_3"
+      },
+      "b": {
+        "member": "column0_3",
+        "port": "beam0E--column0_3"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 1,
+      "nodeA": 0,
+      "nodeB": 11,
+      "connectionPointM": [
+        3,
+        3,
+        3
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "beam0N--column0_0",
+      "kind": "embedded",
+      "a": {
+        "member": "beam0N",
+        "port": "beam0N--column0_0"
+      },
+      "b": {
+        "member": "column0_0",
+        "port": "beam0N--column0_0"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 2,
+      "nodeA": 1,
+      "nodeB": 8,
+      "connectionPointM": [
+        -3,
+        3,
+        -3
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "beam0N--column0_1",
+      "kind": "embedded",
+      "a": {
+        "member": "beam0N",
+        "port": "beam0N--column0_1"
+      },
+      "b": {
+        "member": "column0_1",
+        "port": "beam0N--column0_1"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 3,
+      "nodeA": 1,
+      "nodeB": 9,
+      "connectionPointM": [
+        3,
+        3,
+        -3
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "beam0S--column0_2",
+      "kind": "embedded",
+      "a": {
+        "member": "beam0S",
+        "port": "beam0S--column0_2"
+      },
+      "b": {
+        "member": "column0_2",
+        "port": "beam0S--column0_2"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 4,
+      "nodeA": 2,
+      "nodeB": 10,
+      "connectionPointM": [
+        -3,
+        3,
+        3
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "beam0S--column0_3",
+      "kind": "embedded",
+      "a": {
+        "member": "beam0S",
+        "port": "beam0S--column0_3"
+      },
+      "b": {
+        "member": "column0_3",
+        "port": "beam0S--column0_3"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 5,
+      "nodeA": 2,
+      "nodeB": 11,
+      "connectionPointM": [
+        3,
+        3,
+        3
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "beam0W--column0_0",
+      "kind": "embedded",
+      "a": {
+        "member": "beam0W",
+        "port": "beam0W--column0_0"
+      },
+      "b": {
+        "member": "column0_0",
+        "port": "beam0W--column0_0"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 6,
+      "nodeA": 3,
+      "nodeB": 8,
+      "connectionPointM": [
+        -3,
+        3,
+        -3
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "beam0W--column0_2",
+      "kind": "embedded",
+      "a": {
+        "member": "beam0W",
+        "port": "beam0W--column0_2"
+      },
+      "b": {
+        "member": "column0_2",
+        "port": "beam0W--column0_2"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 7,
+      "nodeA": 3,
+      "nodeB": 10,
+      "connectionPointM": [
+        -3,
+        3,
+        3
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "beam1E--column1_1",
+      "kind": "embedded",
+      "a": {
+        "member": "beam1E",
+        "port": "beam1E--column1_1"
+      },
+      "b": {
+        "member": "column1_1",
+        "port": "beam1E--column1_1"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 8,
+      "nodeA": 4,
+      "nodeB": 13,
+      "connectionPointM": [
+        3,
+        6,
+        -3
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "beam1E--column1_3",
+      "kind": "embedded",
+      "a": {
+        "member": "beam1E",
+        "port": "beam1E--column1_3"
+      },
+      "b": {
+        "member": "column1_3",
+        "port": "beam1E--column1_3"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 9,
+      "nodeA": 4,
+      "nodeB": 15,
+      "connectionPointM": [
+        3,
+        6,
+        3
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "beam1N--column1_0",
+      "kind": "embedded",
+      "a": {
+        "member": "beam1N",
+        "port": "beam1N--column1_0"
+      },
+      "b": {
+        "member": "column1_0",
+        "port": "beam1N--column1_0"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 10,
+      "nodeA": 5,
+      "nodeB": 12,
+      "connectionPointM": [
+        -3,
+        6,
+        -3
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "beam1N--column1_1",
+      "kind": "embedded",
+      "a": {
+        "member": "beam1N",
+        "port": "beam1N--column1_1"
+      },
+      "b": {
+        "member": "column1_1",
+        "port": "beam1N--column1_1"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 11,
+      "nodeA": 5,
+      "nodeB": 13,
+      "connectionPointM": [
+        3,
+        6,
+        -3
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "beam1S--column1_2",
+      "kind": "embedded",
+      "a": {
+        "member": "beam1S",
+        "port": "beam1S--column1_2"
+      },
+      "b": {
+        "member": "column1_2",
+        "port": "beam1S--column1_2"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 12,
+      "nodeA": 6,
+      "nodeB": 14,
+      "connectionPointM": [
+        -3,
+        6,
+        3
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "beam1S--column1_3",
+      "kind": "embedded",
+      "a": {
+        "member": "beam1S",
+        "port": "beam1S--column1_3"
+      },
+      "b": {
+        "member": "column1_3",
+        "port": "beam1S--column1_3"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 13,
+      "nodeA": 6,
+      "nodeB": 15,
+      "connectionPointM": [
+        3,
+        6,
+        3
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "beam1W--column1_0",
+      "kind": "embedded",
+      "a": {
+        "member": "beam1W",
+        "port": "beam1W--column1_0"
+      },
+      "b": {
+        "member": "column1_0",
+        "port": "beam1W--column1_0"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 14,
+      "nodeA": 7,
+      "nodeB": 12,
+      "connectionPointM": [
+        -3,
+        6,
+        -3
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "beam1W--column1_2",
+      "kind": "embedded",
+      "a": {
+        "member": "beam1W",
+        "port": "beam1W--column1_2"
+      },
+      "b": {
+        "member": "column1_2",
+        "port": "beam1W--column1_2"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 15,
+      "nodeA": 7,
+      "nodeB": 14,
+      "connectionPointM": [
+        -3,
+        6,
+        3
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "column1_0--column0_0",
+      "kind": "embedded",
+      "a": {
+        "member": "column1_0",
+        "port": "column1_0--column0_0"
+      },
+      "b": {
+        "member": "column0_0",
+        "port": "column1_0--column0_0"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 16,
+      "nodeA": 12,
+      "nodeB": 8,
+      "connectionPointM": [
+        -3,
+        3,
+        -3
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "column1_1--column0_1",
+      "kind": "embedded",
+      "a": {
+        "member": "column1_1",
+        "port": "column1_1--column0_1"
+      },
+      "b": {
+        "member": "column0_1",
+        "port": "column1_1--column0_1"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 17,
+      "nodeA": 13,
+      "nodeB": 9,
+      "connectionPointM": [
+        3,
+        3,
+        -3
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "column1_2--column0_2",
+      "kind": "embedded",
+      "a": {
+        "member": "column1_2",
+        "port": "column1_2--column0_2"
+      },
+      "b": {
+        "member": "column0_2",
+        "port": "column1_2--column0_2"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 18,
+      "nodeA": 14,
+      "nodeB": 10,
+      "connectionPointM": [
+        -3,
+        3,
+        3
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "column1_3--column0_3",
+      "kind": "embedded",
+      "a": {
+        "member": "column1_3",
+        "port": "column1_3--column0_3"
+      },
+      "b": {
+        "member": "column0_3",
+        "port": "column1_3--column0_3"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 19,
+      "nodeA": 15,
+      "nodeB": 11,
+      "connectionPointM": [
+        3,
+        3,
+        3
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "slab0--beam0E",
+      "kind": "embedded",
+      "a": {
+        "member": "slab0",
+        "port": "slab0--beam0E"
+      },
+      "b": {
+        "member": "beam0E",
+        "port": "slab0--beam0E"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 20,
+      "nodeA": 16,
+      "nodeB": 0,
+      "connectionPointM": [
+        3,
+        3,
+        0
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "slab0--beam0N",
+      "kind": "embedded",
+      "a": {
+        "member": "slab0",
+        "port": "slab0--beam0N"
+      },
+      "b": {
+        "member": "beam0N",
+        "port": "slab0--beam0N"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 21,
+      "nodeA": 16,
+      "nodeB": 1,
+      "connectionPointM": [
+        0,
+        3,
+        -3
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "slab0--beam0S",
+      "kind": "embedded",
+      "a": {
+        "member": "slab0",
+        "port": "slab0--beam0S"
+      },
+      "b": {
+        "member": "beam0S",
+        "port": "slab0--beam0S"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 22,
+      "nodeA": 16,
+      "nodeB": 2,
+      "connectionPointM": [
+        0,
+        3,
+        3
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "slab0--beam0W",
+      "kind": "embedded",
+      "a": {
+        "member": "slab0",
+        "port": "slab0--beam0W"
+      },
+      "b": {
+        "member": "beam0W",
+        "port": "slab0--beam0W"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 23,
+      "nodeA": 16,
+      "nodeB": 3,
+      "connectionPointM": [
+        -3,
+        3,
+        0
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "slab1--beam1E",
+      "kind": "embedded",
+      "a": {
+        "member": "slab1",
+        "port": "slab1--beam1E"
+      },
+      "b": {
+        "member": "beam1E",
+        "port": "slab1--beam1E"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 24,
+      "nodeA": 17,
+      "nodeB": 4,
+      "connectionPointM": [
+        3,
+        6,
+        0
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "slab1--beam1N",
+      "kind": "embedded",
+      "a": {
+        "member": "slab1",
+        "port": "slab1--beam1N"
+      },
+      "b": {
+        "member": "beam1N",
+        "port": "slab1--beam1N"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 25,
+      "nodeA": 17,
+      "nodeB": 5,
+      "connectionPointM": [
+        0,
+        6,
+        -3
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "slab1--beam1S",
+      "kind": "embedded",
+      "a": {
+        "member": "slab1",
+        "port": "slab1--beam1S"
+      },
+      "b": {
+        "member": "beam1S",
+        "port": "slab1--beam1S"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 26,
+      "nodeA": 17,
+      "nodeB": 6,
+      "connectionPointM": [
+        0,
+        6,
+        3
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    },
+    {
+      "id": "slab1--beam1W",
+      "kind": "embedded",
+      "a": {
+        "member": "slab1",
+        "port": "slab1--beam1W"
+      },
+      "b": {
+        "member": "beam1W",
+        "port": "slab1--beam1W"
+      },
+      "normalStiffnessNm": 500000000,
+      "tangentStiffnessNm": 200000000,
+      "rotationStiffnessNmRad": 4000000,
+      "compressionCapacityN": 3000000,
+      "tensionCapacityN": 150000,
+      "shearCapacityN": 350000,
+      "momentCapacityNm": 200000,
+      "friction": 0.6,
+      "preloadN": 0,
+      "separationToleranceM": 0.005,
+      "index": 27,
+      "nodeA": 17,
+      "nodeB": 7,
+      "connectionPointM": [
+        -3,
+        6,
+        0
+      ],
+      "transfer": {
+        "compression": true,
+        "tension": true,
+        "shear": "bonded",
+        "moment": true,
+        "canSeparate": false
+      }
+    }
+  ],
+  "supports": [
+    {
+      "id": "foundation:column0_0",
+      "member": "column0_0",
+      "port": "base",
+      "supportVolumeId": "terrain:column0_0",
+      "kind": "embedded",
+      "areaM2": 0.2025,
+      "friction": 0.7,
+      "constrainedDofs": 63,
+      "contactToleranceM": 0.02
+    },
+    {
+      "id": "foundation:column0_1",
+      "member": "column0_1",
+      "port": "base",
+      "supportVolumeId": "terrain:column0_1",
+      "kind": "embedded",
+      "areaM2": 0.2025,
+      "friction": 0.7,
+      "constrainedDofs": 63,
+      "contactToleranceM": 0.02
+    },
+    {
+      "id": "foundation:column0_2",
+      "member": "column0_2",
+      "port": "base",
+      "supportVolumeId": "terrain:column0_2",
+      "kind": "embedded",
+      "areaM2": 0.2025,
+      "friction": 0.7,
+      "constrainedDofs": 63,
+      "contactToleranceM": 0.02
+    },
+    {
+      "id": "foundation:column0_3",
+      "member": "column0_3",
+      "port": "base",
+      "supportVolumeId": "terrain:column0_3",
+      "kind": "embedded",
+      "areaM2": 0.2025,
+      "friction": 0.7,
+      "constrainedDofs": 63,
+      "contactToleranceM": 0.02
+    }
+  ],
+  "adjacency": {
+    "offsets": [
+      0,
+      3,
+      6,
+      9,
+      12,
+      15,
+      18,
+      21,
+      24,
+      27,
+      30,
+      33,
+      36,
+      39,
+      42,
+      45,
+      48,
+      52,
+      56
+    ],
+    "edgeIndices": [
+      0,
+      1,
+      20,
+      2,
+      3,
+      21,
+      4,
+      5,
+      22,
+      6,
+      7,
+      23,
+      8,
+      9,
+      24,
+      10,
+      11,
+      25,
+      12,
+      13,
+      26,
+      14,
+      15,
+      27,
+      2,
+      6,
+      16,
+      0,
+      3,
+      17,
+      4,
+      7,
+      18,
+      1,
+      5,
+      19,
+      10,
+      14,
+      16,
+      8,
+      11,
+      17,
+      12,
+      15,
+      18,
+      9,
+      13,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27
+    ]
+  }
+}

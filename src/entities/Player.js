@@ -1,3 +1,7 @@
+import {motionScale,survivalPressure} from '../core/settings/Accessibility.js';
+import {frictionGain} from '../core/input/Response.js';
+import {incomingDamage} from '../core/settings/SettingsSchema.js';
+import { addWound, updateWounds } from '../systems/Wounds.js';
 import * as THREE from 'three';
 import { Entity } from './Entity.js';
 import { globalEventBus, GameEvents } from '../core/EventBus.js';
@@ -149,17 +153,14 @@ export class Player extends Entity {
     handleInput(deltaTime) {
         if (!this.input) return;
         
-        // Only handle input if mouse is locked (pointer lock active)
-        if (this.input.mouse.locked) {
-            // Look input
-            const mouseDelta = this.input.getMouseDelta();
-            this.cameraYaw -= mouseDelta.x * this.mouseSensitivity;
-            this.cameraPitch -= mouseDelta.y * this.mouseSensitivity * (this.invertY ? -1 : 1);
-            this.cameraPitch = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1, this.cameraPitch));
-        }
+        let lookX=0,lookY=0;
+        if(this.input.controllerActive){const look=this.input.getControllerLook(deltaTime),gain=this.controllerAimGain();lookX=look.x*gain;lookY=look.y*gain;}
+        else if(this.input.mouse.locked){const look=this.input.getMouseDelta();lookX=look.x*this.mouseSensitivity;lookY=look.y*this.mouseSensitivity;}
+        this.cameraYaw-=lookX*(this.invertX?-1:1);this.cameraPitch-=lookY*(this.invertY?-1:1);this.cameraPitch=Math.max(-Math.PI/2+.1,Math.min(Math.PI/2-.1,this.cameraPitch));
+        this.game?.weaponManager?.equippedWeapon?.setAiming(this.input.isActionActive('aim'));
         
         // Sprint
-        this.isSprinting = this.input.isActionActive('sprint') && this.stats.stamina > 0 && !this.isCrouching;
+        this.isSprinting = this.input.isActionActive('sprint') && this.stats.stamina > 0 && !this.isCrouching && !this.input.isActionActive('aim');
         
         // Crouch toggle
         if (this.input.isActionJustPressed('crouch')) {
@@ -177,9 +178,7 @@ export class Player extends Entity {
             this.interact();
         }
         
-        if (this.input.isActionJustPressed('inventory')) {
-            globalEventBus.emit(GameEvents.INVENTORY_OPEN);
-        }
+        // Inventory toggling is owned by UIManager.
         
         if (this.input.isActionActive('fire') && this.equippedWeapon) {
             this.fireWeapon();
@@ -193,7 +192,7 @@ export class Player extends Entity {
         
         // Quick slots
         for (let i = 0; i < 4; i++) {
-            if (this.input.isActionJustPressed(`slot${i + 1}`)) {
+            if (this.input.isActionJustPressed(`quick${i + 1}`)) {
                 this.useQuickSlot(i);
             }
         }
@@ -202,6 +201,18 @@ export class Player extends Entity {
         if (this.input.isActionJustPressed('flashlight')) {
             this.toggleFlashlight();
         }
+    }
+
+    controllerAimGain(){
+        const settings=this.input.options||{},magnitude=Math.hypot(this.input.controller.look.x,this.input.controller.look.y),aiming=this.input.isActionActive('aim'),strength=(settings.controllerAimAssist??15)/100;
+        if(!aiming||!strength||magnitude<=.001||magnitude>.65)return 1;
+        const now=performance.now();if(now<(this._nextAssistCheck||0))return this._assistGain||1;this._nextAssistCheck=now+100;this._assistGain=1;
+        this._assistDirection ||=new THREE.Vector3();this._assistTarget ||=new THREE.Vector3();this._assistForward ||=new THREE.Vector3();this.camera.getWorldDirection(this._assistForward);let inspected=0,rays=0;
+        for(const entity of this.game.worldManager?.entities?.values()||[]){if(++inspected>64)break;if(!entity.tags?.has('enemy')||entity.isActive===false||entity.alive===false||entity.aiState==='dead'||!entity.mesh)continue;
+            this._assistTarget.copy(entity.position);this._assistTarget.y+=1.2;this._assistDirection.copy(this._assistTarget).sub(this.camera.position);const distance=this._assistDirection.length();if(distance<.5||distance>35)continue;this._assistDirection.divideScalar(distance);const angle=Math.acos(Math.max(-1,Math.min(1,this._assistDirection.dot(this._assistForward))));if(angle>1.5*Math.PI/180)continue;
+            if(++rays>2)break;const hit=this.game.worldManager.raycast(this.camera.position,this._assistDirection,distance),owner=hit?.object;let belongs=false;for(let o=owner;o;o=o.parent)if(o===entity.mesh)belongs=true;const visible=!hit||belongs;
+            const gain=frictionGain(strength,{aiming,visible,distance,angle,magnitude});if(gain<1){this._assistGain=gain;break;}
+        }return this._assistGain;
     }
 
     updateNoclipMovement(deltaTime) {
@@ -266,7 +277,7 @@ export class Player extends Entity {
         this.velocity.z = THREE.MathUtils.lerp(this.velocity.z, targetVelocity.z, friction * deltaTime);
         
         // Apply wall collision if enabled
-        if (this.collisionEnabled && this.world) {
+        if (this.collisionEnabled && this.world && !this.game.physicsSystem?.world) {
             const horizontalVelocity = _pTmpV4.set(this.velocity.x, 0, this.velocity.z);
             const adjustedVelocity = this.checkWallCollisions(horizontalVelocity, deltaTime);
             this.velocity.x = adjustedVelocity.x;
@@ -279,12 +290,12 @@ export class Player extends Entity {
         }
         
         // Update position (separate axes for better collision handling)
-        this.position.x += this.velocity.x * deltaTime;
-        this.position.z += this.velocity.z * deltaTime;
-        this.position.y += this.velocity.y * deltaTime;
-        
-        // Ground check after position update
-        this.checkGroundCollision();
+        if(this.game.physicsSystem?.world&&this.collisionEnabled) {
+            this.game.physicsSystem.movePlayer(this,_pTmpV4.copy(this.velocity).multiplyScalar(deltaTime));
+        } else {
+            this.position.x+=this.velocity.x*deltaTime;this.position.z+=this.velocity.z*deltaTime;this.position.y+=this.velocity.y*deltaTime;
+            this.checkGroundCollision();
+        }
         
         // Update crouch height
         const targetHeight = this.isCrouching ? this.crouchHeight : this.height;
@@ -328,6 +339,8 @@ export class Player extends Entity {
         let blocked = false;
         let minAllowedFraction = 1.0;
         let collisionNormal = _pTmpV5.set(0, 0, 0);
+        const targets = this.world.getNearbyColliders(this.position, movementDistance)
+            .filter(obj => obj !== this.world.terrainMesh);
         
         for (const height of checkHeights) {
             const rayOrigin = new THREE.Vector3(
@@ -339,7 +352,7 @@ export class Player extends Entity {
             ray.set(rayOrigin, movementDir);
             ray.far = movementDistance;
             
-            const intersections = ray.intersectObjects(this.world.scene.children, true);
+            const intersections = ray.intersectObjects(targets, true);
             
             for (const intersection of intersections) {
                 // Skip non-collidable objects
@@ -423,11 +436,9 @@ export class Player extends Entity {
         // Skip the high-poly terrain mesh in this per-frame raycast (45k
         // triangles); analytic terrain height is blended in below instead.
         // Bullets and AI still raycast the terrain via WorldManager helpers.
-        const terrainMesh = this.world.terrainMesh;
-        const savedTerrainRaycast = terrainMesh ? terrainMesh.raycast : null;
-        if (terrainMesh) terrainMesh.raycast = () => {};
-        const intersections = ray.intersectObjects(this.world.scene.children, true);
-        if (terrainMesh) terrainMesh.raycast = savedTerrainRaycast;
+        const targets = this.world.getNearbyColliders(this.position, this.collisionRadius)
+            .filter(obj => obj !== this.world.terrainMesh);
+        const intersections = ray.intersectObjects(targets, true);
         
         let foundGround = false;
         let groundY = this.position.y;
@@ -456,7 +467,7 @@ export class Player extends Entity {
             if (distanceToGround < this.groundCheckDistance && distanceToGround > -0.1) {
                 if (this.velocity.y <= 0.1) {
                     foundGround = true;
-                    groundY = hitGroundY;
+                    groundY = hitGroundY;this.groundSurfaceObject=intersection.object;
                     break;
                 }
             }
@@ -469,7 +480,7 @@ export class Player extends Entity {
             if (tDist < this.groundCheckDistance && tDist > -0.1 && this.velocity.y <= 0.1) {
                 if (!foundGround || analyticY > groundY) {
                     foundGround = true;
-                    groundY = analyticY;
+                    groundY = analyticY;this.groundSurfaceObject=null;
                 }
             }
         }
@@ -494,7 +505,7 @@ export class Player extends Entity {
                     this.position.y = worldGroundLevel;
                     this.velocity.y = 0;
                     this.isGrounded = true;
-                    this.lastValidGroundY = worldGroundLevel;
+                    this.lastValidGroundY = worldGroundLevel;this.groundSurfaceObject=null;
                     return;
                 }
             }
@@ -516,7 +527,8 @@ export class Player extends Entity {
         const horizontalSpeed = Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.z * this.velocity.z);
         const isMoving = horizontalSpeed > 0.5;
         
-        if (isMoving && this.isGrounded) {
+        const cameraMotion=motionScale(this.game?.settings);
+        if (cameraMotion===0){this.bobOffset.set(0,0,0);this.bobTime=0;}else if (isMoving && this.isGrounded) {
             const bobFrequency = this.isSprinting ? 12 : 8;
             const bobAmplitude = this.isSprinting ? 0.06 : 0.03;
             
@@ -541,23 +553,32 @@ export class Player extends Entity {
         
         // Final camera position
         this.camera.position.set(
-            this.position.x + this.bobOffset.x,
-            this.position.y + this.currentHeight - 0.1 + this.bobOffset.y,
+            this.position.x + this.bobOffset.x*cameraMotion,
+            this.position.y + this.currentHeight - 0.1 + this.bobOffset.y*cameraMotion,
             this.position.z
         );
+        this.game?.bodyMotionSystem?.apply(this.camera, deltaTime);
+        if(!this.noclip&&this.game?.physicsSystem?.world){
+            this._headOrigin ||=new THREE.Vector3();this._headOffset ||=new THREE.Vector3();
+            this._headOrigin.set(this.position.x,this.position.y+this.currentHeight-.1,this.position.z);
+            this._headOffset.copy(this.camera.position).sub(this._headOrigin);const length=this._headOffset.length();
+            if(length>.001){this._headOffset.divideScalar(length);const safe=this.game.physicsSystem.clipCameraLean(this._headOrigin,this._headOffset,length);this.camera.position.copy(this._headOrigin).addScaledVector(this._headOffset,safe);}
+        }
     }
 
     updateStats(deltaTime) {
+        updateWounds(this,deltaTime);
         // Stamina drain/regen
         if (this.isSprinting) {
-            this.stats.stamina = Math.max(0, this.stats.stamina - 15 * deltaTime);
-        } else {
+            const drain = this.game?.perkSystem?.getEffects().staminaDrain || 0;
+            this.stats.stamina = Math.max(0, this.stats.stamina - 15 * (1+drain) * deltaTime);
+        } else if(!this.game?.bodyMotionSystem?.breathHolding) {
             this.stats.stamina = Math.min(this.stats.maxStamina, this.stats.stamina + 10 * deltaTime);
         }
         
         // Radiation damage
         if (this.stats.radiation > 50) {
-            const radDamage = (this.stats.radiation - 50) * 0.1 * deltaTime;
+            const radDamage = (this.stats.radiation - 50) * 0.1 * deltaTime*survivalPressure(this.game?.settings?.difficulty);
             this.stats.health = Math.max(0, this.stats.health - radDamage);
         }
         
@@ -572,10 +593,20 @@ export class Player extends Entity {
         
         // Raycast for interaction
         const raycaster = new THREE.Raycaster();
+        raycaster.camera = this.camera;
+        raycaster.far = this.interactionRange;
         raycaster.set(this.camera.position, this.camera.getWorldDirection(new THREE.Vector3()));
         
         // Check for interactive objects
-        const intersections = raycaster.intersectObjects(this.world.scene.children, true);
+        // Query interactive roots only. Raycasting the entire city also hit
+        // buildings, debris instances and effects before discarding them.
+        const targets = [];
+        const visit = object => {
+            if (object.userData?.isInteractive) { targets.push(object); return; }
+            for (const child of object.children) visit(child);
+        };
+        visit(this.world.scene);
+        const intersections = raycaster.intersectObjects(targets, true);
         let closestObject = null;
         let closestDistance = this.interactionRange;
         
@@ -591,28 +622,32 @@ export class Player extends Entity {
             }
         }
         
-        // Update lookingAt
+        // A nearby wall must block interactions even when an item is in range.
+        if (closestObject) {
+            raycaster.far = Math.max(0, closestDistance - 0.04);
+            const blockers = this.world.getNearbyColliders?.(this.camera.position, this.interactionRange) || [];
+            if (raycaster.intersectObjects(blockers, true).length) closestObject = null;
+        }
         this.lookingAt = closestObject;
     }
 
     takeDamage(amount, source) {
         if (this.godMode) return; // dev god mode
+        amount=incomingDamage(amount,this.game?.settings?.difficulty,source);
         // Apply powerup damage resistance (capped at 75%)
         if (this.game?.powerupSystem) {
             const resist = this.game.powerupSystem.getStat('damageResist');
             amount = amount * (1 - Math.min(resist, 0.75));
         }
         this.stats.health = Math.max(0, this.stats.health - amount);
+        addWound(this,amount,source);
         
         // Screen shake effect
         if (this.game) {
             this.game.cameraShake(0.3, 0.2);
         }
         
-        globalEventBus.emit(GameEvents.NOTIFICATION, {
-            message: `Took ${amount} damage`,
-            type: 'damage'
-        });
+        globalEventBus.emit('player:injured', { amount, source });
         
         if (this.stats.health <= 0) {
             this.die();
@@ -648,18 +683,14 @@ export class Player extends Entity {
         globalEventBus.emit(GameEvents.WEAPON_RELOAD, { weapon: this.equippedWeapon });
     }
 
-    useQuickSlot(index) {
-        const item = this.quickSlots[index];
-        if (item) {
-            // Use item logic
-        }
-    }
+    useQuickSlot(index) {this.game.inventorySystem?.useQuickSlot(index);}
 
     toggleFlashlight() {
         // Toggle flashlight logic
     }
 
     die() {
+        if(!this.isActive)return;
         this.isActive = false;
         globalEventBus.emit(GameEvents.PLAYER_DEATH);
     }

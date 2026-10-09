@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { Entity } from './Entity.js';
+import { HumanAnimationController } from '../systems/HumanAnimationSystem.js';
+import { buildAnatomicalActor } from './AnatomicalActor.js';
 import { globalEventBus, GameEvents } from '../core/EventBus.js';
 
 /**
@@ -52,77 +54,17 @@ export class NPC extends Entity {
     }
 
     createMesh() {
-        // Simple humanoid placeholder
-        const group = new THREE.Group();
-        
-        // Body
-        const bodyGeom = new THREE.CylinderGeometry(0.3, 0.35, 1.2, 8);
-        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x4a4a6a });
-        const body = new THREE.Mesh(bodyGeom, bodyMat);
-        body.position.y = 0.9;
-        group.add(body);
-        
-        // Head
-        const headGeom = new THREE.SphereGeometry(0.2, 8, 8);
-        const headMat = new THREE.MeshStandardMaterial({ color: 0xdeb887 });
-        const head = new THREE.Mesh(headGeom, headMat);
-        head.position.y = 1.7;
-        group.add(head);
-        
-        // Arms
-        const armGeom = new THREE.CylinderGeometry(0.08, 0.08, 0.8, 6);
-        const leftArm = new THREE.Mesh(armGeom, bodyMat);
-        leftArm.position.set(-0.4, 0.9, 0);
-        leftArm.rotation.z = 0.2;
-        group.add(leftArm);
-        
-        const rightArm = new THREE.Mesh(armGeom, bodyMat);
-        rightArm.position.set(0.4, 0.9, 0);
-        rightArm.rotation.z = -0.2;
-        group.add(rightArm);
-        
-        // Indicator based on NPC type
-        if (this.isTrader || this.availableQuests.length > 0) {
-            const indicatorGeom = new THREE.SphereGeometry(0.1, 8, 8);
-            const indicatorMat = new THREE.MeshBasicMaterial({
-                color: this.isTrader ? 0x00ff00 : 0xffff00
-            });
-            const indicator = new THREE.Mesh(indicatorGeom, indicatorMat);
-            indicator.position.y = 2.1;
-            indicator.name = 'indicator';
-            group.add(indicator);
-        }
-        
-        group.castShadow = true;
+        const {group} = buildAnatomicalActor({skinTone:0xc9a186,jacketColor:0x4b5143});
+        group.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
         this.setMesh(group);
+        this.humanAnimations=new HumanAnimationController(this);
     }
 
-    createNameplate() {
-        // Create nameplate using canvas texture
-        const canvas = document.createElement('canvas');
-        canvas.width = 256;
-        canvas.height = 64;
-        const ctx = canvas.getContext('2d');
-        
-        // Draw name
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.fillRect(0, 0, 256, 64);
-        ctx.fillStyle = '#b08d4f'; // muted brass (theme accent)
-        ctx.font = 'bold 24px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(this.name, 128, 32);
-        
-        const texture = new THREE.CanvasTexture(canvas);
-        const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
-        this.nameplate = new THREE.Sprite(material);
-        this.nameplate.scale.set(2, 0.5, 1);
-        this.nameplate.position.y = 2.3;
-        
-        this.mesh?.add(this.nameplate);
-    }
-
+    // Names belong in the interaction HUD, not as floating world geometry.
+    createNameplate() {}
+    destroy() {this.humanAnimations?.dispose();super.destroy();}
     update(deltaTime) {
+        this.humanAnimations?.update(deltaTime);
         super.update(deltaTime);
         
         // Look at player if nearby

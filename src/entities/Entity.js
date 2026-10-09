@@ -200,7 +200,7 @@ export class Entity {
         // Dispose geometry and materials
         if (this.mesh) {
             this.mesh.traverse(child => {
-                if (child.geometry) child.geometry.dispose();
+                if (child.geometry && !child.geometry.userData.shared) child.geometry.dispose();
                 if (child.material) {
                     if (Array.isArray(child.material)) {
                         child.material.forEach(m => m.dispose());

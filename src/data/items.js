@@ -1,7 +1,10 @@
+import { AdditionalWeapons } from './NewWeapons.js';
 /**
  * Item database - Define all game items
  */
 export const Items = {
+    frag_grenade:{id:'frag_grenade',name:'Fragmentation Grenade',type:'explosive',description:'Use to throw. Three-second fuse; blast damages nearby cover and people. Equip to a quick slot for combat.',weight:.55,stackable:true,maxStack:4,icon:'grenade',blastRadius:4.5,blastDamage:220},
+    weapon_knife:{id:'weapon_knife',name:'Combat Knife',type:'weapon',weaponId:'knife',description:'Quiet close-range blade. Poor against masonry.',weight:.3,stackable:false,icon:'knife'},
     // Medical
     medkit_small: {
         id: 'medkit_small',
@@ -645,6 +648,13 @@ export const Items = {
  * @param {string} id - Item ID
  * @returns {Object|null}
  */
+for(const [id,name,type,weight] of [['pm_pistol','PM Pistol','pistol',.73],['ak74','AK-74','rifle',3.3],['shotgun_toz','TOZ-34','shotgun',3.3],['svd_sniper','SVD Dragunov','sniper',4.3]]) {
+    Items['weapon_'+id]={id:'weapon_'+id,name,type:'weapon',weaponId:id,description:`Field ${type}`,weight,stackable:false,icon:id};
+}
+for(const weapon of Object.values(AdditionalWeapons)) {
+    Items['weapon_'+weapon.id]={id:'weapon_'+weapon.id,name:weapon.name,type:'weapon',weaponId:weapon.id,description:weapon.type==='melee'?`Close-range tool · ${weapon.damage} strike damage · ${weapon.structureDamage} structural damage`:`${weapon.shape} · ${weapon.magazineSize}-round capacity · ${weapon.ammoType} ammunition`,weight:weapon.weight,stackable:false,icon:weapon.type==='melee'?weapon.id:weapon.type==='pistol'?'pm_pistol':weapon.type==='shotgun'?'shotgun_toz':weapon.type==='sniper'?'svd_sniper':'ak74'};
+}
+
 export function getItem(id) {
     return Items[id] || null;
 }
