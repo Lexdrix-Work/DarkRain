@@ -2,9 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; connect-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Dark Rain: Pool of Darkness - A S.T.A.L.K.E.R.-inspired survival horror game">
-    <title>Dark Rain: Pool of Darkness</title>
+    <meta name="description" content="Dark Rain - A S.T.A.L.K.E.R.-inspired survival horror game">
+    <title>Dark Rain</title>
     <link rel="stylesheet" href="/src/styles/main.css">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0a0a'/%3E%3Ctext x='16' y='23' font-size='20' text-anchor='middle' fill='%23b08d4f'%3E%E2%98%82%3C/text%3E%3C/svg%3E">
 </head>
@@ -57,21 +58,23 @@
         <!-- Inventory Menu -->
         <div id="inventory-menu" class="menu hidden">
             <div class="menu-header">
-                <h2>INVENTORY</h2>
+                <h2>FIELD EQUIPMENT</h2><button id="gear-back">BACK</button>
             </div>
             <div id="inventory-container" class="menu-content">
+                <div id="gear-equipment"><div class="gear-section-title">EQUIPMENT</div><div id="gear-slots"></div><div id="gear-weapons"></div></div>
                 <div id="inventory-character-panel">
                     <canvas id="inventory-character-canvas" width="220" height="330"></canvas>
                     <div id="inventory-character-name">Stalker</div>
                     <div id="inventory-character-weapon">Equipped: Unarmed</div>
                 </div>
                 <div id="inventory-main">
-                    <div id="inventory-grid"></div>
+                    <div class="gear-section-title">BACKPACK · drag to equip or assign quick access</div><div id="inventory-grid"></div><div id="gear-description"><p>Select an item to examine it.</p></div>
                     <div id="inventory-info">
                         <span id="weight-display">Weight: 0/50 kg</span>
                     </div>
                 </div>
             </div>
+            <div id="gear-vitals"></div><div id="gear-belt"></div>
         </div>
         
         <!-- Character Creator Menu -->
@@ -99,6 +102,7 @@
                     </div>
                     <div class="creator-group">
                         <div class="creator-label">Face</div>
+                        <div id="creator-hair" class="creator-swatches"></div><div id="creator-hair-colors" class="creator-swatches"></div>
                         <div id="creator-beards" class="creator-swatches"></div>
                     </div>
                     <div class="creator-group">
@@ -202,9 +206,12 @@
                 <h2>Paused</h2>
             </div>
             <div class="menu-content">
+                <button id="tutorial-skip-btn" class="menu-button" hidden>Leave training — continue to outskirts</button>
                 <button id="resume-btn" class="menu-button primary">Resume</button>
                 <button id="save-btn" class="menu-button">Save Game</button>
                 <button id="load-btn" class="menu-button">Load Game</button>
+                <button id="photo-btn" class="menu-button">Photo mode</button>
+                <button id="statistics-btn" class="menu-button">Expedition statistics</button>
                 <button id="settings-btn" class="menu-button">Settings</button>
                 <button id="controls-btn" class="menu-button">Controls</button>
                 <button id="quit-btn" class="menu-button danger">Quit to Menu</button>
@@ -220,6 +227,9 @@
             <div class="menu-content">
                 <div class="settings-section">
                     <h3>Display</h3>
+                    <p id="performance-health" role="status" aria-live="polite">Play for a few seconds to measure performance.</p>
+                    <button id="perf-export-btn" class="menu-button">Save performance report</button>
+                    <p class="setting-desc">Attach this local report when reporting stutters. It contains timings and memory totals, not your saved game.</p>
                     <div class="setting-row">
                         <label>Fullscreen<span class="setting-desc">Toggle fullscreen window</span></label>
                         <div class="setting-control"><input type="checkbox" class="toggle" id="set-fullscreen"></div>
@@ -389,18 +399,26 @@
         <div id="main-menu" class="menu hidden">
             <div class="menu-background"></div>
             <div class="menu-content">
+                <div class="recorder-status">LOCAL ARCHIVE · ATLANTA FIELD RECORDER</div>
                 <h1 class="game-title">Dark Rain</h1>
-                <h2 class="game-subtitle">Pool of Darkness</h2>
+                <p class="game-subtitle">An ordinary city. An uncertain way home.</p>
+                <label class="tutorial-choice"><input type="checkbox" id="hardcore-start"> Hardcore permadeath<small>Death permanently ends this expedition. Its saves remain archived. Unchecked: drop your pack and respawn; world changes persist.</small></label>
+                <label class="tutorial-choice"><input id="tutorial-start" type="checkbox"> Learn in the dark service tunnel <small>Optional. Start outside the city; leave training at any time.</small></label>
+                <p id="startup-status" class="startup-status" aria-live="polite">Preparing local session…</p>
                 <div class="menu-buttons">
                     <button id="new-game-btn" class="menu-button">New Game</button>
                     <button id="continue-btn" class="menu-button">Continue</button>
                     <button id="load-game-btn" class="menu-button">Load Game</button>
                     <button id="options-btn" class="menu-button">Options</button>
                     <button id="controls-main-btn" class="menu-button">Controls</button>
+                    <button id="calibrate-btn" class="menu-button">Check this device · optional</button>
+                    <button id="calibrate-skip-btn" class="menu-button" hidden>Skip device check</button>
+                    <button id="calibrate-apply-btn" class="menu-button" hidden>Use suggested settings</button>
                 </div>
             </div>
         </div>
         
+        <div id="tutorial-note" hidden aria-live="polite"></div>
         <!-- Death Screen -->
         <div id="death-screen" class="menu hidden">
             <div class="death-content">
@@ -419,8 +437,9 @@
          align-items:center; justify-content:center; text-align:center; padding:40px;">
         <div>
             <h2 style="color:#b08d4f;">DARK RAIN failed to start</h2>
+            <button onclick="location.reload()">Retry</button> <button onclick="window.darkRainDesktop?.graphics ? window.darkRainDesktop.graphics.restartFallback(false) : location.assign(location.pathname+'?backend=webgl')">Fallback renderer</button>
             <p id="boot-error-detail">The game did not finish loading. Check the console (F12) for errors.</p>
-            <p style="opacity:0.7; font-size:12px;">If this is the desktop build, try deleting the<br>save data folder and relaunching.</p>
+            <p style="opacity:0.7; font-size:12px;">Your saved games are kept. Retry or use the fallback renderer.</p>
         </div>
     </div>
     <script>
